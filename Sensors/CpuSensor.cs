@@ -48,6 +48,8 @@ internal sealed class CpuSensor
             mhz.Count > 0 ? mhz.Max() : 0)
         {
             PerfLimitPercent = _pdh.Get(_perfLimit),
+            CoreClasses = loads.Keys.Select(k => Native.CpuTopology.Get(k.Group, k.Index)?.EfficiencyClass ?? 0).ToArray(),
+            IsHybrid = Native.CpuTopology.IsHybrid,
         };
     }
 

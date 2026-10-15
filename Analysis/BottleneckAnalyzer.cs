@@ -218,8 +218,10 @@ public sealed class BottleneckAnalyzer
         string why = s.FrameSourceRunning ? "keine 3D-Anwendung erkannt" : s.FrameSourceStatus;
         if (gpuLoad >= 95)
             return new("GPU-LIMITIERT", $"GPU {gpuLoad:0} % (geschätzt, {why})", Severity.Good, notes);
-        if (s.Cpu.MaxCoreLoad >= 90 && gpuLoad is > 20 and < 85)
-            return new("CPU-LIMITIERT?", $"ein Kern bei {s.Cpu.MaxCoreLoad:0} %, GPU nur {gpuLoad:0} % (geschätzt, {why})", Severity.Warn, notes);
+        // Bei Hybrid-CPUs zählen nur die P-Kerne: Ein voller E-Kern (z. B. Hintergrund-Update) bremst kein Spiel.
+        string coreKind = s.Cpu.IsHybrid ? "ein P-Kern" : "ein Kern";
+        if (s.Cpu.MaxPerfCoreLoad >= 90 && gpuLoad is > 20 and < 85)
+            return new("CPU-LIMITIERT?", $"{coreKind} bei {s.Cpu.MaxPerfCoreLoad:0} %, GPU nur {gpuLoad:0} % (geschätzt, {why})", Severity.Warn, notes);
         if (s.Cpu.TotalLoad >= 85)
             return new("CPU AUSGELASTET", $"CPU gesamt {s.Cpu.TotalLoad:0} % ({why})", Severity.Warn, notes);
         return new("KEIN ENGPASS", $"System hat Reserven ({why})", Severity.Good, notes);

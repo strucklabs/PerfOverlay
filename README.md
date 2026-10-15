@@ -66,7 +66,8 @@ ausgelasteten Render-Thread auf mehrere Kerne verteilt.
 | AMD-CPUs ohne HWiNFO | ⚠️ Windows-„% Leistungslimit“ bleibt bei EDC-Begrenzung auf 100 %, Drosselung also nicht erkennbar |
 | CPU-Temperaturbewertung | relativ zu TjMax (Intel: aus HWiNFO berechnet; AMD: nach Modell 89/90/95 °C, Hinweis nur bei Drosselung) |
 | Mehrere Monitore | Overlay wechselt auf den Monitor, auf dem das Spiel im Vordergrund läuft |
-| Mehr als ~32 Threads | Kernbalken passen nicht in die feste Breite (wird mit der P-/E-Kern-Trennung gelöst) |
+| Hybrid-CPUs (Intel ab 12. Gen.) | ✅ P- und E-Kerne getrennt (Windows `GetSystemCpuSetInformation`, auch unter Windows 10); CPU-Schätzung nutzt nur P-Kerne |
+| Viele Threads | Kernbalken skalieren ihre Breite, bis 64 Threads passen sie ins Overlay |
 | Exklusiver Vollbildmodus | ❌ Overlay nicht sichtbar (nur randlos/Fenster) |
 
 ## Ideen für Phase 2

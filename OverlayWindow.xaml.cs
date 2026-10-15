@@ -152,8 +152,12 @@ public partial class OverlayWindow : Window
             }
         }
         Line(CpuLine, cpuParts.ToArray());
-        RenderCoreBars(c.CoreLoads);
-        Line(CoreMaxLine, L("max "), (Pct(c.MaxCoreLoad), LoadBrush(c.MaxCoreLoad)));
+        RenderCoreBars(c);
+        if (c.IsHybrid)
+            Line(CoreMaxLine, L("P max "), (Pct(c.MaxPerfCoreLoad), LoadBrush(c.MaxPerfCoreLoad)),
+                L("  E max "), (Pct(c.MaxEffCoreLoad), MutedBrush));
+        else
+            Line(CoreMaxLine, L("max "), (Pct(c.MaxCoreLoad), LoadBrush(c.MaxCoreLoad)));
 
         // GPU
         var g = s.Gpu;
@@ -247,24 +251,49 @@ public partial class OverlayWindow : Window
         : t.TotalHours < 1 ? $"{(int)t.TotalMinutes}:{t.Seconds:00}"
         : $"{(int)t.TotalHours}:{t.Minutes:00} h";
 
-    private void RenderCoreBars(double[] loads)
+    /// <summary>Platz für die Balken neben dem Max-Label (Overlay-Breite 460 minus Einzug und Label).</summary>
+    private const double CoreBarsWidth = 230;
+
+    private int[] _coreOrder = [];
+
+    /// <summary>
+    /// Ein Balken pro logischem Kern. Bei Hybrid-CPUs zuerst die P-Kerne, dann mit Abstand die E-Kerne
+    /// (gedimmt, da sie für Spiele selten entscheidend sind). Die Breite passt sich der Kernzahl an,
+    /// damit auch CPUs mit 64 Threads in die feste Overlay-Breite passen.
+    /// </summary>
+    private void RenderCoreBars(CpuData cpu)
     {
+        var loads = cpu.CoreLoads;
         if (CoreBars.Children.Count != loads.Length)
         {
+            _coreOrder = Enumerable.Range(0, loads.Length).OrderByDescending(i => cpu.IsPerfCore(i)).ToArray();
+            int groupGaps = cpu.IsHybrid ? 2 : 0;
+            double slot = Math.Clamp(Math.Floor(CoreBarsWidth / (loads.Length + groupGaps)), 3, 8);
+            double gap = slot >= 6 ? 2 : 1;
+
             CoreBars.Children.Clear();
-            for (int i = 0; i < loads.Length; i++)
+            for (int n = 0; n < _coreOrder.Length; n++)
             {
-                var cell = new Grid { Width = 6, Height = BarHeight, Margin = new Thickness(0, 0, 2, 0) };
+                bool perf = cpu.IsPerfCore(_coreOrder[n]);
+                bool firstEfficiency = cpu.IsHybrid && !perf && (n == 0 || cpu.IsPerfCore(_coreOrder[n - 1]));
+                var cell = new Grid
+                {
+                    Width = slot - gap,
+                    Height = BarHeight,
+                    Margin = new Thickness(firstEfficiency ? slot * groupGaps : 0, 0, gap, 0),
+                    Opacity = perf ? 1.0 : 0.6,
+                };
                 cell.Children.Add(new Rectangle { Fill = BarBackBrush });
                 cell.Children.Add(new Rectangle { VerticalAlignment = VerticalAlignment.Bottom });
                 CoreBars.Children.Add(cell);
             }
         }
-        for (int i = 0; i < loads.Length; i++)
+        for (int n = 0; n < _coreOrder.Length; n++)
         {
-            var bar = (Rectangle)((Grid)CoreBars.Children[i]).Children[1];
-            bar.Height = Math.Max(1, loads[i] / 100 * BarHeight);
-            bar.Fill = LoadBrush(loads[i]) ?? GoodBrush;
+            double load = loads[_coreOrder[n]];
+            var bar = (Rectangle)((Grid)CoreBars.Children[n]).Children[1];
+            bar.Height = Math.Max(1, load / 100 * BarHeight);
+            bar.Fill = LoadBrush(load) ?? GoodBrush;
         }
     }
 

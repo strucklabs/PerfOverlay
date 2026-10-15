@@ -10,6 +10,25 @@ public sealed record CpuData(
 
     /// <summary>Windows "% Performance Limit": 100 = unbegrenzt, darunter bremst Power-/Temperaturlimit.</summary>
     public double? PerfLimitPercent { get; init; }
+
+    /// <summary>Effizienzklasse je logischem Kern (gleiche Reihenfolge wie CoreLoads); höher = Performance-Kern.</summary>
+    public int[] CoreClasses { get; init; } = [];
+
+    /// <summary>Hybrid-CPU mit P- und E-Kernen (Intel ab 12. Generation).</summary>
+    public bool IsHybrid { get; init; }
+
+    private int TopClass => CoreClasses.Length > 0 ? CoreClasses.Max() : 0;
+
+    /// <summary>Stärkster P-Kern – bei Hybrid-CPUs der für Spiele relevante Wert, sonst wie MaxCoreLoad.</summary>
+    public double MaxPerfCoreLoad => IsHybrid && CoreClasses.Length == CoreLoads.Length
+        ? CoreLoads.Where((_, i) => CoreClasses[i] == TopClass).DefaultIfEmpty(0).Max()
+        : MaxCoreLoad;
+
+    public double MaxEffCoreLoad => IsHybrid && CoreClasses.Length == CoreLoads.Length
+        ? CoreLoads.Where((_, i) => CoreClasses[i] != TopClass).DefaultIfEmpty(0).Max()
+        : 0;
+
+    public bool IsPerfCore(int i) => !IsHybrid || i >= CoreClasses.Length || CoreClasses[i] == TopClass;
 }
 
 /// <summary>CPU-Werte, die nur mit Ring-0-Zugriff lesbar sind – hier aus dem Shared Memory von HWiNFO.</summary>
