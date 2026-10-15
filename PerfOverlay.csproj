@@ -24,7 +24,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="tools\PresentMon.exe" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Wird als eigener Prozess gestartet, darf also nicht in eine Single-File-EXE gebündelt werden -->
+    <None Update="tools\PresentMon.exe" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
 
 </Project>

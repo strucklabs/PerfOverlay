@@ -42,6 +42,13 @@ internal static class SelfTest
         log.AppendLine();
         log.AppendLine(JsonSerializer.Serialize(snapshot, json));
         log.AppendLine(JsonSerializer.Serialize(verdict, json));
+
+        log.AppendLine();
+        log.AppendLine("=== System ===");
+        log.AppendLine($"Windows: {Environment.OSVersion.VersionString}   Kerne (logisch): {Environment.ProcessorCount}");
+        log.AppendLine();
+        log.AppendLine("=== HWiNFO: CPU-Sensoren (Rohdaten) ===");
+        log.AppendLine(HwInfoSensor.DumpCpuReadings());
         File.WriteAllText(Path.Combine(dir, "selftest.txt"), log.ToString());
 
         var window = new OverlayWindow();

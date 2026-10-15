@@ -163,6 +163,43 @@ internal sealed class HwInfoSensor : IDisposable
         return null;
     }
 
+    /// <summary>
+    /// Für Tests auf fremder Hardware: alle Messwerte der CPU-Sensoren als Text
+    /// (Sensor | Label | Wert Einheit), damit die Zuordnung z. B. für AMD angepasst werden kann.
+    /// </summary>
+    public static string DumpCpuReadings()
+    {
+        try
+        {
+            using var mmf = MemoryMappedFile.OpenExisting(MapName, MemoryMappedFileRights.Read);
+            using var v = mmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
+            uint offS = v.ReadUInt32(20), sizeS = v.ReadUInt32(24), numS = v.ReadUInt32(28);
+            uint offR = v.ReadUInt32(32), sizeR = v.ReadUInt32(36), numR = v.ReadUInt32(40);
+
+            var sb = new StringBuilder();
+            var sensors = new string[numS];
+            for (int i = 0; i < numS; i++)
+            {
+                sensors[i] = ReadString(v, offS + (long)i * sizeS + 8, 128);
+                // Nur CPU und Mainboard: Laufwerks-Sensoren enthalten Seriennummern
+                if (sensors[i].StartsWith("CPU [#", StringComparison.Ordinal) || sensors[i].StartsWith("System:", StringComparison.Ordinal))
+                    sb.AppendLine($"Sensor {i}: {sensors[i]}");
+            }
+            for (long i = 0; i < numR; i++)
+            {
+                long o = offR + i * sizeR;
+                uint si = v.ReadUInt32(o + 4);
+                if (si >= numS || !sensors[si].StartsWith("CPU [#", StringComparison.Ordinal)) continue;
+                sb.AppendLine($"  [{si}] {ReadString(v, o + 12, 128)} | {v.ReadDouble(o + 284):0.##} {ReadString(v, o + 268, 16)}");
+            }
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            return "HWiNFO Shared Memory nicht verfügbar: " + ex.Message;
+        }
+    }
+
     private static string ReadString(MemoryMappedViewAccessor v, long offset, int length)
     {
         var buffer = new byte[length];
