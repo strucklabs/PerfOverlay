@@ -213,8 +213,9 @@ internal sealed class PresentMonSource : IDisposable
                 return valid.Count > 0 ? valid.Average() : double.NaN;
             }
 
-            // Ruckler: einzelne Frames deutlich über dem Median (mindestens 25 ms, also unter 40 FPS)
-            double spikeLimit = Math.Max(25, Math.Max(median * 2.5, median + 12));
+            // Ruckler: einzelne Frames deutlich über dem Median, mindestens 20 ms. Mit 1,8 × wird bei
+            // 60 FPS schon ein doppelt angezeigtes Bild (33 ms statt 16,7 ms) erfasst – sichtbares Mikroruckeln.
+            double spikeLimit = Math.Max(20, Math.Max(median * 1.8, median + 8));
             var last = recent[^1];
 
             return new FrameStats(

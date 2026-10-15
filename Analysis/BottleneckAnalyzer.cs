@@ -283,18 +283,32 @@ public sealed class BottleneckAnalyzer
                 Tip = "Mehr FPS: DLSS/FSR, Schatten oder Raytracing reduzieren",
             };
 
-        if (cpuWaitShare >= 0.25 && gpuShare < 0.85)
-        {
-            bool vsync = f.SyncInterval >= 1;
-            return new(vsync ? "VSYNC" : "FPS-LIMIT", $"{shares} – CPU und GPU haben Reserven", Severity.Good, notes)
+        bool vsync = f.SyncInterval >= 1;
+        Verdict Limited(string detail) =>
+            new(vsync ? "VSYNC" : "FPS-LIMIT", detail, Severity.Good, notes)
             {
                 Kind = BottleneckKind.Limit,
                 Tip = vsync ? "Begrenzt durch VSync auf die Bildwiederholrate" : "Begrenzt durch ein FPS-Limit – kein Engpass",
             };
-        }
+
+        if (cpuWaitShare >= 0.25 && gpuShare < 0.85)
+            return Limited($"{shares} – CPU und GPU haben Reserven");
 
         if (gpuShare < 0.85 && (gpuIdleShare >= 0.15 || cpuShare >= 0.85))
         {
+            // Nicht jede "GPU wartet"-Situation ist ein CPU-Limit: Viele Spiele (beobachtet: Warframe mit
+            // 60-FPS-Limit) warten für ihren Begrenzer innerhalb des CPU-Frames. PresentMon zählt das als
+            // CPU-Busy, obwohl die CPU kaum arbeitet. Ein echtes CPU-Limit braucht daher eine ausgelastete CPU:
+            // den Hauptthread (genau) oder ersatzweise einen P-Kern (unschärfer wegen Thread-Hopping).
+            bool cpuSaturated = s.MainThread is { } main ? main.Percent >= 70 : s.Cpu.MaxPerfCoreLoad >= 85;
+            if (!cpuSaturated || (s.MainThread == null && IsSteadyCap(f)))
+            {
+                string why = s.MainThread is { } m
+                    ? $"Hauptthread nur {m.Percent:0} % – Begrenzer im Spiel"
+                    : $"stabil bei {1000 / f.MedianMs:0} FPS – Begrenzer im Spiel";
+                return Limited($"{shares} – {why}");
+            }
+
             // Bei CPU-Limit die größten anderen CPU-Verbraucher nennen
             var background = s.BackgroundCpu.Where(p => p.Percent >= 5).Take(2).ToList();
             if (background.Count > 0)
@@ -315,6 +329,19 @@ public sealed class BottleneckAnalyzer
             Kind = BottleneckKind.Mixed,
             Tip = "Engpass wechselt je nach Szene – Anteile im Balken beachten",
         };
+    }
+
+    private static readonly double[] CommonCaps = [30, 40, 45, 48, 50, 60, 72, 75, 90, 100, 120, 144, 165, 170, 180, 200, 240, 360];
+
+    /// <summary>
+    /// Frametime liegt stabil (Mittel ≈ Median) auf einem typischen FPS-Limit (± 2 %).
+    /// Ein echtes CPU-Limit schwankt mit der Szene und trifft selten genau 60,0 oder 144,0 FPS.
+    /// </summary>
+    private static bool IsSteadyCap(FrameStats f)
+    {
+        double fps = 1000 / f.MedianMs;
+        bool steady = Math.Abs(f.AvgMs - f.MedianMs) / f.MedianMs < 0.05;
+        return steady && CommonCaps.Any(cap => Math.Abs(fps - cap) / cap < 0.02);
     }
 
     /// <summary>Ordnet einen Ruckler dem nächstgelegenen Messtakt (± 0,75 s) zu.</summary>
