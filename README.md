@@ -57,12 +57,13 @@ ausgelasteten Render-Thread auf mehrere Kerne verteilt.
 | Bereich | Status |
 |---|---|
 | Windows 10 22H2, Intel Core i5-13600KF, RTX 3080, 2 Monitore | ✅ getestet |
-| Windows 11 | sollte funktionieren, ungetestet |
-| Beliebige Kernzahl, beliebige Windows-Sprache | ✅ (Kerne zur Laufzeit ermittelt, englische PDH-Namen) |
+| Windows 11 25H2, AMD Ryzen 9 5900XT (32 Threads), RTX 4070 SUPER | ✅ Selbsttest (Leerlauf + Last) |
+| Beliebige Kernzahl, beliebige Windows-Sprache | ✅ (Kerne zur Laufzeit ermittelt, englische PDH-Namen; 32 Threads passen) |
 | NVIDIA-Karten (NVML) | ✅ |
 | AMD-/Intel-Grafikkarten | ⚠️ nur Auslastung und VRAM über Windows-Zähler, ungetestet |
-| AMD-CPUs mit HWiNFO | ⚠️ Temperatur/Leistung vorgesehen, Drosselungsgründe nur teilweise, ungetestet |
-| CPU-Temperaturbewertung | relativ zu TjMax (Intel: aus HWiNFO berechnet; AMD: 95 °C, Hinweis nur bei Drosselung) |
+| AMD-CPUs mit HWiNFO | ✅ Tctl/Tdie, Package Power, Drosselung über PPT/TDC/EDC-Limit (%) und HTC/PROCHOT, Power Reporting Deviation |
+| AMD-CPUs ohne HWiNFO | ⚠️ Windows-„% Leistungslimit“ bleibt bei EDC-Begrenzung auf 100 %, Drosselung also nicht erkennbar |
+| CPU-Temperaturbewertung | relativ zu TjMax (Intel: aus HWiNFO berechnet; AMD: nach Modell 89/90/95 °C, Hinweis nur bei Drosselung) |
 | Mehrere Monitore | Overlay wechselt auf den Monitor, auf dem das Spiel im Vordergrund läuft |
 | Mehr als ~32 Threads | Kernbalken passen nicht in die feste Breite (wird mit der P-/E-Kern-Trennung gelöst) |
 | Exklusiver Vollbildmodus | ❌ Overlay nicht sichtbar (nur randlos/Fenster) |

@@ -21,7 +21,8 @@ public sealed record CpuThermalData(
     double? PowerLimitW,                    // PL1
     IReadOnlyList<string> ThrottleReasons,  // aktive Drosselungsgründe, bereits auf Deutsch zusammengefasst
     double? TjMaxC,                         // Maximaltemperatur der CPU (Intel: aus "Distance to TjMAX" berechnet)
-    bool IsAmd)                             // Ryzen boostet bis an TjMax – hohe Temperatur ist dort Normalbetrieb
+    bool IsAmd,                             // Ryzen boostet bis an TjMax – hohe Temperatur ist dort Normalbetrieb
+    double? PowerReportingDeviation = null) // AMD: < 100 % = Mainboard meldet der CPU zu wenig Strom
 {
     /// <summary>Wie weit die CPU noch von ihrer Maximaltemperatur entfernt ist.</summary>
     public double? HeadroomC => TempC is double t && TjMaxC is double tj ? tj - t : null;

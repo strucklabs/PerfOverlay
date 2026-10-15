@@ -34,7 +34,10 @@ internal sealed class HwInfoSensor : IDisposable
     private long _temp = -1, _coreMax = -1, _power = -1, _powerLimit = -1;
     private long _tjTemp = -1, _tjDistance = -1;   // Kerntemperatur + "Distance to TjMAX" desselben Kerns
     private bool _isAmd;
-    private readonly List<(long Offset, string Reason)> _flags = new();
+    private string _cpuName = "";
+    private long _powerDeviation = -1;
+    private readonly List<(long Offset, string Reason)> _flags = new();    // Intel/AMD: Ja/Nein-Flags
+    private readonly List<(long Offset, string Reason)> _limits = new();   // AMD: Auslastung eines Limits in %
 
     public CpuThermalData? Read()
     {
@@ -55,19 +58,21 @@ internal sealed class HwInfoSensor : IDisposable
 
             double? Value(long offset) => offset >= 0 ? v.ReadDouble(offset + 284) : null;
 
+            // AMD meldet PPT/TDC/EDC nicht als Flag, sondern als Ausschöpfung in % – ab 99 % greift das Limit.
             var reasons = _flags
                 .Where(f => v.ReadDouble(f.Offset + 284) > 0.5)
+                .Concat(_limits.Where(l => v.ReadDouble(l.Offset + 284) >= 99))
                 .Select(f => f.Reason)
                 .Distinct()
                 .ToList();
             if (reasons.Contains("Temperatur (PROCHOT)")) reasons.Remove("Temperatur");
 
-            // TjMax steht nicht direkt im Shared Memory, ergibt sich aber aus Temperatur + Abstand zu TjMax.
-            // Bei AMD fehlt der Abstand; Ryzen 3000/7000/9000 haben 95 °C (Ryzen 5000: 90 °C).
-            double? tjMax = Value(_tjTemp) + Value(_tjDistance) ?? (_isAmd ? 95 : null);
+            // TjMax steht nicht direkt im Shared Memory. Intel: Temperatur + Abstand zu TjMax.
+            // AMD: kein Abstand vorhanden, daher aus dem Modellnamen abgeleitet.
+            double? tjMax = Value(_tjTemp) + Value(_tjDistance) ?? (_isAmd ? AmdTjMax(_cpuName) : null);
 
             return new CpuThermalData("HWiNFO", Value(_temp), Value(_coreMax), Value(_power), Value(_powerLimit),
-                reasons, tjMax, _isAmd);
+                reasons, tjMax, _isAmd, Value(_powerDeviation));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
@@ -102,9 +107,13 @@ internal sealed class HwInfoSensor : IDisposable
         for (int i = 0; i < numS; i++)
             sensors[i] = ReadString(v, offS + (long)i * sizeS + 8, 128);
 
-        _temp = _coreMax = _power = _powerLimit = _tjTemp = _tjDistance = -1;
+        _temp = _coreMax = _power = _powerLimit = _tjTemp = _tjDistance = _powerDeviation = -1;
         _flags.Clear();
-        _isAmd = sensors.Any(s => s.StartsWith("CPU [#", StringComparison.Ordinal) && s.Contains("AMD"));
+        _limits.Clear();
+        // Sensorname z. B. "CPU [#0]: AMD Ryzen 9 5900XT" bzw. "CPU [#0]: Intel Core i5-13600KF: DTS"
+        string cpuSensor = sensors.FirstOrDefault(s => s.StartsWith("CPU [#", StringComparison.Ordinal)) ?? "";
+        _cpuName = cpuSensor.Split(':').ElementAtOrDefault(1)?.Trim() ?? "";
+        _isAmd = _cpuName.Contains("AMD");
         int tempRank = int.MaxValue;
         var coreTemps = new Dictionary<(uint Sensor, string Label), long>();
         var distances = new List<(uint Sensor, string BaseLabel, long Offset)>();
@@ -125,6 +134,10 @@ internal sealed class HwInfoSensor : IDisposable
             else if (label == "CPU Package Power" && _power < 0) _power = o;
             else if (label.StartsWith("PL1 Power Limit", StringComparison.Ordinal) && _powerLimit < 0) _powerLimit = o;
             else if (unit == "Yes/No" && ThrottleReason(label) is string reason) _flags.Add((o, reason));
+            else if (label == "CPU PPT Limit") _limits.Add((o, "Power-Limit (PPT)"));
+            else if (label == "CPU TDC Limit") _limits.Add((o, "Stromlimit (TDC)"));
+            else if (label == "CPU EDC Limit") _limits.Add((o, "Stromlimit (EDC)"));
+            else if (label.StartsWith("Power Reporting Deviation", StringComparison.Ordinal)) _powerDeviation = o;
 
             if (label.EndsWith(DistanceSuffix, StringComparison.Ordinal))
                 distances.Add((sensorIndex, label[..^DistanceSuffix.Length], o));
@@ -142,6 +155,22 @@ internal sealed class HwInfoSensor : IDisposable
             }
         }
         _indexedCount = numR;
+    }
+
+    /// <summary>
+    /// TjMax laut AMD-Spezifikation: Ryzen 5000 (Zen 3) 90 °C, X3D-Modelle der 7000er 89 °C,
+    /// sonst (Ryzen 3000, 7000, 9000) 95 °C.
+    /// </summary>
+    private static double AmdTjMax(string name)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(name, @"Ryzen \d+ (\d)\d{3}");
+        if (!m.Success) return 95;
+        return m.Groups[1].Value switch
+        {
+            "5" => 90,
+            "7" when name.Contains("X3D") => 89,
+            _ => 95,
+        };
     }
 
     /// <summary>

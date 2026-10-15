@@ -111,10 +111,11 @@ public sealed class BottleneckAnalyzer
         // --- CPU-Drosselung: genau mit HWiNFO, sonst über das Windows-Leistungslimit ---
         if (s.CpuThermal is { } cpuThermal)
         {
-            // Das Intel-Flag "Electrical Design Point/Other" ist bei Alder/Raptor Lake auch bei leichter Last
-            // gesetzt (beobachtet: 14 % Last, 56 W). Es zählt daher erst, wenn die CPU wirklich ausgelastet ist.
+            // Stromlimits (Intel ICCmax/EDP, AMD TDC/EDC) zählen erst bei hoher Last: Das Intel-Flag
+            // "Electrical Design Point/Other" ist bei Alder/Raptor Lake auch bei 14 % Last gesetzt, und
+            // AMD-EDC wird bei kurzen Lastspitzen einzelner Kerne erreicht, ohne dass das Spiel bremst.
             var reasons = cpuThermal.ThrottleReasons
-                .Where(r => !r.StartsWith("Stromlimit (ICCmax") || s.Cpu.TotalLoad >= 80)
+                .Where(r => !r.StartsWith("Stromlimit") || s.Cpu.TotalLoad >= 80)
                 .ToList();
             if (reasons.Count > 0 && s.Cpu.TotalLoad > 15)
             {
@@ -122,6 +123,12 @@ public sealed class BottleneckAnalyzer
                 notes.Add(new("cpu-throttle", $"CPU drosselt: {string.Join(", ", reasons)}",
                     thermal ? Severity.Bad : Severity.Warn));
             }
+            // AMD "Power Reporting Deviation": nur unter Volllast aussagekräftig. Deutlich unter 100 % heißt,
+            // das Mainboard meldet der CPU zu wenig Strom – sie boostet dann mit mehr Leistung als vorgesehen.
+            if (cpuThermal.IsAmd && cpuThermal.PowerReportingDeviation is double prd && prd < 90 && s.Cpu.TotalLoad >= 80)
+                notes.Add(new("amd-prd",
+                    $"Mainboard meldet CPU-Strom zu niedrig (Power Reporting Deviation {prd:0} %)", Severity.Info));
+
             // Ryzen boostet bewusst bis an TjMax – dort zählen nur die Drosselungs-Flags.
             // Intel: Warnung, wenn weniger als 5 °C Abstand zur Maximaltemperatur bleiben.
             if (!cpuThermal.IsAmd && cpuThermal.TempC is double cpuTemp)
