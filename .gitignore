@@ -1,0 +1,13 @@
+# Build-Ausgaben
+bin/
+obj/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Claude Code (lokale Einstellungen)
+.claude/settings.local.json
