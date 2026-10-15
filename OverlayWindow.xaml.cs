@@ -33,6 +33,7 @@ public partial class OverlayWindow : Window
     private System.Windows.Forms.NotifyIcon? _tray;
     private IntPtr _hwnd;
     private int _corner = 1;   // 0 = oben links, 1 = oben rechts, 2 = unten rechts, 3 = unten links
+    private IntPtr _monitor = Win32.PrimaryMonitor;
     private bool _details = true;
     private bool _exiting;
 
@@ -83,6 +84,7 @@ public partial class OverlayWindow : Window
         Win32.RegisterHotKey(_hwnd, HotkeyCorner, mods, VK_F9);
         Win32.RegisterHotKey(_hwnd, HotkeyToggle, mods, VK_F10);
         Win32.RegisterHotKey(_hwnd, HotkeyDetails, mods, VK_F8);
+        Reposition();
 
         CreateTray();
         _hub = new SensorHub();
@@ -102,6 +104,7 @@ public partial class OverlayWindow : Window
                 if (_exiting) return;
                 var verdict = _analyzer.Analyze(snapshot);
                 Render(snapshot, verdict, LogNotes(verdict, snapshot.Time));
+                FollowGameMonitor(snapshot);
                 // Manche Spiele schieben sich nach vorn – Topmost regelmäßig erneuern
                 Win32.SetWindowPos(_hwnd, Win32.HWND_TOPMOST, 0, 0, 0, 0,
                     Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE | Win32.SWP_NOOWNERZORDER);
@@ -141,7 +144,7 @@ public partial class OverlayWindow : Window
         };
         if (s.CpuThermal is { } th)
         {
-            if (th.TempC is double ct) { cpuParts.Add(L("  ")); cpuParts.Add(($"{ct:0} °C", CpuTempBrush(ct))); }
+            if (th.TempC is double ct) { cpuParts.Add(L("  ")); cpuParts.Add(($"{ct:0} °C", CpuTempBrush(th))); }
             if (th.PowerW is double cw)
             {
                 cpuParts.Add(L("  ")); cpuParts.Add(V($"{cw:0}"));
@@ -279,7 +282,17 @@ public partial class OverlayWindow : Window
 
     private static Brush? LoadBrush(double load) => load >= 90 ? BadBrush : load >= 70 ? WarnBrush : null;
     private static Brush? TempBrush(double t) => t >= 87 ? BadBrush : t >= 80 ? WarnBrush : null;
-    private static Brush? CpuTempBrush(double t) => t >= 95 ? BadBrush : t >= 85 ? WarnBrush : null;
+    /// <summary>
+    /// Farbe relativ zur Maximaltemperatur (TjMax) statt fester Grenzen: Ryzen 7000 läuft regulär bei 95 °C,
+    /// ein Intel mit TjMax 100 °C wäre dort schon kurz vor der Drosselung.
+    /// </summary>
+    private static Brush? CpuTempBrush(CpuThermalData th)
+    {
+        if (th.TempC is not double t) return null;
+        double headroom = th.HeadroomC ?? 100 - t;
+        if (th.IsAmd) return headroom <= 0 ? WarnBrush : null;
+        return headroom <= 5 ? BadBrush : headroom <= 15 ? WarnBrush : null;
+    }
 
     private static Brush SeverityBrush(Severity s) => s switch
     {
@@ -298,12 +311,47 @@ public partial class OverlayWindow : Window
 
     // ------------------------------------------------------------------ Position, Hotkeys, Tray
 
+    /// <summary>
+    /// Wechselt auf den Monitor des Spiels, sobald es im Vordergrund ist und Frames liefert.
+    /// Auf dem Desktop (Alt+Tab) bleibt das Overlay, wo es ist, statt hin und her zu springen.
+    /// </summary>
+    private void FollowGameMonitor(Snapshot s)
+    {
+        if (s.Frames == null) return;
+        IntPtr fg = Win32.GetForegroundWindow();
+        if (fg == IntPtr.Zero) return;
+        Win32.GetWindowThreadProcessId(fg, out uint pid);
+        if (pid != s.Frames.Pid) return;
+
+        IntPtr monitor = Win32.MonitorFromWindow(fg, Win32.MONITOR_DEFAULTTONEAREST);
+        if (monitor != _monitor)
+        {
+            _monitor = monitor;
+            Reposition();
+        }
+    }
+
+    /// <summary>
+    /// Positioniert in physischen Pixeln über Win32, weil WPF-Koordinaten bei Monitoren mit
+    /// unterschiedlicher Skalierung nicht eindeutig sind. Wechselt dabei die DPI, skaliert WPF das
+    /// Fenster neu, SizeChanged ruft diese Methode erneut auf und die Ecke stimmt wieder.
+    /// </summary>
     private void Reposition()
     {
-        var area = SystemParameters.WorkArea;
-        const double margin = 12;
-        Left = _corner is 0 or 3 ? area.Left + margin : area.Right - ActualWidth - margin;
-        Top = _corner is 0 or 1 ? area.Top + margin : area.Bottom - ActualHeight - margin;
+        if (_hwnd == IntPtr.Zero) return;
+        if (Win32.GetWorkArea(_monitor) is not { } area)
+        {
+            _monitor = Win32.PrimaryMonitor;   // Monitor wurde abgesteckt
+            if (Win32.GetWorkArea(_monitor) is not { } primary) return;
+            area = primary;
+        }
+        Win32.GetWindowRect(_hwnd, out var rect);
+        int w = rect.Right - rect.Left, h = rect.Bottom - rect.Top;
+        int margin = (int)Math.Round(12 * VisualTreeHelper.GetDpi(this).DpiScaleX);
+
+        int x = _corner is 0 or 3 ? area.Left + margin : area.Right - w - margin;
+        int y = _corner is 0 or 1 ? area.Top + margin : area.Bottom - h - margin;
+        Win32.SetWindowPos(_hwnd, Win32.HWND_TOPMOST, x, y, 0, 0, Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE);
     }
 
     private void NextCorner()

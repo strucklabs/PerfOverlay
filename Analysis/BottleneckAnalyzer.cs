@@ -111,14 +111,28 @@ public sealed class BottleneckAnalyzer
         // --- CPU-Drosselung: genau mit HWiNFO, sonst über das Windows-Leistungslimit ---
         if (s.CpuThermal is { } cpuThermal)
         {
-            if (cpuThermal.ThrottleReasons.Count > 0 && s.Cpu.TotalLoad > 15)
+            // Das Intel-Flag "Electrical Design Point/Other" ist bei Alder/Raptor Lake auch bei leichter Last
+            // gesetzt (beobachtet: 14 % Last, 56 W). Es zählt daher erst, wenn die CPU wirklich ausgelastet ist.
+            var reasons = cpuThermal.ThrottleReasons
+                .Where(r => !r.StartsWith("Stromlimit (ICCmax") || s.Cpu.TotalLoad >= 80)
+                .ToList();
+            if (reasons.Count > 0 && s.Cpu.TotalLoad > 15)
             {
-                bool thermal = cpuThermal.ThrottleReasons.Any(r => r.StartsWith("Temperatur") || r.StartsWith("Spannungswandler"));
-                notes.Add(new("cpu-throttle", $"CPU drosselt: {string.Join(", ", cpuThermal.ThrottleReasons)}",
+                bool thermal = reasons.Any(r => r.StartsWith("Temperatur") || r.StartsWith("Spannungswandler"));
+                notes.Add(new("cpu-throttle", $"CPU drosselt: {string.Join(", ", reasons)}",
                     thermal ? Severity.Bad : Severity.Warn));
             }
-            if (cpuThermal.TempC is double cpuTemp && cpuTemp >= 95)
-                notes.Add(new("cpu-hot", $"CPU sehr heiß ({cpuTemp:0} °C)", Severity.Bad));
+            // Ryzen boostet bewusst bis an TjMax – dort zählen nur die Drosselungs-Flags.
+            // Intel: Warnung, wenn weniger als 5 °C Abstand zur Maximaltemperatur bleiben.
+            if (!cpuThermal.IsAmd && cpuThermal.TempC is double cpuTemp)
+            {
+                if (cpuThermal.HeadroomC is double headroom ? headroom <= 5 : cpuTemp >= 95)
+                    notes.Add(new("cpu-hot",
+                        cpuThermal.TjMaxC is double tj
+                            ? $"CPU nahe Maximaltemperatur ({cpuTemp:0} von {tj:0} °C)"
+                            : $"CPU sehr heiß ({cpuTemp:0} °C)",
+                        Severity.Bad));
+            }
         }
         else if (Sustained("cpu-perflimit", s.Cpu.PerfLimitPercent is < 90 && s.Cpu.TotalLoad > 30, s.Time, TimeSpan.FromSeconds(3)))
         {

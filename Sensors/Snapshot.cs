@@ -19,7 +19,13 @@ public sealed record CpuThermalData(
     double? CoreMaxC,                       // heißester Kern
     double? PowerW,                         // Package-Leistung
     double? PowerLimitW,                    // PL1
-    IReadOnlyList<string> ThrottleReasons); // aktive Drosselungsgründe, bereits auf Deutsch zusammengefasst
+    IReadOnlyList<string> ThrottleReasons,  // aktive Drosselungsgründe, bereits auf Deutsch zusammengefasst
+    double? TjMaxC,                         // Maximaltemperatur der CPU (Intel: aus "Distance to TjMAX" berechnet)
+    bool IsAmd)                             // Ryzen boostet bis an TjMax – hohe Temperatur ist dort Normalbetrieb
+{
+    /// <summary>Wie weit die CPU noch von ihrer Maximaltemperatur entfernt ist.</summary>
+    public double? HeadroomC => TempC is double t && TjMaxC is double tj ? tj - t : null;
+}
 
 public sealed record MemoryData(
     double UsedGB,

@@ -52,6 +52,21 @@ Datenträger ausgelastet, Ruckler (99. Perzentil > 2,5 × Median), Fremdlast auf
 Ohne Frame-Daten wird geschätzt (GPU-Last und stärkster Kern). Das ist unsicher, weil der Scheduler einen
 ausgelasteten Render-Thread auf mehrere Kerne verteilt.
 
+## Kompatibilität
+
+| Bereich | Status |
+|---|---|
+| Windows 10 22H2, Intel Core i5-13600KF, RTX 3080, 2 Monitore | ✅ getestet |
+| Windows 11 | sollte funktionieren, ungetestet |
+| Beliebige Kernzahl, beliebige Windows-Sprache | ✅ (Kerne zur Laufzeit ermittelt, englische PDH-Namen) |
+| NVIDIA-Karten (NVML) | ✅ |
+| AMD-/Intel-Grafikkarten | ⚠️ nur Auslastung und VRAM über Windows-Zähler, ungetestet |
+| AMD-CPUs mit HWiNFO | ⚠️ Temperatur/Leistung vorgesehen, Drosselungsgründe nur teilweise, ungetestet |
+| CPU-Temperaturbewertung | relativ zu TjMax (Intel: aus HWiNFO berechnet; AMD: 95 °C, Hinweis nur bei Drosselung) |
+| Mehrere Monitore | Overlay wechselt auf den Monitor, auf dem das Spiel im Vordergrund läuft |
+| Mehr als ~32 Threads | Kernbalken passen nicht in die feste Breite (wird mit der P-/E-Kern-Trennung gelöst) |
+| Exklusiver Vollbildmodus | ❌ Overlay nicht sichtbar (nur randlos/Fenster) |
+
 ## Ideen für Phase 2
 
 - Weitere Temperaturquellen neben HWiNFO: Core Temp, MSI Afterburner (Shared Memory)

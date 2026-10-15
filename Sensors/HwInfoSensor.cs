@@ -32,6 +32,8 @@ internal sealed class HwInfoSensor : IDisposable
     // Index der relevanten Messwerte (Byte-Offsets), neu aufgebaut wenn sich die Anzahl ändert
     private uint _indexedCount;
     private long _temp = -1, _coreMax = -1, _power = -1, _powerLimit = -1;
+    private long _tjTemp = -1, _tjDistance = -1;   // Kerntemperatur + "Distance to TjMAX" desselben Kerns
+    private bool _isAmd;
     private readonly List<(long Offset, string Reason)> _flags = new();
 
     public CpuThermalData? Read()
@@ -60,7 +62,12 @@ internal sealed class HwInfoSensor : IDisposable
                 .ToList();
             if (reasons.Contains("Temperatur (PROCHOT)")) reasons.Remove("Temperatur");
 
-            return new CpuThermalData("HWiNFO", Value(_temp), Value(_coreMax), Value(_power), Value(_powerLimit), reasons);
+            // TjMax steht nicht direkt im Shared Memory, ergibt sich aber aus Temperatur + Abstand zu TjMax.
+            // Bei AMD fehlt der Abstand; Ryzen 3000/7000/9000 haben 95 °C (Ryzen 5000: 90 °C).
+            double? tjMax = Value(_tjTemp) + Value(_tjDistance) ?? (_isAmd ? 95 : null);
+
+            return new CpuThermalData("HWiNFO", Value(_temp), Value(_coreMax), Value(_power), Value(_powerLimit),
+                reasons, tjMax, _isAmd);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
@@ -95,9 +102,13 @@ internal sealed class HwInfoSensor : IDisposable
         for (int i = 0; i < numS; i++)
             sensors[i] = ReadString(v, offS + (long)i * sizeS + 8, 128);
 
-        _temp = _coreMax = _power = _powerLimit = -1;
+        _temp = _coreMax = _power = _powerLimit = _tjTemp = _tjDistance = -1;
         _flags.Clear();
+        _isAmd = sensors.Any(s => s.StartsWith("CPU [#", StringComparison.Ordinal) && s.Contains("AMD"));
         int tempRank = int.MaxValue;
+        var coreTemps = new Dictionary<(uint Sensor, string Label), long>();
+        var distances = new List<(uint Sensor, string BaseLabel, long Offset)>();
+        const string DistanceSuffix = " Distance to TjMAX";
 
         for (long i = 0; i < numR; i++)
         {
@@ -114,6 +125,21 @@ internal sealed class HwInfoSensor : IDisposable
             else if (label == "CPU Package Power" && _power < 0) _power = o;
             else if (label.StartsWith("PL1 Power Limit", StringComparison.Ordinal) && _powerLimit < 0) _powerLimit = o;
             else if (unit == "Yes/No" && ThrottleReason(label) is string reason) _flags.Add((o, reason));
+
+            if (label.EndsWith(DistanceSuffix, StringComparison.Ordinal))
+                distances.Add((sensorIndex, label[..^DistanceSuffix.Length], o));
+            else if (unit.EndsWith('C'))
+                coreTemps.TryAdd((sensorIndex, label), o);
+        }
+
+        foreach (var (sensor, baseLabel, offset) in distances)
+        {
+            if (coreTemps.TryGetValue((sensor, baseLabel), out long tempOffset))
+            {
+                _tjTemp = tempOffset;
+                _tjDistance = offset;
+                break;
+            }
         }
         _indexedCount = numR;
     }

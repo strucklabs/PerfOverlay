@@ -52,6 +52,53 @@ internal static class Win32
         return (int)pid;
     }
 
+    // Monitore (alle Koordinaten in physischen Pixeln)
+    public const uint MONITOR_DEFAULTTONULL = 0;
+    public const uint MONITOR_DEFAULTTOPRIMARY = 1;
+    public const uint MONITOR_DEFAULTTONEAREST = 2;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT
+    {
+        public int Left, Top, Right, Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT
+    {
+        public int X, Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MONITORINFO
+    {
+        public uint cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr MonitorFromWindow(IntPtr hWnd, uint flags);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr MonitorFromPoint(POINT pt, uint flags);
+
+    [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW")]
+    public static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO info);
+
+    [DllImport("user32.dll")]
+    public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+
+    /// <summary>Arbeitsbereich (ohne Taskleiste) eines Monitors; null, wenn der Monitor nicht mehr existiert.</summary>
+    public static RECT? GetWorkArea(IntPtr monitor)
+    {
+        var info = new MONITORINFO { cbSize = (uint)Marshal.SizeOf<MONITORINFO>() };
+        return monitor != IntPtr.Zero && GetMonitorInfo(monitor, ref info) ? info.rcWork : null;
+    }
+
+    public static IntPtr PrimaryMonitor => MonitorFromPoint(new POINT(), MONITOR_DEFAULTTOPRIMARY);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct MEMORYSTATUSEX
     {
