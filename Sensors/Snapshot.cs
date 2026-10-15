@@ -95,7 +95,24 @@ public sealed record FrameStats(
     double CpuBusyMs,
     double CpuWaitMs,
     double GpuBusyMs,
-    double GpuWaitMs);
+    double GpuWaitMs)
+{
+    /// <summary>FPS ohne generierte Frames (Frame Generation); sonst gleich Fps.</summary>
+    public double AppFps { get; init; }
+    public double GeneratedShare { get; init; }
+    public string PresentMode { get; init; } = "";
+    public int SyncInterval { get; init; } = -1;    // ≥ 1 = VSync
+    public bool AllowsTearing { get; init; }
+    /// <summary>Frametimes der letzten Sekunden: (Alter in s, Frametime in ms), älteste zuerst.</summary>
+    public (double Age, double Ms)[] Frametimes { get; init; } = [];
+    /// <summary>Alter (s) der Ruckler-Frames im Verlaufsfenster.</summary>
+    public double[] SpikeAges { get; init; } = [];
+}
+
+/// <summary>Auslastung des stärksten Threads eines Prozesses in % eines Kerns.</summary>
+public sealed record ThreadLoad(double Percent, string? Name);
+
+public sealed record ProcessLoad(int Pid, string Name, double Percent);
 
 public sealed record Snapshot(
     DateTime Time,
@@ -108,4 +125,14 @@ public sealed record Snapshot(
     string FrameSourceStatus,
     bool FrameSourceRunning,
     CpuThermalData? CpuThermal,
-    MemoryConfig? MemoryConfig);
+    MemoryConfig? MemoryConfig)
+{
+    /// <summary>Stärkster Thread des Spiels (100 % = ein Kern voll).</summary>
+    public ThreadLoad? MainThread { get; init; }
+
+    /// <summary>Größte andere CPU-Verbraucher in % der Gesamt-CPU.</summary>
+    public IReadOnlyList<ProcessLoad> BackgroundCpu { get; init; } = [];
+
+    /// <summary>Grafikspeicher des Spiels, der in den normalen RAM ausgelagert ist.</summary>
+    public double? GameSharedVramGB { get; init; }
+}

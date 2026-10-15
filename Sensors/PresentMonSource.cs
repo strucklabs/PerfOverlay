@@ -15,6 +15,7 @@ internal sealed class PresentMonSource : IDisposable
     private const string SessionName = "PerfOverlay";
     private const double HistorySeconds = 10;     // Fenster für 1%-Low und Median
     private const double AverageSeconds = 1.5;    // Fenster für FPS und Mittelwerte
+    private const double GraphSeconds = 5;        // Frametime-Graph im Overlay
 
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly object _lock = new();
@@ -62,6 +63,7 @@ internal sealed class PresentMonSource : IDisposable
                      "--output_stdout", "--no_console_stats",
                      "--session_name", SessionName, "--stop_existing_session",
                      "--no_track_input",
+                     "--track_frame_type",   // generierte Frames (Frame Generation) kennzeichnen, sofern Spiel/Treiber es melden
                      "--exclude", "dwm.exe",
                      "--exclude", Path.GetFileName(Environment.ProcessPath ?? "PerfOverlay.exe"),
                  })
@@ -97,7 +99,10 @@ internal sealed class PresentMonSource : IDisposable
     private void ReadLoop(StreamReader reader)
     {
         int iApp = -1, iPid = -1, iMs = -1, iCpuBusy = -1, iCpuWait = -1, iGpuBusy = -1, iGpuWait = -1;
+        int iMode = -1, iSync = -1, iTearing = -1, iFrameType = -1;
         int columns = 0;
+        var strings = new Dictionary<string, string>();   // PresentMode-Texte nicht pro Frame neu speichern
+        string Intern(string s) => strings.TryGetValue(s, out var v) ? v : strings[s] = s;
         string? line;
         while ((line = reader.ReadLine()) != null)
         {
@@ -114,6 +119,10 @@ internal sealed class PresentMonSource : IDisposable
                 iCpuWait = Col("MsCPUWait", "CPUWait");
                 iGpuBusy = Col("MsGPUBusy", "GPUBusy");
                 iGpuWait = Col("MsGPUWait", "GPUWait");
+                iMode = Col("PresentMode");
+                iSync = Col("SyncInterval");
+                iTearing = Col("AllowsTearing");
+                iFrameType = Col("FrameType");
                 _headerSeen = true;
                 continue;
             }
@@ -124,7 +133,11 @@ internal sealed class PresentMonSource : IDisposable
             if (!(ms > 0 && ms < 5000)) continue;
 
             double now = _clock.Elapsed.TotalSeconds;
-            var frame = new Frame(now, ms, Num(f, iCpuBusy), Num(f, iCpuWait), Num(f, iGpuBusy), Num(f, iGpuWait));
+            var frame = new Frame(now, ms, Num(f, iCpuBusy), Num(f, iCpuWait), Num(f, iGpuBusy), Num(f, iGpuWait),
+                iFrameType >= 0 && IsGenerated(f[iFrameType]),
+                iMode >= 0 ? Intern(f[iMode]) : "",
+                iSync >= 0 && int.TryParse(f[iSync], out int sync) ? sync : -1,
+                iTearing >= 0 && f[iTearing] == "1");
 
             lock (_lock)
             {
@@ -139,6 +152,10 @@ internal sealed class PresentMonSource : IDisposable
 
     private static double Num(string[] f, int i) =>
         i >= 0 && double.TryParse(f[i], NumberStyles.Float, CultureInfo.InvariantCulture, out double v) ? v : double.NaN;
+
+    /// <summary>FrameType: "Application" = vom Spiel gerendert; z. B. "AMD_AFMF", "Intel_XEFG", "Repeated" = nicht vom Spiel.</summary>
+    private static bool IsGenerated(string frameType) =>
+        frameType is not ("" or "NA" or "NotSet" or "Unspecified" or "Application");
 
     /// <summary>
     /// Statistik für den Prozess im Vordergrund (das Spiel). Hat der keine Frames,
@@ -184,20 +201,39 @@ internal sealed class PresentMonSource : IDisposable
             double p99 = sorted[Math.Clamp((int)Math.Ceiling(sorted.Length * 0.99) - 1, 0, sorted.Length - 1)];
             double avgMs = recent.Average(fr => fr.Ms);
 
+            // Mit Frame Generation zählen für die Analyse nur die vom Spiel gerenderten Frames:
+            // CPU-/GPU-Busy generierter Frames sagt nichts über den Engpass aus.
+            var appFrames = recent.Where(fr => !fr.Generated).ToList();
+            if (appFrames.Count == 0) appFrames = recent;
+            double appMs = recent.Sum(fr => fr.Ms) / appFrames.Count;
+
             static double Avg(IEnumerable<double> values)
             {
                 var valid = values.Where(v => !double.IsNaN(v)).ToList();
                 return valid.Count > 0 ? valid.Average() : double.NaN;
             }
 
+            // Ruckler: einzelne Frames deutlich über dem Median (mindestens 25 ms, also unter 40 FPS)
+            double spikeLimit = Math.Max(25, Math.Max(median * 2.5, median + 12));
+            var last = recent[^1];
+
             return new FrameStats(
                 pid, target.App,
                 1000 / avgMs, 1000 / p99,
-                avgMs, median, p99,
-                Avg(recent.Select(fr => fr.CpuBusy)),
-                Avg(recent.Select(fr => fr.CpuWait)),
-                Avg(recent.Select(fr => fr.GpuBusy)),
-                Avg(recent.Select(fr => fr.GpuWait)));
+                appMs, median, p99,
+                Avg(appFrames.Select(fr => fr.CpuBusy)),
+                Avg(appFrames.Select(fr => fr.CpuWait)),
+                Avg(appFrames.Select(fr => fr.GpuBusy)),
+                Avg(appFrames.Select(fr => fr.GpuWait)))
+            {
+                AppFps = 1000 / appMs,
+                GeneratedShare = 1.0 - (double)appFrames.Count / recent.Count,
+                PresentMode = last.PresentMode,
+                SyncInterval = last.SyncInterval,
+                AllowsTearing = last.AllowsTearing,
+                Frametimes = target.Frames.Where(fr => fr.T >= now - GraphSeconds).Select(fr => (now - fr.T, fr.Ms)).ToArray(),
+                SpikeAges = target.Frames.Where(fr => fr.Ms > spikeLimit).Select(fr => now - fr.T).ToArray(),
+            };
         }
     }
 
@@ -229,7 +265,9 @@ internal sealed class PresentMonSource : IDisposable
         _process = null;
     }
 
-    private readonly record struct Frame(double T, double Ms, double CpuBusy, double CpuWait, double GpuBusy, double GpuWait);
+    private readonly record struct Frame(
+        double T, double Ms, double CpuBusy, double CpuWait, double GpuBusy, double GpuWait,
+        bool Generated, string PresentMode, int SyncInterval, bool AllowsTearing);
 
     private sealed class ProcessFrames(string app)
     {

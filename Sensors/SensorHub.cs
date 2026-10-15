@@ -13,6 +13,7 @@ internal sealed class SensorHub : IDisposable
     private readonly NvmlGpuSensor? _nvml;
     private readonly PresentMonSource _presentMon = new();
     private readonly HwInfoSensor _hwInfo = new();
+    private readonly ProcessCpuSensor _processCpu = new();
 
     // WMI-Abfrage dauert einige 100 ms – im Hintergrund, damit das Overlay sofort startet
     private readonly Task<MemoryConfig?> _memoryConfig = Task.Run(MemoryConfig.Read);
@@ -43,6 +44,9 @@ internal sealed class SensorHub : IDisposable
         if (gpu == null && _windowsGpu.Available)
             gpu = new GpuData { Name = "GPU", Source = "Windows", Load = winLoad, VramUsedGB = winVram };
 
+        var frames = _presentMon.GetStats(Win32.GetForegroundProcessId());
+        int gamePid = frames?.Pid ?? 0;
+
         return new Snapshot(
             DateTime.Now,
             _cpu.Read(),
@@ -50,11 +54,16 @@ internal sealed class SensorHub : IDisposable
             _disk.Read(),
             gpu,
             topProcesses,
-            _presentMon.GetStats(Win32.GetForegroundProcessId()),
+            frames,
             _presentMon.Status,
             _presentMon.Running,
             _hwInfo.Read(),
-            _memoryConfig.IsCompletedSuccessfully ? _memoryConfig.Result : null);
+            _memoryConfig.IsCompletedSuccessfully ? _memoryConfig.Result : null)
+        {
+            MainThread = _processCpu.SampleMainThread(gamePid),
+            BackgroundCpu = _processCpu.SampleBackground(gamePid),
+            GameSharedVramGB = _windowsGpu.Available ? _windowsGpu.SharedUsageGB(gamePid) : null,
+        };
     }
 
     public void Dispose()

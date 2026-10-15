@@ -120,20 +120,32 @@ public partial class OverlayWindow : Window
         Brush sevBrush = SeverityBrush(v.Severity);
         VerdictTitle.Text = v.Title;
         VerdictTitle.Foreground = sevBrush;
-        VerdictDetail.Text = v.Detail;
+        VerdictDetail.Inlines.Clear();
+        VerdictDetail.Inlines.Add(new Run(v.Detail));
+        if (v.Tip != null)
+        {
+            VerdictDetail.Inlines.Add(new LineBreak());
+            VerdictDetail.Inlines.Add(new Run("→ " + v.Tip) { Foreground = sevBrush });
+        }
         var tint = ((SolidColorBrush)sevBrush).Color;
         VerdictBar.Background = new SolidColorBrush(Color.FromArgb(0x30, tint.R, tint.G, tint.B));
+        RenderShares(v);
 
         RenderNotes(notes);
 
-        // FPS
+        // FPS (mit Frame Generation zusätzlich die vom Spiel gerenderten)
         var f = s.Frames;
         if (f != null)
-            Line(FpsLine, L("FPS   "), V($"{f.Fps,4:0}"), L("  1%↓ "), V($"{f.Low1Fps:0}"),
-                L("  "), V($"{f.AvgMs:0.0}"), L(" ms  "), (Shorten(f.App, 22), MutedBrush));
+        {
+            var fps = new List<(string, Brush?)> { L("FPS   "), V($"{f.Fps,4:0}") };
+            if (f.GeneratedShare > 0.3) fps.Add(($" ({f.AppFps:0} echt)", MutedBrush));
+            fps.AddRange([L("  1%↓ "), V($"{f.Low1Fps:0}"), L("  "), V($"{f.AvgMs:0.0}"), L(" ms  "), (Shorten(f.App, 20), MutedBrush)]);
+            Line(FpsLine, fps.ToArray());
+        }
         else
             Line(FpsLine, L("FPS   "), V("   –  "),
                 (s.FrameSourceRunning ? "keine 3D-Anwendung" : s.FrameSourceStatus, s.FrameSourceRunning ? MutedBrush : WarnBrush));
+        RenderFrameGraph(f);
 
         // CPU
         var c = s.Cpu;
@@ -188,12 +200,7 @@ public partial class OverlayWindow : Window
             GpuLine2.Visibility = Visibility.Visible;
         }
 
-        // Frame-Aufteilung
-        if (f != null && !double.IsNaN(f.GpuBusyMs))
-            Line(FrameLine, L("Frame "), L("CPU "), V($"{f.CpuBusyMs:0.0}"), L("  GPU "), V($"{f.GpuBusyMs:0.0}"),
-                L("  GPU wartet "), V($"{f.GpuWaitMs:0.0}"), L(" ms"));
-        else
-            Line(FrameLine, L("Frame "), ("–", MutedBrush));
+        RenderBusyBars(s, v);
 
         // RAM & Datenträger
         var m = s.Memory;
@@ -220,6 +227,103 @@ public partial class OverlayWindow : Window
 
         string source = g?.Source == "NVML" ? "NVML" : g != null ? "Win-Zähler" : "–";
         FooterLine.Text = $"Strg+Umschalt: F10 an/aus · F9 Ecke · F8 Details  |  GPU: {source} · CPU: {s.CpuThermal?.Source ?? "–"}";
+    }
+
+    private static readonly (BottleneckKind Kind, string Label, Brush Brush)[] ShareKinds =
+    [
+        (BottleneckKind.Gpu, "GPU", GoodBrush),
+        (BottleneckKind.Cpu, "CPU", WarnBrush),
+        (BottleneckKind.Limit, "Limit", InfoBrush),
+        (BottleneckKind.Mixed, "gemischt", MutedBrush),
+    ];
+
+    /// <summary>Gestapelter Balken der Engpass-Anteile der letzten 30 s.</summary>
+    private void RenderShares(Verdict v)
+    {
+        ShareBar.Children.Clear();
+        ShareBar.ColumnDefinitions.Clear();
+        var parts = ShareKinds.Where(k => v.Shares.GetValueOrDefault(k.Kind) > 0).ToList();
+        ShareText.Text = parts.Count == 0
+            ? ""
+            : "30 s: " + string.Join(" · ", parts
+                .OrderByDescending(k => v.Shares[k.Kind])
+                .Select(k => $"{k.Label} {v.Shares[k.Kind] * 100:0} %"));
+
+        for (int i = 0; i < parts.Count; i++)
+        {
+            ShareBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(v.Shares[parts[i].Kind], GridUnitType.Star) });
+            var segment = new Rectangle { Fill = parts[i].Brush };
+            Grid.SetColumn(segment, i);
+            ShareBar.Children.Add(segment);
+        }
+    }
+
+    private const double GraphWidth = 438, GraphHeight = 40, GraphSeconds = 5;
+
+    /// <summary>
+    /// Frametime-Verlauf: links alt, rechts neu. Eine ruhige Linie heißt gleichmäßige Bildausgabe,
+    /// Zacken sind Ruckler (rot markiert). Skala passt sich dem Spiel an, Ausreißer werden oben abgeschnitten.
+    /// </summary>
+    private void RenderFrameGraph(FrameStats? f)
+    {
+        FrameGraph.Children.Clear();
+        bool has = f != null && f.Frametimes.Length > 1;
+        FrameGraphEmpty.Visibility = has ? Visibility.Collapsed : Visibility.Visible;
+        FrameGraphScale.Text = "";
+        if (!has) return;
+
+        double scale = Math.Clamp(Math.Max(f!.MedianMs * 2.5, f.P99Ms * 1.2), 16.7, 100);
+        FrameGraphScale.Text = $"{scale:0} ms";
+        double X(double age) => GraphWidth - age / GraphSeconds * GraphWidth;
+        double Y(double ms) => GraphHeight - Math.Min(ms, scale) / scale * (GraphHeight - 2) - 1;
+
+        // Median als gestrichelte Referenz
+        FrameGraph.Children.Add(new Line
+        {
+            X1 = 0, X2 = GraphWidth, Y1 = Y(f.MedianMs), Y2 = Y(f.MedianMs),
+            Stroke = MutedBrush, StrokeThickness = 1, StrokeDashArray = [3, 3],
+        });
+
+        var points = new PointCollection(f.Frametimes.Length);
+        foreach (var (age, ms) in f.Frametimes)
+            points.Add(new Point(X(age), Y(ms)));
+        FrameGraph.Children.Add(new Polyline { Points = points, Stroke = GoodBrush, StrokeThickness = 1.2 });
+
+        foreach (double age in f.SpikeAges.Where(a => a <= GraphSeconds))
+            FrameGraph.Children.Add(new Line
+            {
+                X1 = X(age), X2 = X(age), Y1 = 0, Y2 = GraphHeight,
+                Stroke = BadBrush, StrokeThickness = 1, Opacity = 0.7,
+            });
+    }
+
+    private const double BusyBarWidth = 140;
+
+    /// <summary>CPU- und GPU-Arbeitszeit pro Frame relativ zur Frametime – der längere Balken ist der Engpass.</summary>
+    private void RenderBusyBars(Snapshot s, Verdict v)
+    {
+        var f = s.Frames;
+        if (f == null || double.IsNaN(f.GpuBusyMs) || f.AvgMs <= 0)
+        {
+            CpuBusyBar.Width = GpuBusyBar.Width = 0;
+            Line(CpuBusyText, ("–", MutedBrush));
+            Line(GpuBusyText, ("–", MutedBrush));
+            return;
+        }
+        CpuBusyBar.Width = Math.Clamp(f.CpuBusyMs / f.AvgMs, 0, 1) * BusyBarWidth;
+        GpuBusyBar.Width = Math.Clamp(f.GpuBusyMs / f.AvgMs, 0, 1) * BusyBarWidth;
+        CpuBusyBar.Fill = v.Kind == BottleneckKind.Cpu ? WarnBrush : InfoBrush;
+        GpuBusyBar.Fill = v.Kind == BottleneckKind.Gpu ? GoodBrush : InfoBrush;
+
+        var cpu = new List<(string, Brush?)> { V($"{f.CpuBusyMs,4:0.0}"), L(" ms") };
+        if (s.MainThread is { } mt)
+        {
+            cpu.Add(L("  Thread "));
+            cpu.Add(($"{mt.Percent:0} %", LoadBrush(mt.Percent)));
+            if (mt.Name != null) cpu.Add(($" {Shorten(mt.Name, 16)}", MutedBrush));
+        }
+        Line(CpuBusyText, cpu.ToArray());
+        Line(GpuBusyText, V($"{f.GpuBusyMs,4:0.0}"), L(" ms  wartet "), V($"{f.GpuWaitMs:0.0}"), L(" ms"));
     }
 
     private void RenderNotes(IReadOnlyList<LoggedNote> notes)

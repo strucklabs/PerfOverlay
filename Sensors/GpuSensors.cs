@@ -101,6 +101,24 @@ internal sealed class WindowsGpuSensor
         _pdh = pdh;
         _engine3D = pdh.Add(@"\GPU Engine(*engtype_3D)\Utilization Percentage");
         _dedicated = pdh.Add(@"\GPU Adapter Memory(*)\Dedicated Usage");
+        _processShared = pdh.Add(@"\GPU Process Memory(*)\Shared Usage");
+    }
+
+    private readonly IntPtr _processShared;
+
+    /// <summary>
+    /// Grafikspeicher, den ein Prozess im normalen RAM hält ("Shared GPU Memory"). Ist der VRAM voll,
+    /// lagert der Treiber Texturen dorthin aus – der Zugriff über PCIe ist um ein Vielfaches langsamer.
+    /// Instanzname z. B. "pid_1234_luid_0x00000000_0x0000C2B1_phys_0".
+    /// </summary>
+    public double? SharedUsageGB(int pid)
+    {
+        if (pid <= 0 || _processShared == IntPtr.Zero) return null;
+        string prefix = $"pid_{pid}_";
+        double bytes = _pdh.GetArray(_processShared)
+            .Where(x => x.Key.StartsWith(prefix, StringComparison.Ordinal))
+            .Sum(x => x.Value);
+        return bytes / (1024.0 * 1024 * 1024);
     }
 
     public bool Available => _engine3D != IntPtr.Zero;

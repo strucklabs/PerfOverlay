@@ -41,17 +41,30 @@ Selbsttest ohne Fenster: `PerfOverlay.exe --selftest 6` schreibt `selftest.txt` 
 
 ## Engpass-Logik (`Analysis/BottleneckAnalyzer.cs`)
 
-Mit Frame-Daten (zuverlässig):
+Mit Frame-Daten (zuverlässig), bezogen auf die vom Spiel gerenderten Frames (Frame Generation wird herausgerechnet):
 - GPU-Busy ≥ 90 % der Frametime → **GPU-limitiert** (Normalfall)
-- CPU-Busy ≥ 85 % und GPU-Busy < 80 % → **CPU-limitiert** (GPU wartet)
-- CPU wartet ≥ 25 % der Frametime → **FPS-Limit / VSync**
+- CPU wartet ≥ 25 % → **FPS-Limit** bzw. **VSync** (SyncInterval ≥ 1)
+- GPU ≥ 15 % untätig („GPU wartet“) oder CPU-Busy ≥ 85 % → **CPU-limitiert**. „GPU wartet“ ist das
+  zuverlässigere Signal, weil CPU-Busy bei manchen Engines auch das Warten auf die GPU enthält.
 - sonst **gemischt**
 
-Zusätzliche Hinweise: GPU-Drosselung (Temperatur, Power-Brake), PCIe-Link reduziert, VRAM voll, RAM knapp / Auslagerung,
-Datenträger ausgelastet, Ruckler (99. Perzentil > 2,5 × Median), Fremdlast auf der GPU.
+Darstellung: Urteil mit konkretem Tipp, Anteile der Kategorien über die letzten 30 s (Balken), Frametime-Graph
+der letzten 5 s mit markierten Rucklern, CPU-/GPU-Arbeitszeit pro Frame als Balken, Last des stärksten
+Spiel-Threads („Hauptthread“, mit Thread-Name, falls die Engine einen setzt).
 
-Ohne Frame-Daten wird geschätzt (GPU-Last und stärkster Kern). Das ist unsicher, weil der Scheduler einen
+Zusätzliche Hinweise: GPU-Drosselung (Temperatur, Power-Brake), PCIe-Link reduziert, VRAM-Auslagerung in den RAM
+(`GPU Process Memory\Shared Usage` des Spiels), RAM knapp, Datenträger ausgelastet, Ruckler mit Ursache
+(Nachladen, CPU-Spitze, VRAM, unklar), Darstellung per Kopie (höhere Latenz), Frame Generation, Fremdlast auf GPU
+und – bei CPU-Limit – Hintergrundprozesse mit hoher CPU-Last.
+
+Ohne Frame-Daten wird geschätzt (GPU-Last und stärkster P-Kern). Das ist unsicher, weil der Scheduler einen
 ausgelasteten Render-Thread auf mehrere Kerne verteilt.
+
+Frame Generation wird über PresentMons `FrameType` erkannt. Das setzt voraus, dass Spiel oder Treiber generierte
+Frames kennzeichnen – bei DLSS 3 ist das nicht garantiert (ungetestet).
+
+`PerfOverlay.exe --preview` rendert das Overlay mit **künstlichen** Frame-Daten nach `preview.png`
+(Kontrolle der Darstellung ohne Spiel).
 
 ## Kompatibilität
 
@@ -75,7 +88,7 @@ ausgelasteten Render-Thread auf mehrere Kerne verteilt.
 - Weitere Temperaturquellen neben HWiNFO: Core Temp, MSI Afterburner (Shared Memory)
 - AMD-spezifische Werte über ADLX
 - SSD-Temperatur über WMI `MSFT_StorageReliabilityCounter`
-- P-/E-Kerne getrennt darstellen (`GetSystemCpuSetInformation`, EfficiencyClass)
-- CSV-Logging und Einstellungen
+- Sitzungs-Protokoll (CSV) mit Zusammenfassung, Einstellungen speichern
+- Automatisch kompakter Modus (bei der Layout-Überarbeitung – ändert die Overlay-Größe)
 - GPU-Nutzer im Leerlauf anzeigen (z. B. „wallpaper64 8 %, chrome 3 %“) – Daten liegen schon in
   `Snapshot.GpuTopProcesses` vor; erst bei der Layout-Überarbeitung einbauen, damit das Overlay nicht überladen wirkt

@@ -10,6 +10,13 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        if (e.Args.Contains("--preview"))
+        {
+            try { await SelfTest.PreviewAsync(); }
+            finally { Shutdown(); }
+            return;
+        }
+
         int selfTest = Array.IndexOf(e.Args, "--selftest");
         if (selfTest >= 0)
         {

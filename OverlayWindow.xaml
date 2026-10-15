@@ -18,16 +18,32 @@
         <StackPanel>
             <Border x:Name="VerdictBar" CornerRadius="4" Padding="8,4" Margin="0,0,0,6">
                 <StackPanel>
-                    <TextBlock x:Name="VerdictTitle" FontFamily="Segoe UI" FontWeight="Bold" FontSize="15" />
-                    <!-- immer genau zwei Zeilen hoch -->
+                    <Grid>
+                        <TextBlock x:Name="VerdictTitle" FontFamily="Segoe UI" FontWeight="Bold" FontSize="15" />
+                        <!-- Anteile der letzten 30 s, z. B. "30 s: GPU 78 % · CPU 22 %" -->
+                        <TextBlock x:Name="ShareText" FontFamily="Segoe UI" FontSize="10.5" Foreground="#9CA3AF"
+                                   HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid x:Name="ShareBar" Height="4" Margin="0,3,0,3" Background="#26FFFFFF" />
+                    <!-- Zeile 1: Messwerte, Zeile 2: Tipp – immer genau zwei Zeilen hoch -->
                     <TextBlock x:Name="VerdictDetail" FontFamily="Segoe UI" FontSize="11.5" Opacity="0.9"
-                               TextWrapping="Wrap" LineStackingStrategy="BlockLineHeight" LineHeight="15" Height="30" />
+                               LineStackingStrategy="BlockLineHeight" LineHeight="15" Height="30" />
                 </StackPanel>
             </Border>
             <!-- feste Anzahl Meldungszeilen, wird im Code befüllt -->
             <StackPanel x:Name="NotesPanel" Margin="0,0,0,4" />
 
             <TextBlock x:Name="FpsLine" />
+            <!-- Frametime-Verlauf der letzten 5 Sekunden -->
+            <Border Height="40" Margin="0,3,0,4" Background="#14FFFFFF" CornerRadius="2" ClipToBounds="True">
+                <Grid>
+                    <Canvas x:Name="FrameGraph" />
+                    <TextBlock x:Name="FrameGraphScale" FontFamily="Segoe UI" FontSize="9.5" Foreground="#6B7280"
+                               HorizontalAlignment="Left" VerticalAlignment="Top" Margin="3,0,0,0" />
+                    <TextBlock x:Name="FrameGraphEmpty" FontFamily="Segoe UI" FontSize="10.5" Foreground="#6B7280"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" Text="Frametime-Verlauf erscheint mit einem Spiel" />
+                </Grid>
+            </Border>
             <TextBlock x:Name="CpuLine" />
             <StackPanel Orientation="Horizontal" Margin="42,3,0,3">
                 <StackPanel x:Name="CoreBars" Orientation="Horizontal" Height="18" />
@@ -37,7 +53,28 @@
 
             <StackPanel x:Name="DetailPanel">
                 <TextBlock x:Name="GpuLine2" />
-                <TextBlock x:Name="FrameLine" />
+                <!-- Arbeitszeit pro Frame als Balken relativ zur Frametime: der längere Balken bremst -->
+                <Grid Margin="0,2,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="42" />
+                        <ColumnDefinition Width="140" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition />
+                        <RowDefinition />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="CPU" Foreground="#9CA3AF" />
+                    <Border Grid.Column="1" Height="8" Background="#26FFFFFF" VerticalAlignment="Center">
+                        <Rectangle x:Name="CpuBusyBar" HorizontalAlignment="Left" Width="0" />
+                    </Border>
+                    <TextBlock x:Name="CpuBusyText" Grid.Column="2" Margin="6,0,0,0" />
+                    <TextBlock Grid.Row="1" Text="GPU" Foreground="#9CA3AF" />
+                    <Border Grid.Row="1" Grid.Column="1" Height="8" Background="#26FFFFFF" VerticalAlignment="Center">
+                        <Rectangle x:Name="GpuBusyBar" HorizontalAlignment="Left" Width="0" />
+                    </Border>
+                    <TextBlock x:Name="GpuBusyText" Grid.Row="1" Grid.Column="2" Margin="6,0,0,0" />
+                </Grid>
                 <TextBlock x:Name="RamLine" />
                 <TextBlock x:Name="DiskLine" />
                 <TextBlock x:Name="FooterLine" Foreground="#6B7280" FontFamily="Segoe UI" FontSize="10.5" Margin="0,5,0,0" />

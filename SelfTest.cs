@@ -59,4 +59,54 @@ internal static class SelfTest
         window.Render(snapshot!, verdict!, notes);
         window.SaveImage(Path.Combine(dir, "selftest.png"));
     }
+
+    /// <summary>
+    /// "PerfOverlay.exe --preview": rendert das Overlay mit KÜNSTLICHEN Frame-Daten (CPU-limitierte Szene
+    /// mit Rucklern) nach preview.png – nur zur Kontrolle der Darstellung ohne laufendes Spiel.
+    /// Echte Hardwarewerte (CPU, GPU, RAM) stammen weiterhin von diesem PC.
+    /// </summary>
+    public static async Task PreviewAsync()
+    {
+        using var hub = new SensorHub();
+        var analyzer = new BottleneckAnalyzer();
+        var window = new OverlayWindow();
+        var rnd = new Random(42);
+        IReadOnlyList<LoggedNote> notes = [];
+        Snapshot? snapshot = null;
+        Verdict? verdict = null;
+
+        for (int tick = 0; tick < 24; tick++)
+        {
+            await Task.Delay(100);
+            var real = hub.Sample();
+            bool cpuPhase = tick % 6 != 0;   // überwiegend CPU-, gelegentlich GPU-limitiert
+            double ms = cpuPhase ? 8.3 : 7.0;
+            var times = Enumerable.Range(0, 600)
+                .Select(i => (Age: 5.0 - i * (5.0 / 600), Ms: ms + rnd.NextDouble() * 1.2 + (i is 180 or 420 ? 30 : 0)))
+                .ToArray();
+            var frames = new FrameStats(4711, "DemoSpiel.exe", 1000 / ms, 1000 / 14.0, ms, ms + 0.5, 14,
+                cpuPhase ? ms * 0.95 : ms * 0.5, 0.2, cpuPhase ? ms * 0.62 : ms * 0.97, cpuPhase ? ms * 0.33 : 0.1)
+            {
+                AppFps = 1000 / ms,
+                PresentMode = "Hardware: Independent Flip",
+                SyncInterval = 0,
+                Frametimes = times,
+                SpikeAges = [5.0 - 180 * (5.0 / 600), 5.0 - 420 * (5.0 / 600)],
+            };
+            snapshot = real with
+            {
+                Time = real.Time.AddSeconds(tick * 1.25),
+                Frames = frames,
+                FrameSourceRunning = true,
+                FrameSourceStatus = "aktiv",
+                MainThread = new ThreadLoad(cpuPhase ? 97 : 71, "RenderThread"),
+                BackgroundCpu = [new ProcessLoad(1, "chrome", 9), new ProcessLoad(2, "Discord", 6)],
+            };
+            verdict = analyzer.Analyze(snapshot);
+            notes = window.LogNotes(verdict, snapshot.Time);
+        }
+
+        window.Render(snapshot!, verdict!, notes);
+        window.SaveImage(Path.Combine(AppContext.BaseDirectory, "preview.png"));
+    }
 }
