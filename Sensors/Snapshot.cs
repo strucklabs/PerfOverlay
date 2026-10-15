@@ -88,4 +88,5 @@ public sealed record Snapshot(
     FrameStats? Frames,
     string FrameSourceStatus,
     bool FrameSourceRunning,
-    CpuThermalData? CpuThermal);
+    CpuThermalData? CpuThermal,
+    MemoryConfig? MemoryConfig);

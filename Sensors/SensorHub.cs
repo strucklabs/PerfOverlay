@@ -14,6 +14,9 @@ internal sealed class SensorHub : IDisposable
     private readonly PresentMonSource _presentMon = new();
     private readonly HwInfoSensor _hwInfo = new();
 
+    // WMI-Abfrage dauert einige 100 ms – im Hintergrund, damit das Overlay sofort startet
+    private readonly Task<MemoryConfig?> _memoryConfig = Task.Run(MemoryConfig.Read);
+
     public SensorHub()
     {
         _cpu = new CpuSensor(_pdh);
@@ -50,7 +53,8 @@ internal sealed class SensorHub : IDisposable
             _presentMon.GetStats(Win32.GetForegroundProcessId()),
             _presentMon.Status,
             _presentMon.Running,
-            _hwInfo.Read());
+            _hwInfo.Read(),
+            _memoryConfig.IsCompletedSuccessfully ? _memoryConfig.Result : null);
     }
 
     public void Dispose()

@@ -54,6 +54,7 @@ public sealed class BottleneckAnalyzer
     }
 
     private readonly Dictionary<string, DateTime> _conditionSince = new();
+    private DateTime? _startTime;
 
     /// <summary>True, wenn die Bedingung seit mindestens <paramref name="duration"/> ununterbrochen gilt.</summary>
     private bool Sustained(string key, bool condition, DateTime now, TimeSpan duration)
@@ -145,6 +146,24 @@ public sealed class BottleneckAnalyzer
         {
             notes.Add(new("cpu-perflimit",
                 $"CPU begrenzt auf {s.Cpu.PerfLimitPercent:0} % (Power-/Temperaturlimit, Details mit HWiNFO)", Severity.Warn));
+        }
+
+        // --- RAM-Bestückung: ändert sich nicht, daher nur in den ersten Sekunden melden.
+        //     Das NoteLog hält die Meldung danach noch 10 Minuten sichtbar. ---
+        _startTime ??= s.Time;
+        if (s.MemoryConfig is { } ram && s.Time - _startTime < TimeSpan.FromSeconds(10))
+        {
+            if (ram.RatedMTs is int rated && ram.ConfiguredMTs < rated - 100)
+                notes.Add(new("ram-xmp", $"RAM läuft mit {ram.ConfiguredMTs} statt {rated} MT/s – XMP/EXPO im BIOS aktivieren", Severity.Warn));
+            else if (ram.RatedMTs == null && ram.RunsAtJedecBase && !ram.IsSoDimm)
+                notes.Add(new("ram-xmp", $"RAM läuft mit Standardtakt {ram.ConfiguredMTs} MT/s – XMP/EXPO im BIOS prüfen", Severity.Info));
+
+            if (ram.SameChannelPair)
+                notes.Add(new("ram-channel", "Alle RAM-Riegel im selben Kanal – Slots laut Handbuch nutzen (meist A2/B2)", Severity.Warn));
+            else if (ram.Channels == ChannelMode.Single && ram.Modules.Count == 1 && ram.SlotCount > 1)
+                notes.Add(new("ram-channel", "Nur ein RAM-Riegel: Single-Channel, halbe Speicherbandbreite", Severity.Warn));
+            else if (ram.Channels == ChannelMode.Single && ram.SlotCount > 1)
+                notes.Add(new("ram-channel", "RAM im Single-Channel-Betrieb – halbe Speicherbandbreite", Severity.Warn));
         }
 
         // --- Speicher & Datenträger ---

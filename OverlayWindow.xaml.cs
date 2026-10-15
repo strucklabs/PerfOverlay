@@ -193,9 +193,23 @@ public partial class OverlayWindow : Window
 
         // RAM & Datenträger
         var m = s.Memory;
-        Line(RamLine, L("RAM   "), ($"{m.UsedGB:0.0}/{m.TotalGB:0.0}", LoadBrush(m.LoadPercent)), L(" GB"),
-            L("  Commit "), V($"{m.CommitGB:0}/{m.CommitLimitGB:0}"), L(" GB"),
-            L("  Nachl. "), (($"{m.PagesInPerSec:0}/s"), m.PagesInPerSec > 500 ? WarnBrush : null));
+        var ramParts = new List<(string, Brush?)>
+        {
+            L("RAM   "), ($"{m.UsedGB:0.0}/{m.TotalGB:0.0}", LoadBrush(m.LoadPercent)), L(" GB  "),
+        };
+        if (s.MemoryConfig is { } rc)
+        {
+            // Bestückung statt Commit-Wert; gelb, wenn Takt oder Kanäle nicht optimal sind
+            bool suboptimal = rc.RatedMTs > rc.ConfiguredMTs + 100 || rc.Channels == ChannelMode.Single && rc.SlotCount > 1 || rc.SameChannelPair;
+            ramParts.Add((rc.Summary, suboptimal ? WarnBrush : null));
+        }
+        else
+        {
+            ramParts.Add(L("Commit ")); ramParts.Add(V($"{m.CommitGB:0}/{m.CommitLimitGB:0}")); ramParts.Add(L(" GB"));
+        }
+        ramParts.Add(L("  Nachl. "));
+        ramParts.Add(($"{m.PagesInPerSec:0}/s", m.PagesInPerSec > 500 ? WarnBrush : null));
+        Line(RamLine, ramParts.ToArray());
         var d = s.Disk;
         Line(DiskLine, L("Disk  "), V($"{d.ActivePercent,4:0} %"), L(" aktiv  "),
             ($"{d.LatencyMs:0.0}", d.LatencyMs > 20 ? WarnBrush : null), L(" ms  "), V($"{d.MBps:0}"), L(" MB/s"));

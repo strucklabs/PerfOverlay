@@ -35,6 +35,7 @@ Selbsttest ohne Fenster: `PerfOverlay.exe --selftest 6` schreibt `selftest.txt` 
 | NVIDIA-GPU | NVML (`nvml.dll` aus dem Treiber): Last, Takt, Temperatur, Leistung/Limit, VRAM, Lüfter, PCIe, Throttle-Reasons |
 | Andere GPUs / GPU-Last pro Prozess | PDH `GPU Engine(*engtype_3D)`, `GPU Adapter Memory` (herstellerunabhängig) |
 | FPS, 1%-Low, CPU-/GPU-Busy pro Frame | Intel PresentMon 2.6 (Konsolenversion in `tools\`, signiert von Intel), live per STDOUT |
+| RAM-Bestückung, Kanäle, Takt | WMI `Win32_PhysicalMemory` (SMBIOS Typ 17), einmal beim Start. Kanal aus Slot-Namen (`A2`, `DIMM_B1`, `ChannelA-DIMM0` …), sonst aus der Interleave-Tiefe. Nenntakt aus der Teilenummer (Corsair, G.Skill, Kingston, Crucial Ballistix, TeamGroup), sonst Hinweis bei JEDEC-Standardtakt. |
 | CPU-Drosselung (immer) | PDH `Processor Information(_Total)\% Performance Limit` |
 | CPU-Temperatur, Package-Leistung, PL1, Drosselungsgründe (optional) | Shared Memory von **HWiNFO** (`Global\HWiNFO_SENS_SM2`), wird automatisch erkannt. In HWiNFO muss „Shared Memory Support“ aktiv sein (Gratisversion: 12 Stunden, danach neu aktivieren). |
 
