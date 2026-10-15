@@ -35,6 +35,8 @@ Selbsttest ohne Fenster: `PerfOverlay.exe --selftest 6` schreibt `selftest.txt` 
 | NVIDIA-GPU | NVML (`nvml.dll` aus dem Treiber): Last, Takt, Temperatur, Leistung/Limit, VRAM, Lüfter, PCIe, Throttle-Reasons |
 | Andere GPUs / GPU-Last pro Prozess | PDH `GPU Engine(*engtype_3D)`, `GPU Adapter Memory` (herstellerunabhängig) |
 | FPS, 1%-Low, CPU-/GPU-Busy pro Frame | Intel PresentMon 2.6 (Konsolenversion in `tools\`, signiert von Intel), live per STDOUT |
+| CPU-Drosselung (immer) | PDH `Processor Information(_Total)\% Performance Limit` |
+| CPU-Temperatur, Package-Leistung, PL1, Drosselungsgründe (optional) | Shared Memory von **HWiNFO** (`Global\HWiNFO_SENS_SM2`), wird automatisch erkannt. In HWiNFO muss „Shared Memory Support“ aktiv sein (Gratisversion: 12 Stunden, danach neu aktivieren). |
 
 ## Engpass-Logik (`Analysis/BottleneckAnalyzer.cs`)
 
@@ -52,7 +54,7 @@ ausgelasteten Render-Thread auf mehrere Kerne verteilt.
 
 ## Ideen für Phase 2
 
-- CPU-Temperatur/-Leistung über HWiNFO Shared Memory (statt eigenem Ring-0-Treiber)
+- Weitere Temperaturquellen neben HWiNFO: Core Temp, MSI Afterburner (Shared Memory)
 - AMD-spezifische Werte über ADLX
 - SSD-Temperatur über WMI `MSFT_StorageReliabilityCounter`
 - P-/E-Kerne getrennt darstellen (`GetSystemCpuSetInformation`, EfficiencyClass)

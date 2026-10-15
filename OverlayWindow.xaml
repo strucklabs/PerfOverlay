@@ -29,7 +29,10 @@
 
             <TextBlock x:Name="FpsLine" />
             <TextBlock x:Name="CpuLine" />
-            <StackPanel x:Name="CoreBars" Orientation="Horizontal" Height="18" Margin="42,3,0,3" />
+            <StackPanel Orientation="Horizontal" Margin="42,3,0,3">
+                <StackPanel x:Name="CoreBars" Orientation="Horizontal" Height="18" />
+                <TextBlock x:Name="CoreMaxLine" VerticalAlignment="Bottom" Margin="6,0,0,0" />
+            </StackPanel>
             <TextBlock x:Name="GpuLine" />
 
             <StackPanel x:Name="DetailPanel">

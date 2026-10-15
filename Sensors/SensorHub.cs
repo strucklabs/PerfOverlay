@@ -12,6 +12,7 @@ internal sealed class SensorHub : IDisposable
     private readonly WindowsGpuSensor _windowsGpu;
     private readonly NvmlGpuSensor? _nvml;
     private readonly PresentMonSource _presentMon = new();
+    private readonly HwInfoSensor _hwInfo = new();
 
     public SensorHub()
     {
@@ -48,11 +49,13 @@ internal sealed class SensorHub : IDisposable
             topProcesses,
             _presentMon.GetStats(Win32.GetForegroundProcessId()),
             _presentMon.Status,
-            _presentMon.Running);
+            _presentMon.Running,
+            _hwInfo.Read());
     }
 
     public void Dispose()
     {
+        _hwInfo.Dispose();
         _presentMon.Dispose();
         _nvml?.Dispose();
         _pdh.Dispose();

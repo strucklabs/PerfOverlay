@@ -134,10 +134,23 @@ public partial class OverlayWindow : Window
 
         // CPU
         var c = s.Cpu;
-        Line(CpuLine, L("CPU   "), V($"{c.TotalLoad,4:0} %"),
-            L("  "), V($"{c.AvgMhz / 1000:0.00}"), L(" GHz (max "), V($"{c.MaxMhz / 1000:0.00}"), L(")"),
-            L("  Kern max "), (Pct(c.MaxCoreLoad), LoadBrush(c.MaxCoreLoad)));
+        var cpuParts = new List<(string, Brush?)>
+        {
+            L("CPU   "), V($"{c.TotalLoad,4:0} %"),
+            L("  "), V($"{c.AvgMhz / 1000:0.00}/{c.MaxMhz / 1000:0.00}"), L(" GHz"),
+        };
+        if (s.CpuThermal is { } th)
+        {
+            if (th.TempC is double ct) { cpuParts.Add(L("  ")); cpuParts.Add(($"{ct:0} °C", CpuTempBrush(ct))); }
+            if (th.PowerW is double cw)
+            {
+                cpuParts.Add(L("  ")); cpuParts.Add(V($"{cw:0}"));
+                cpuParts.Add(L(th.PowerLimitW is double pl ? $"/{pl:0} W" : " W"));
+            }
+        }
+        Line(CpuLine, cpuParts.ToArray());
         RenderCoreBars(c.CoreLoads);
+        Line(CoreMaxLine, L("max "), (Pct(c.MaxCoreLoad), LoadBrush(c.MaxCoreLoad)));
 
         // GPU
         var g = s.Gpu;
@@ -185,7 +198,7 @@ public partial class OverlayWindow : Window
             ($"{d.LatencyMs:0.0}", d.LatencyMs > 20 ? WarnBrush : null), L(" ms  "), V($"{d.MBps:0}"), L(" MB/s"));
 
         string source = g?.Source == "NVML" ? "NVML" : g != null ? "Win-Zähler" : "–";
-        FooterLine.Text = $"Strg+Umschalt+F10 aus/an · F9 Position · F8 Details   |   GPU-Quelle: {source}";
+        FooterLine.Text = $"Strg+Umschalt: F10 an/aus · F9 Ecke · F8 Details  |  GPU: {source} · CPU: {s.CpuThermal?.Source ?? "–"}";
     }
 
     private void RenderNotes(IReadOnlyList<LoggedNote> notes)
@@ -266,6 +279,7 @@ public partial class OverlayWindow : Window
 
     private static Brush? LoadBrush(double load) => load >= 90 ? BadBrush : load >= 70 ? WarnBrush : null;
     private static Brush? TempBrush(double t) => t >= 87 ? BadBrush : t >= 80 ? WarnBrush : null;
+    private static Brush? CpuTempBrush(double t) => t >= 95 ? BadBrush : t >= 85 ? WarnBrush : null;
 
     private static Brush SeverityBrush(Severity s) => s switch
     {

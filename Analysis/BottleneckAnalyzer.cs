@@ -108,6 +108,24 @@ public sealed class BottleneckAnalyzer
         if (gpu?.VramUsedGB is double used && gpu.VramTotalGB is double total && used / total > 0.95)
             notes.Add(new("vram", $"VRAM fast voll ({used:0.0}/{total:0.0} GB)", Severity.Warn));
 
+        // --- CPU-Drosselung: genau mit HWiNFO, sonst über das Windows-Leistungslimit ---
+        if (s.CpuThermal is { } cpuThermal)
+        {
+            if (cpuThermal.ThrottleReasons.Count > 0 && s.Cpu.TotalLoad > 15)
+            {
+                bool thermal = cpuThermal.ThrottleReasons.Any(r => r.StartsWith("Temperatur") || r.StartsWith("Spannungswandler"));
+                notes.Add(new("cpu-throttle", $"CPU drosselt: {string.Join(", ", cpuThermal.ThrottleReasons)}",
+                    thermal ? Severity.Bad : Severity.Warn));
+            }
+            if (cpuThermal.TempC is double cpuTemp && cpuTemp >= 95)
+                notes.Add(new("cpu-hot", $"CPU sehr heiß ({cpuTemp:0} °C)", Severity.Bad));
+        }
+        else if (Sustained("cpu-perflimit", s.Cpu.PerfLimitPercent is < 90 && s.Cpu.TotalLoad > 30, s.Time, TimeSpan.FromSeconds(3)))
+        {
+            notes.Add(new("cpu-perflimit",
+                $"CPU begrenzt auf {s.Cpu.PerfLimitPercent:0} % (Power-/Temperaturlimit, Details mit HWiNFO)", Severity.Warn));
+        }
+
         // --- Speicher & Datenträger ---
         // "Pages Input/sec" zählt auch Spieldaten, die per Memory-Mapping von der SSD gelesen werden.
         // Ein hoher Wert allein ist daher normales Asset-Streaming; echte RAM-Knappheit erst bei hoher Belegung.

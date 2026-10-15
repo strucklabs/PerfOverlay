@@ -15,6 +15,7 @@ internal sealed class CpuSensor
     private readonly IntPtr _coreFreq;
     private readonly IntPtr _totalUtility;
     private readonly IntPtr _totalTime;
+    private readonly IntPtr _perfLimit;
 
     public CpuSensor(PdhQuery pdh)
     {
@@ -24,6 +25,7 @@ internal sealed class CpuSensor
         _coreFreq = pdh.Add(@"\Processor Information(*)\Processor Frequency");
         _totalUtility = pdh.Add(@"\Processor Information(_Total)\% Processor Utility");
         _totalTime = pdh.Add(@"\Processor Information(_Total)\% Processor Time");
+        _perfLimit = pdh.Add(@"\Processor Information(_Total)\% Performance Limit");
     }
 
     public CpuData Read()
@@ -43,7 +45,10 @@ internal sealed class CpuSensor
             Math.Clamp(total, 0, 100),
             loads.Values.Select(v => Math.Clamp(v, 0, 100)).ToArray(),
             mhz.Count > 0 ? mhz.Average() : 0,
-            mhz.Count > 0 ? mhz.Max() : 0);
+            mhz.Count > 0 ? mhz.Max() : 0)
+        {
+            PerfLimitPercent = _pdh.Get(_perfLimit),
+        };
     }
 
     /// <summary>Instanzen heißen "0,0", "0,1", ... (Gruppe,Index); "_Total"-Instanzen werden verworfen.</summary>

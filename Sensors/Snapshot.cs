@@ -7,7 +7,19 @@ public sealed record CpuData(
     double MaxMhz)           // effektiver Takt, schnellster Kern
 {
     public double MaxCoreLoad => CoreLoads.Length > 0 ? CoreLoads.Max() : 0;
+
+    /// <summary>Windows "% Performance Limit": 100 = unbegrenzt, darunter bremst Power-/Temperaturlimit.</summary>
+    public double? PerfLimitPercent { get; init; }
 }
+
+/// <summary>CPU-Werte, die nur mit Ring-0-Zugriff lesbar sind – hier aus dem Shared Memory von HWiNFO.</summary>
+public sealed record CpuThermalData(
+    string Source,
+    double? TempC,                          // Package-Temperatur (Intel) bzw. Tctl/Tdie (AMD)
+    double? CoreMaxC,                       // heißester Kern
+    double? PowerW,                         // Package-Leistung
+    double? PowerLimitW,                    // PL1
+    IReadOnlyList<string> ThrottleReasons); // aktive Drosselungsgründe, bereits auf Deutsch zusammengefasst
 
 public sealed record MemoryData(
     double UsedGB,
@@ -68,4 +80,5 @@ public sealed record Snapshot(
     IReadOnlyList<GpuProcessLoad> GpuTopProcesses,
     FrameStats? Frames,
     string FrameSourceStatus,
-    bool FrameSourceRunning);
+    bool FrameSourceRunning,
+    CpuThermalData? CpuThermal);
