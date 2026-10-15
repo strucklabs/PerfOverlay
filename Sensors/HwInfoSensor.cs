@@ -132,7 +132,8 @@ internal sealed class HwInfoSensor : IDisposable
         if (label.Contains("PL1")) return "Power-Limit PL1";
         if (label.Contains("PL2")) return "Power-Limit PL2";
         if (label.Contains("Power Limit Exceeded")) return "Power-Limit";
-        if (label.Contains("VR TDC") || label.Contains("Electrical Design Point") || label.Contains("ICCmax")) return "Strom-/Spannungslimit";
+        if (label.Contains("VR TDC")) return "Stromlimit Spannungswandler (TDC)";
+        if (label.Contains("Electrical Design Point") || label.Contains("ICCmax")) return "Stromlimit (ICCmax/EDP)";
         return null;
     }
 

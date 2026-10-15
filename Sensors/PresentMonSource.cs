@@ -28,14 +28,23 @@ internal sealed class PresentMonSource : IDisposable
 
     public static string ExePath => Path.Combine(AppContext.BaseDirectory, "tools", "PresentMon.exe");
 
-    public bool Running => _headerSeen && !_exited;
+    private double _startedAt;
+
+    /// <summary>
+    /// PresentMon schreibt die CSV-Kopfzeile erst beim ersten Frame. Ohne 3D-Anwendung kommt also nichts –
+    /// läuft der Prozess nach einigen Sekunden aber noch (kein "access denied"), ist die Messung bereit.
+    /// </summary>
+    private bool Settled => _clock.Elapsed.TotalSeconds - _startedAt > 3;
+
+    public bool Running => _process != null && !_exited && !_accessDenied && (_headerSeen || Settled);
 
     public string Status =>
         _accessDenied ? "FPS-Messung braucht Admin-Rechte" :
         !File.Exists(ExePath) ? "tools\\PresentMon.exe fehlt" :
         _process == null ? "nicht gestartet" :
         _exited ? (_lastError ?? "PresentMon wurde beendet") :
-        _headerSeen ? "aktiv" : "startet …";
+        _headerSeen ? "aktiv" :
+        Settled ? "bereit" : "startet …";
 
     public void Start()
     {
@@ -60,6 +69,7 @@ internal sealed class PresentMonSource : IDisposable
 
         try
         {
+            _startedAt = _clock.Elapsed.TotalSeconds;
             _process = Process.Start(psi)!;
         }
         catch (Exception ex)
