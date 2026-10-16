@@ -38,6 +38,9 @@
             <Border Height="40" Margin="0,3,0,4" Background="#14FFFFFF" CornerRadius="2" ClipToBounds="True">
                 <Grid>
                     <Canvas x:Name="FrameGraph" />
+                    <!-- Frame-Pacing rechts oben im Graph, z. B. "Pacing ruhig · ±0,4 ms" -->
+                    <TextBlock x:Name="FrameGraphPacing" FontFamily="Segoe UI" FontSize="9.5" Foreground="#6B7280"
+                               HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,4,0" />
                     <TextBlock x:Name="FrameGraphScale" FontFamily="Segoe UI" FontSize="9.5" Foreground="#6B7280"
                                HorizontalAlignment="Left" VerticalAlignment="Top" Margin="3,0,0,0" />
                     <TextBlock x:Name="FrameGraphEmpty" FontFamily="Segoe UI" FontSize="10.5" Foreground="#6B7280"

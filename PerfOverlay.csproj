@@ -19,6 +19,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Testprojekt liegt im Unterordner und gehört nicht in die Overlay-EXE -->
+    <Compile Remove="tests\**" />
+    <None Remove="tests\**" />
+    <EmbeddedResource Remove="tests\**" />
+    <Page Remove="tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- WinForms-Namespaces kollidieren mit WPF (Application, Color, Point ...) -->
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />

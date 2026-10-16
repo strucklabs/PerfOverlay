@@ -269,6 +269,13 @@ public sealed class BottleneckAnalyzer
             notes.Add(new("presentmode",
                 $"Darstellung per Kopie ({f.PresentMode}) – höhere Latenz; Vollbild oder randlos mit Flip-Modell nutzen", Severity.Warn));
 
+        // --- Frame-Pacing: gleichmäßige Bildausgabe? (Ladephasen mit sehr niedrigen FPS ausgenommen) ---
+        bool unevenPacing = FrameMetrics.PacingRating(f.PacingMs, f.MedianMs) == "unruhig" && f.Fps >= 40;
+        if (Sustained("pacing", unevenPacing, s.Time, TimeSpan.FromSeconds(3)))
+            notes.Add(new("pacing",
+                $"Unruhiges Frame-Pacing (±{f.PacingMs:0.0} ms von Bild zu Bild) – FPS-Limit, VSync und G-Sync/FreeSync prüfen",
+                Severity.Info));
+
         // --- Ruckler mit Ursache: was passierte im selben Moment? ---
         var spikes = f.SpikeAges.Where(age => age <= 10).ToList();
         if (spikes.Count > 0)

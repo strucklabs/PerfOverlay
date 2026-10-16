@@ -113,6 +113,10 @@ public sealed record FrameStats(
     public (double Age, double Ms)[] Frametimes { get; init; } = [];
     /// <summary>Alter (s) der Ruckler-Frames im Verlaufsfenster.</summary>
     public double[] SpikeAges { get; init; } = [];
+    /// <summary>Zeitpunkte der Ruckler auf der fortlaufenden Uhr der Frame-Quelle – zum lückenlosen Zählen.</summary>
+    public double[] SpikeTimes { get; init; } = [];
+    /// <summary>Ø Sprung der Frametime von Bild zu Bild (ms) in den letzten Sekunden, ohne Ruckler.</summary>
+    public double PacingMs { get; init; } = double.NaN;
 }
 
 /// <summary>Auslastung des stärksten Threads eines Prozesses in % eines Kerns.</summary>

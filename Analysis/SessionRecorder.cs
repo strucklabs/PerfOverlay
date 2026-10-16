@@ -38,6 +38,7 @@ public sealed class SessionRecorder : IDisposable
     private DateTime _lastFrames;
     private DateTime _lastRow;
     private int _gamePid;
+    private double _lastSpikeTime = double.MinValue;
 
     public bool Enabled { get; set; } = true;
     public bool Recording => _writer != null;
@@ -50,7 +51,7 @@ public sealed class SessionRecorder : IDisposable
         "CPU_Proz", "PKern_max_Proz", "CPU_GHz", "CPU_Temp", "CPU_W",
         "GPU_Proz", "GPU_MHz", "GPU_Temp", "GPU_W", "VRAM_GB", "VRAM_ausgelagert_GB",
         "GPU_V", "GPU_Hotspot", "GPU_Speicher_Temp",
-        "RAM_GB", "RAM_Proz", "Nachladen_s", "Disk_Proz", "Ruckler", "Meldungen",
+        "RAM_GB", "RAM_Proz", "Nachladen_s", "Disk_Proz", "Ruckler", "Pacing_ms", "Meldungen",
     ];
 
     public void Record(Snapshot s, Verdict v)
@@ -78,10 +79,12 @@ public sealed class SessionRecorder : IDisposable
         }
 
         if (_writer == null || f == null || s.Time - _lastRow < RowInterval) return;
-        double sinceLastRow = (s.Time - _lastRow).TotalSeconds;
         _lastRow = s.Time;
 
-        int spikes = f.SpikeAges.Count(age => age <= sinceLastRow);
+        // Ruckler über ihren Zeitstempel zählen: Ein Frame wird erst bewertet, wenn seine Nachfolger da sind,
+        // und taucht daher u. U. erst einen Takt später auf – so wird er weder doppelt gezählt noch übersprungen.
+        int spikes = f.SpikeTimes.Count(t => t > _lastSpikeTime);
+        if (f.SpikeTimes.Length > 0) _lastSpikeTime = Math.Max(_lastSpikeTime, f.SpikeTimes.Max());
         var cpu = s.Cpu;
         var gpu = s.Gpu;
         var th = s.CpuThermal;
@@ -98,6 +101,7 @@ public sealed class SessionRecorder : IDisposable
             N(s.GpuThermal?.CoreVoltage, 3), N(s.GpuThermal?.HotspotC, 0), N(s.GpuThermal?.MemoryJunctionC, 0),
             N(s.Memory.UsedGB, 1), N(s.Memory.LoadPercent, 0), N(s.Memory.PagesInPerSec, 0), N(s.Disk.ActivePercent, 0),
             spikes.ToString(CultureInfo.InvariantCulture),
+            N(f.PacingMs, 2),
             Text(string.Join(" | ", v.Notes.Select(n => n.Text)))));
     }
 
@@ -122,6 +126,7 @@ public sealed class SessionRecorder : IDisposable
         _sessionStart = s.Time;
         _lastRow = s.Time - RowInterval;
         _gamePid = f.Pid;
+        _lastSpikeTime = double.MinValue;
     }
 
     /// <summary>Kürzere Sitzungen (kurz angeklickt, Alt+Tab) werden wieder gelöscht.</summary>

@@ -288,10 +288,17 @@ public partial class OverlayWindow : Window
         bool has = f != null && f.Frametimes.Length > 1;
         FrameGraphEmpty.Visibility = has ? Visibility.Collapsed : Visibility.Visible;
         FrameGraphScale.Text = "";
+        FrameGraphPacing.Text = "";
         if (!has) return;
 
         double scale = Math.Clamp(Math.Max(f!.MedianMs * 2.5, f.P99Ms * 1.2), 16.7, 100);
         FrameGraphScale.Text = $"{scale:0} ms";
+        string rating = FrameMetrics.PacingRating(f.PacingMs, f.MedianMs);
+        if (rating != "")
+        {
+            FrameGraphPacing.Text = $"Pacing {rating} · ±{f.PacingMs:0.0} ms";
+            FrameGraphPacing.Foreground = rating == "unruhig" ? WarnBrush : MutedBrush;
+        }
         double X(double age) => GraphWidth - age / GraphSeconds * GraphWidth;
         double Y(double ms) => GraphHeight - Math.Min(ms, scale) / scale * (GraphHeight - 2) - 1;
 

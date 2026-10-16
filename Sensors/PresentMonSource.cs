@@ -213,9 +213,15 @@ internal sealed class PresentMonSource : IDisposable
                 return valid.Count > 0 ? valid.Average() : double.NaN;
             }
 
-            // Ruckler: einzelne Frames deutlich über dem Median, mindestens 20 ms. Mit 1,8 × wird bei
-            // 60 FPS schon ein doppelt angezeigtes Bild (33 ms statt 16,7 ms) erfasst – sichtbares Mikroruckeln.
-            double spikeLimit = Math.Max(20, Math.Max(median * 1.8, median + 8));
+            // Ruckler gegen die direkten Nachbarn, Pacing über das Graph-Fenster (siehe FrameMetrics)
+            var all = target.Frames.ToList();
+            var allMs = all.Select(fr => fr.Ms).ToList();
+            var spikeIndex = FrameMetrics.FindSpikes(allMs);
+            var spikeSet = spikeIndex.ToHashSet();
+            int graphStart = all.FindIndex(fr => fr.T >= now - GraphSeconds);
+            if (graphStart < 0) graphStart = all.Count;
+            var graphMs = allMs.Skip(graphStart).ToList();
+            var graphSpikes = spikeIndex.Where(i => i >= graphStart).Select(i => i - graphStart).ToHashSet();
             var last = recent[^1];
 
             return new FrameStats(
@@ -232,8 +238,10 @@ internal sealed class PresentMonSource : IDisposable
                 PresentMode = last.PresentMode,
                 SyncInterval = last.SyncInterval,
                 AllowsTearing = last.AllowsTearing,
-                Frametimes = target.Frames.Where(fr => fr.T >= now - GraphSeconds).Select(fr => (now - fr.T, fr.Ms)).ToArray(),
-                SpikeAges = target.Frames.Where(fr => fr.Ms > spikeLimit).Select(fr => now - fr.T).ToArray(),
+                Frametimes = all.Skip(graphStart).Select(fr => (now - fr.T, fr.Ms)).ToArray(),
+                SpikeAges = spikeIndex.Select(i => now - all[i].T).ToArray(),
+                SpikeTimes = spikeIndex.Select(i => all[i].T).ToArray(),
+                PacingMs = FrameMetrics.Pacing(graphMs, graphSpikes),
             };
         }
     }

@@ -72,6 +72,16 @@ Darstellung: Urteil mit konkretem Tipp, Anteile der Kategorien über die letzten
 der letzten 5 s mit markierten Rucklern, CPU-/GPU-Arbeitszeit pro Frame als Balken, Last des stärksten
 Spiel-Threads („Hauptthread“, mit Thread-Name, falls die Engine einen setzt).
 
+Ruckler und Frame-Pacing (`Sensors/FrameMetrics.cs`):
+- **Ruckler** = ein Frame, der mindestens 1,8 × so lang ist wie der Median seiner ±10 Nachbarn **und** mindestens
+  20 ms dauert. Der Vergleich mit den direkten Nachbarn sorgt dafür, dass Ladebildschirme oder Zwischensequenzen mit
+  gleichmäßig niedrigen FPS nicht zählen (früher: Vergleich mit dem 10-s-Median → über 1000 Fehlzählungen in einer
+  echten Warframe-Sitzung). 1,8 statt 2,0, damit ein doppelt angezeigtes Bild bei 60 FPS (33,3 ms) erkannt wird.
+- **Frame-Pacing** = Ø Sprung der Frametime von Bild zu Bild (ohne Ruckler): unter 10 % der Frametime „ruhig“,
+  ab 25 % „unruhig“ – erfasst Mikroruckeln, das aus vielen kleinen Schwankungen statt einzelner Hänger besteht.
+
+Tests: `dotnet test tests\PerfOverlay.Tests`
+
 Zusätzliche Hinweise: GPU-Drosselung (Temperatur, Power-Brake), PCIe-Link reduziert, VRAM-Auslagerung in den RAM
 (`GPU Process Memory\Shared Usage` des Spiels), RAM knapp, Datenträger ausgelastet, Ruckler mit Ursache
 (Nachladen, CPU-Spitze, VRAM, unklar), Darstellung per Kopie (höhere Latenz), Frame Generation, Fremdlast auf GPU

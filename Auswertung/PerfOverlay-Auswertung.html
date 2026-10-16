@@ -194,7 +194,7 @@ function parseCsv(text, name) {
     thread: col("Hauptthread_Proz"), cpu: col("CPU_Proz"), pmax: col("PKern_max_Proz"), cpuTemp: col("CPU_Temp"), cpuW: col("CPU_W"),
     gpu: col("GPU_Proz"), gpuTemp: col("GPU_Temp"), gpuW: col("GPU_W"), vram: col("VRAM_GB"), spill: col("VRAM_ausgelagert_GB"),
     gpuMhz: col("GPU_MHz"), gpuV: col("GPU_V"), hotspot: col("GPU_Hotspot"), memTemp: col("GPU_Speicher_Temp"),
-    ram: col("RAM_Proz"), spikes: col("Ruckler"), notes: rows.map(r => r.Meldungen || ""), time: rows.map(r => r.Zeit),
+    ram: col("RAM_Proz"), spikes: col("Ruckler"), pacing: col("Pacing_ms"), notes: rows.map(r => r.Meldungen || ""), time: rows.map(r => r.Zeit),
   };
   return { name, meta, rows: rows.length, d, stats: computeStats(d) };
 }
@@ -240,6 +240,8 @@ function computeStats(d) {
     gpuVLoad: loadIdx.length ? avg(loadIdx.map(i => d.gpuV[i])) : null,
     gpuWLoad: loadIdx.length ? avg(loadIdx.map(i => d.gpuW[i])) : null,
     hotspotMax: max(d.hotspot), memTempMax: max(d.memTemp),
+    // Pacing nur im Spielgeschehen (ab 40 FPS), Ladebildschirme verzerren sonst den Mittelwert
+    pacing: avg(d.pacing.map((p, i) => d.fps[i] !== null && d.fps[i] >= 40 ? p : null)),
     notes: [...notes.values()].sort((a, b) => b.seconds - a.seconds),
   };
 }
@@ -315,6 +317,8 @@ function renderSession(view, s) {
       ${card("Ø 1%-Low", fmt(st.low1, 0), `schlechteste Sekunde ${fmt(st.worstLow1, 0)}`)}
       ${card("Ø Frametime", fmt(st.ft, 1), "ms")}
       ${card("Ruckler", fmt(st.spikes, 0), `${fmt(st.spikesPerMin, 1)} pro Minute`)}
+      ${card("Frame-Pacing", st.pacing === null ? "–" : "±" + fmt(st.pacing, 1) + " <small>ms</small>",
+          st.pacing === null ? "nicht aufgezeichnet" : pacingRating(st.pacing, st.ft))}
       ${card("Hauptengpass", st.top ? KINDS[st.top[0]]?.short ?? st.top[0] : "–", st.top ? pct(st.top[1]) + " der Zeit" : "")}
       ${card("Ø FPS im CPU-Limit", fmt(st.fpsCpu, 0), st.fpsCpu === null ? "kein CPU-Limit" : "hier wirken RAM/CPU")}
       ${card("CPU max", fmt(st.cpuTempMax, 0, " °C"), st.cpuW !== null ? `Ø ${fmt(st.cpuW, 0)} W` : "")}
@@ -367,6 +371,13 @@ function renderSession(view, s) {
     : `<p class="empty">Keine Meldungen in dieser Sitzung.</p>`);
 }
 
+/** Wie FrameMetrics.PacingRating im Overlay: unter 10 % der Frametime ruhig, ab 25 % unruhig */
+function pacingRating(pacing, ft) {
+  if (pacing === null || !ft) return "";
+  const r = pacing / ft;
+  return r < 0.10 ? "ruhig" : r < 0.25 ? "leicht unruhig" : "unruhig";
+}
+
 function card(k, v, sub) {
   return `<div class="card"><div class="k">${k}</div><div class="v">${v}</div><div class="k">${sub || "&nbsp;"}</div></div>`;
 }
@@ -380,6 +391,7 @@ const METRICS = [
   ["Ø FPS im CPU-Limit", s => s.fpsCpu, v => fmt(v, 1), 1],
   ["Ø Frametime", s => s.ft, v => fmt(v, 2, " ms"), -1],
   ["Ruckler pro Minute", s => s.spikesPerMin, v => fmt(v, 1), -1],
+  ["Ø Frame-Pacing", s => s.pacing, v => "±" + fmt(v, 2, " ms"), -1],
   ["Anteil GPU-Limit", s => s.shares.Gpu || 0, pct, 0],
   ["Anteil CPU-Limit", s => s.shares.Cpu || 0, pct, -1],
   ["Ø CPU-Arbeitszeit", s => s.cpuBusy, v => fmt(v, 2, " ms"), -1],

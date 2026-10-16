@@ -94,6 +94,7 @@ internal static class SelfTest
                 SyncInterval = 0,
                 Frametimes = times,
                 SpikeAges = [5.0 - 180 * (5.0 / 600), 5.0 - 420 * (5.0 / 600)],
+                PacingMs = 0.6,
             };
             snapshot = real with
             {
@@ -147,6 +148,8 @@ internal static class SelfTest
                 AppFps = 1000 / ms,
                 SyncInterval = 0,
                 SpikeAges = spike ? [0.2] : [],
+                SpikeTimes = spike ? [t] : [],
+                PacingMs = phase == 1 ? 1.4 + jitter : 0.3 + jitter * 0.2,
             };
             var snapshot = real with
             {
