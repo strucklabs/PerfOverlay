@@ -28,6 +28,7 @@ internal static class SelfTest
         hub.StartFrameCapture();
         var analyzer = new BottleneckAnalyzer();
         log.AppendLine($"Admin: {Win32.IsElevated()}   NVML: {hub.HasNvml}   PresentMon: {PresentMonSource.ExePath}");
+        if (!hub.HasNvml) log.AppendLine(AdlxGpuSensor.Dump(hub.Adlx));
         using (var icon = OverlayWindow.LoadTrayIcon())
             log.AppendLine($"Tray-Icon: {(icon == System.Drawing.SystemIcons.Application ? "Standard (eigenes fehlt!)" : $"eigenes, {icon.Width}×{icon.Height}")}");
 

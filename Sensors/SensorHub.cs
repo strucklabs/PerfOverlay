@@ -11,6 +11,7 @@ internal sealed class SensorHub : IDisposable
     private readonly DiskSensor _disk;
     private readonly WindowsGpuSensor _windowsGpu;
     private readonly NvmlGpuSensor? _nvml;
+    private readonly AdlxGpuSensor? _adlx;
     private readonly PresentMonSource _presentMon = new();
     private readonly HwInfoSensor _hwInfo = new();
     private readonly ProcessCpuSensor _processCpu = new();
@@ -29,10 +30,12 @@ internal sealed class SensorHub : IDisposable
         _windowsGpu = new WindowsGpuSensor(_pdh);
         _network = new NetworkSensor(_pdh, pingTarget);
         _nvml = NvmlGpuSensor.TryCreate();
+        if (_nvml == null) _adlx = AdlxGpuSensor.TryCreate(probeFirst: true);
         _pdh.Collect();   // Ratenzähler brauchen zwei Messpunkte
     }
 
     public bool HasNvml => _nvml != null;
+    public AdlxGpuSensor? Adlx => _adlx;
 
     /// <summary>Startet die Hintergrundmessungen: PresentMon (Frames) und Ping (Verbindung).</summary>
     public void StartFrameCapture()
@@ -50,6 +53,12 @@ internal sealed class SensorHub : IDisposable
             : (0, 0, new List<GpuProcessLoad>());
 
         GpuData? gpu = _nvml?.Read();
+        GpuThermalData? adlxThermal = null;
+        if (gpu == null && _adlx?.Read() is { } adlx)
+        {
+            gpu = adlx.Gpu with { Load = adlx.Gpu.Load ?? (_windowsGpu.Available ? winLoad : null) };
+            adlxThermal = adlx.Thermal;
+        }
         if (gpu == null && _windowsGpu.Available)
             gpu = new GpuData { Name = "GPU", Source = "Windows", Load = winLoad, VramUsedGB = winVram };
 
@@ -76,9 +85,20 @@ internal sealed class SensorHub : IDisposable
             Network = _network.Read() with { TopTransfer = _processCpu.TopTransfer(gamePid) },
             GameSharedVramGB = _windowsGpu.Available ? _windowsGpu.SharedUsageGB(gamePid) : null,
             ForegroundPid = foregroundPid,
-            GpuThermal = _hwInfo.Gpu,   // wird beim _hwInfo.Read() oben mitgelesen
+            GpuThermal = MergeThermal(_hwInfo.Gpu, adlxThermal),   // _hwInfo.Gpu wird beim _hwInfo.Read() oben mitgelesen
             HwInfoStatus = _hwInfo.Status,
         };
+    }
+
+    /// <summary>HWiNFO hat Vorrang (falls es läuft und der Nutzer es so eingerichtet hat), ADLX füllt Lücken.</summary>
+    internal static GpuThermalData? MergeThermal(GpuThermalData? hwInfo, GpuThermalData? adlx)
+    {
+        if (hwInfo == null || adlx == null) return hwInfo ?? adlx;
+        return new GpuThermalData(
+            hwInfo.CoreVoltage ?? adlx.CoreVoltage,
+            hwInfo.HotspotC ?? adlx.HotspotC,
+            hwInfo.MemoryJunctionC ?? adlx.MemoryJunctionC,
+            hwInfo.FanRpm ?? adlx.FanRpm);
     }
 
     public void Dispose()
@@ -87,6 +107,7 @@ internal sealed class SensorHub : IDisposable
         _hwInfo.Dispose();
         _presentMon.Dispose();
         _nvml?.Dispose();
+        _adlx?.Dispose();
         _pdh.Dispose();
     }
 }

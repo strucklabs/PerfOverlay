@@ -72,6 +72,7 @@ Das Icon (`Assets\PerfOverlay.ico`) wird mit `Assets\make-icon.ps1` erzeugt.
 | RAM, Commit, Nachladen von der Platte | `GlobalMemoryStatusEx`, PDH `Memory\Pages Input/sec` |
 | Datenträger | PDH `PhysicalDisk(*)` – Aktivität und Latenz des am stärksten belasteten Laufwerks |
 | NVIDIA-GPU | NVML (`nvml.dll` aus dem Treiber): Last, Takt, Temperatur, Leistung/Limit, VRAM, Lüfter, PCIe, Throttle-Reasons |
+| AMD-GPU | ADLX (`amdadlx64.dll` aus dem Treiber): Last, Takt, Speichertakt, Temperatur, Hotspot, Speichertemperatur, Board-Leistung, Spannung, Lüfter (U/min), VRAM. Der erste Zugriff läuft in einem Probe-Prozess (`--adlx-probe`) – schlägt er fehl, bleibt ADLX abgeschaltet statt das Overlay abstürzen zu lassen. HWiNFO-Werte haben Vorrang. Drosselung: Hinweis ab 110 °C Hotspot (AMD meldet keine Gründe). |
 | Andere GPUs / GPU-Last pro Prozess | PDH `GPU Engine(*engtype_3D)`, `GPU Adapter Memory` (herstellerunabhängig) |
 | FPS, 1%-Low, CPU-/GPU-Busy pro Frame | Intel PresentMon 2.6 (Konsolenversion in `tools\`, signiert von Intel), live per STDOUT |
 | RAM-Bestückung, Kanäle, Takt | WMI `Win32_PhysicalMemory` (SMBIOS Typ 17), einmal beim Start. Kanal aus Slot-Namen (`A2`, `DIMM_B1`, `ChannelA-DIMM0` …), sonst aus der Interleave-Tiefe. Nenntakt aus der Teilenummer (Corsair, G.Skill, Kingston, Crucial Ballistix, TeamGroup), sonst Hinweis bei JEDEC-Standardtakt. |
@@ -136,7 +137,8 @@ Frames kennzeichnen – bei DLSS 3 ist das nicht garantiert (ungetestet).
 | Windows 11 25H2, AMD Ryzen 9 5900XT (32 Threads), RTX 4070 SUPER | ✅ Selbsttest (Leerlauf + Last) |
 | Beliebige Kernzahl, beliebige Windows-Sprache | ✅ (Kerne zur Laufzeit ermittelt, englische PDH-Namen; 32 Threads passen) |
 | NVIDIA-Karten (NVML) | ✅ |
-| AMD-/Intel-Grafikkarten | ⚠️ nur Auslastung und VRAM über Windows-Zähler, ungetestet |
+| AMD-Grafikkarten (ADLX) | ⚠️ eingebaut, auf echter Hardware noch ungetestet |
+| Intel-Grafikkarten | ⚠️ nur Auslastung und VRAM über Windows-Zähler, ungetestet |
 | AMD-CPUs mit HWiNFO | ✅ Tctl/Tdie, Package Power, Drosselung über PPT/TDC/EDC-Limit (%) und HTC/PROCHOT, Power Reporting Deviation |
 | AMD-CPUs ohne HWiNFO | ⚠️ Windows-„% Leistungslimit“ bleibt bei EDC-Begrenzung auf 100 %, Drosselung also nicht erkennbar |
 | CPU-Temperaturbewertung | relativ zu TjMax (Intel: aus HWiNFO berechnet; AMD: nach Modell 89/90/95 °C, Hinweis nur bei Drosselung) |
@@ -148,7 +150,6 @@ Frames kennzeichnen – bei DLSS 3 ist das nicht garantiert (ungetestet).
 ## Ideen für Phase 2
 
 - Weitere Temperaturquellen neben HWiNFO: Core Temp, MSI Afterburner (Shared Memory)
-- AMD-spezifische Werte über ADLX
 - SSD-Temperatur über WMI `MSFT_StorageReliabilityCounter`
 - Hauptfenster in der EXE mit Live-Auswertung (gleiche Datenbasis wie die CSV-Sitzungen)
 - Download-Link im Kopf der Auswertung, sobald es einen Release Candidate gibt

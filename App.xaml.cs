@@ -10,6 +10,13 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Interner Probelauf für die AMD-Schnittstelle, siehe AdlxGpuSensor.TryCreate
+        if (e.Args.Contains("--adlx-probe"))
+        {
+            Environment.Exit(Sensors.AdlxGpuSensor.RunProbe());
+            return;
+        }
+
         if (e.Args.Contains("--preview"))
         {
             try { await SelfTest.PreviewAsync(); }

@@ -78,7 +78,7 @@ public sealed record DiskData(
 public sealed record GpuData
 {
     public string Name { get; init; } = "GPU";
-    public string Source { get; init; } = "";   // "NVML" oder "Windows"
+    public string Source { get; init; } = "";   // "NVML" (NVIDIA), "ADLX" (AMD) oder "Windows"
     public double? Load { get; init; }
     public double? CoreMhz { get; init; }
     public double? MaxCoreMhz { get; init; }

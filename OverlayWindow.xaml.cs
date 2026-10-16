@@ -404,7 +404,7 @@ public partial class OverlayWindow : Window
         var users = s.GpuTopProcesses.Take(3).Select(p => $"{p.Name} {p.Load:0} %").ToList();
         GpuUsersLine.Text = "GPU-Nutzer: " + (users.Count > 0 ? string.Join(", ", users) : "–");
 
-        string source = g?.Source == "NVML" ? "NVML" : g != null ? "Win-Zähler" : "–";
+        string source = g?.Source is "NVML" or "ADLX" ? g.Source : g != null ? "Win-Zähler" : "–";
         _footerText = $"Strg+Umschalt: F10 an/aus · F9 Ecke · F8 Ansicht  |  GPU: {source} · CPU: {s.CpuThermal?.Source ?? "–"}";
         if (!_dragMode) FooterLine.Text = _footerText;
     }

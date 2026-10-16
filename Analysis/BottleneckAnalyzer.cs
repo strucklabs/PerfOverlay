@@ -147,6 +147,9 @@ public sealed class BottleneckAnalyzer
             // Großer Abstand Hotspot ↔ GPU-Temperatur deutet auf ungleichmäßigen Kontakt des Kühlers
             if (gt.HotspotC is double hot && gpu?.TempC is double core && hot - core >= 20)
                 notes.Add(new("gpu-hotspot", $"Hotspot {hot - core:0} °C über GPU-Temperatur – Wärmeleitpaste/Anpressdruck prüfen", Severity.Warn));
+            // AMD meldet keine Drosselgründe; Radeon-Karten senken ab 110 °C Hotspot ("Junction") den Takt
+            if (gpu?.Source == "ADLX" && gt.HotspotC is >= 110)
+                notes.Add(new("gpu-thermal", "GPU drosselt wegen Temperatur", Severity.Bad));
         }
 
         // --- VRAM: voll ist erst ein Problem, wenn das Spiel in den RAM auslagert ---
