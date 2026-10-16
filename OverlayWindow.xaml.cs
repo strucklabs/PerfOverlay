@@ -109,7 +109,9 @@ public partial class OverlayWindow : Window
     public OverlayWindow()
     {
         InitializeComponent();
-        SizeChanged += (_, _) => Reposition();
+        // Erst nach dem Layout-Durchlauf ausrichten: Während SizeChanged hat das Win32-Fenster noch die alte
+        // Größe, die Ecke würde sonst mit den Maßen der vorherigen Ansicht berechnet
+        SizeChanged += (_, _) => Dispatcher.BeginInvoke(Reposition, System.Windows.Threading.DispatcherPriority.Background);
         CreateNoteRows();
         ApplySettings();
         _modifierTimer.Tick += (_, _) => SetDragMode(Win32.IsKeyDown(Win32.VK_CONTROL) && Win32.IsKeyDown(Win32.VK_SHIFT));
@@ -363,7 +365,7 @@ public partial class OverlayWindow : Window
             if (g.PState is int ps)
             {
                 p2.Add(L("  ")); p2.Add(V($"P{ps}"));
-                if (!hasTemps) p2.Add(L(" " + PStateLabel(ps)));
+                p2.Add(L(" " + PStateLabel(ps)));
             }
             Line(GpuLine2, p2.ToArray());
         }
@@ -854,7 +856,7 @@ public partial class OverlayWindow : Window
         var menu = new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add("Ein-/Ausblenden\tStrg+Umschalt+F10", null, (_, _) => ToggleVisible());
         menu.Items.Add("Position wechseln\tStrg+Umschalt+F9", null, (_, _) => NextCorner());
-        menu.Items.Add("Ansicht wechseln (Kompakt / Standard / Analyse)\tStrg+Umschalt+F8", null, (_, _) => CycleView());
+        menu.Items.Add("Ansicht wechseln\tStrg+Umschalt+F8", null, (_, _) => CycleView());
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         var record = new System.Windows.Forms.ToolStripMenuItem("Sitzungen aufzeichnen") { Checked = _recorder.Enabled, CheckOnClick = true };
         record.CheckedChanged += (_, _) =>
