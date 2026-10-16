@@ -47,11 +47,15 @@ Frames oder beim Spielwechsel beginnt eine neue Datei. Abschaltbar im Tray-Menü
 
 `Auswertung\PerfOverlay-Auswertung.html` (Tray-Menü → „Auswertung öffnen“) wertet die Dateien per Drag & Drop
 im Browser aus – ohne Internet, ohne Upload:
+- **Auf einen Blick**: 3–6 Kernaussagen nach festen Schwellen (Gleichmäßigkeit, Ruckler, Engpass, Drosselung,
+  Speichertemperatur, Verbindung) – als Hinweis formuliert, nicht als Diagnose
+- Aufklappbare Abschnitte (Zustand wird im Browser gemerkt), jeder mit einer Lesehilfe „So liest du das“
 - Zusammenfassung: Ø FPS, Ø 1%-Low, Ruckler pro Minute, Hauptengpass, **Ø FPS im CPU-Limit**, Temperaturen
 - Engpass-Anteile, Verlaufsdiagramme (FPS mit Engpass-Streifen und Rucklern, CPU-/GPU-Arbeitszeit,
   Auslastung, Temperaturen) mit synchronem Fadenkreuz
 - Mehrere Dateien: Vergleichstabelle mit Abweichung zur ersten Sitzung, z. B. vor/nach XMP.
-  „Ø FPS im CPU-Limit“ zeigt den Effekt von schnellerem RAM am deutlichsten.
+  „Ø FPS im CPU-Limit“ zeigt den Effekt von schnellerem RAM am deutlichsten. Darüber eine Einordnung je
+  Sitzung (besser/schlechter/gemischt) und ein Hinweis, wenn die Sitzungen aus verschiedenen Spielen stammen.
 
 `PerfOverlay.exe --preview` erzeugt neben der EXE zusätzlich zwei **künstliche** Beispielsitzungen
 (`preview-sitzung-vorher.csv` / `-nachher.csv`) zum Ausprobieren der Auswertung.
