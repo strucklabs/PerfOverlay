@@ -50,6 +50,8 @@ im Browser aus – ohne Internet, ohne Upload:
 - **Auf einen Blick**: 3–6 Kernaussagen nach festen Schwellen (Gleichmäßigkeit, Ruckler, Engpass, Drosselung,
   Speichertemperatur, Verbindung) – als Hinweis formuliert, nicht als Diagnose
 - Aufklappbare Abschnitte (Zustand wird im Browser gemerkt), jeder mit einer Lesehilfe „So liest du das“
+- Fehlende Werte werden je Abschnitt mit Grund genannt: ältere Aufzeichnung, HWiNFO nicht aktiv,
+  nur bei NVIDIA verfügbar, Spiel nicht auslesbar (Anti-Cheat), Ping-Messung aus
 - Zusammenfassung: Ø FPS, Ø 1%-Low, Ruckler pro Minute, Hauptengpass, **Ø FPS im CPU-Limit**, Temperaturen
 - Engpass-Anteile, Verlaufsdiagramme (FPS mit Engpass-Streifen und Rucklern, CPU-/GPU-Arbeitszeit,
   Auslastung, Temperaturen) mit synchronem Fadenkreuz

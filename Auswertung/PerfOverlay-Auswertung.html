@@ -96,6 +96,9 @@
   .help > div { margin-top: 6px; line-height: 1.6; border-left: 2px solid var(--line); padding-left: 10px; }
   .help ul { margin: 4px 0; padding-left: 18px; }
   .help p { margin: 4px 0; }
+  .gaps { margin: 0 0 12px; padding: 8px 12px; border-radius: 8px; background: var(--bg); border: 1px dashed var(--line); font-size: 13px; color: var(--muted); }
+  .gaps p { margin: 2px 0; }
+  .gaps b { color: var(--text); font-weight: 500; }
   .help b { color: var(--text); font-weight: 500; }
   /* Einordnung "Auf einen Blick" */
   .insights { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
@@ -222,7 +225,7 @@ function parseCsv(text, name) {
     pingRouter: col("Ping_Router_ms"), pingNet: col("Ping_Internet_ms"), jitterNet: col("Jitter_Internet_ms"),
     lossNet: col("Verlust_Internet_Proz"), netDown: col("Netz_Down_MBs"), netUp: col("Netz_Up_MBs"), notes: rows.map(r => r.Meldungen || ""), time: rows.map(r => r.Zeit),
   };
-  return { name, meta, rows: rows.length, d, stats: computeStats(d) };
+  return { name, meta, rows: rows.length, cols: new Set(header), d, stats: computeStats(d) };
 }
 
 // ---------------------------------------------------------------- Kennzahlen
@@ -396,53 +399,108 @@ function renderSession(view, s) {
           st.gpuFanLoad !== null ? `Lüfter ${fmt(st.gpuFanLoad, 0)} %` : "",
         ].filter(Boolean).join(" · ") || "GPU ≥ 90 % ausgelastet")}
     </div>`);
+  if ([st.cpuTempMax, st.gpuTempMax, st.pacing, st.pingNet, st.gpuMhzLoad].includes(null))
+    sum.insertAdjacentHTML("beforeend", `<p class="empty">„–“ heißt: nicht aufgezeichnet. Warum, steht im jeweiligen Abschnitt weiter unten.</p>`);
 
   const has = key => d[key].some(v => v !== null);
-  const only = list => list.filter(x => has(x.key));
+  /** Diagramm nur mit Linien, für die es Werte gibt – ganz ohne Werte entfällt es (der Grund steht im Hinweis darüber) */
+  const plot = (parent, title, series, opt) => { const x = series.filter(x => has(x.key)); if (x.length) chart(parent, s, title, x, opt); };
 
   const bn = section(view, "Engpass", "was die Bildrate begrenzt", { id: "bottleneck", help: HELP.bottleneck });
+  gapNote(bn, s, ["cpuBusy", "gpuBusy", "thread"]);
   bn.insertAdjacentHTML("beforeend", shareBar(st.shares));
-  chart(bn, s, "Arbeitszeit pro Frame (ms) – der höhere Wert bremst", [
+  plot(bn, "Arbeitszeit pro Frame (ms) – der höhere Wert bremst", [
     { key: "cpuBusy", label: "CPU", color: "var(--cpu)" },
     { key: "gpuBusy", label: "GPU", color: "var(--gpu)" },
     { key: "ft", label: "Frametime", color: "var(--muted)", dash: "3 3" },
   ], { min: 0, unit: " ms" });
-  chart(bn, s, "Auslastung (%)", [
+  plot(bn, "Auslastung (%)", [
     { key: "gpu", label: "GPU", color: "var(--gpu)" },
     { key: "thread", label: "Hauptthread", color: "var(--cpu)" },
     { key: "cpu", label: "CPU gesamt", color: "var(--limit)" },
   ], { min: 0, max: 100, unit: " %" });
 
   const img = section(view, "Bild und Ruckler", "Mauszeiger über die Diagramme für Einzelwerte", { id: "frames", help: HELP.frames });
-  chart(img, s, "Bilder pro Sekunde", [
+  gapNote(img, s, ["pacing"]);
+  plot(img, "Bilder pro Sekunde", [
     { key: "fps", label: "FPS", color: s.color },
     { key: "low1", label: "1%-Low", color: "var(--muted)", dash: "3 3" },
   ], { min: 0, markers: true, strip: true });
 
   const cpu = section(view, "Prozessor", "", { id: "cpu", help: HELP.cpu });
-  if (has("cpuTemp")) chart(cpu, s, "CPU-Temperatur (°C)", [{ key: "cpuTemp", label: "CPU", color: "var(--cpu)" }], { unit: " °C" });
-  if (has("cpuFanRpm")) chart(cpu, s, "CPU-Lüfter (U/min)", [{ key: "cpuFanRpm", label: "CPU-Lüfter", color: "var(--cpu)" }], { min: 0, unit: " U/min" });
-  if (!has("cpuTemp") && !has("cpuFanRpm"))
-    cpu.insertAdjacentHTML("beforeend", `<p class="empty">Temperatur und Lüfter wurden nicht aufgezeichnet – dafür muss HWiNFO mit „Shared Memory Support“ laufen.</p>`);
+  gapNote(cpu, s, ["cpuTemp", "cpuW", "cpuFanRpm"]);
+  plot(cpu, "CPU-Temperatur (°C)", [{ key: "cpuTemp", label: "CPU", color: "var(--cpu)" }], { unit: " °C" });
+  plot(cpu, "CPU-Lüfter (U/min)", [{ key: "cpuFanRpm", label: "CPU-Lüfter", color: "var(--cpu)" }], { min: 0, unit: " U/min" });
 
   const gpu = section(view, "Grafikkarte", "", { id: "gpu", help: HELP.gpu });
-  chart(gpu, s, "GPU-Temperaturen (°C)", only([
+  gapNote(gpu, s, ["gpuTemp", "gpuMhz", "gpuW", "gpuV", "hotspot", "memTemp", "gpuFanRpm"]);
+  plot(gpu, "GPU-Temperaturen (°C)", [
     { key: "gpuTemp", label: "GPU", color: "var(--gpu)" },
     { key: "hotspot", label: "Hotspot", color: "var(--gpu)", dash: "4 3" },
     { key: "memTemp", label: "Speicher", color: "var(--bad)", dash: "2 2" },
-  ]), { unit: " °C" });
-  chart(gpu, s, "GPU-Takt (MHz)", [{ key: "gpuMhz", label: "Takt", color: "var(--gpu)" }], { unit: " MHz" });
-  if (has("gpuV")) chart(gpu, s, "GPU-Spannung (V)", [{ key: "gpuV", label: "Spannung", color: "var(--limit)" }], { unit: " V" });
-  if (has("gpuFanRpm")) chart(gpu, s, "GPU-Lüfter (U/min)", [{ key: "gpuFanRpm", label: "GPU-Lüfter", color: "var(--gpu)" }], { min: 0, unit: " U/min" });
+  ], { unit: " °C" });
+  plot(gpu, "GPU-Takt (MHz)", [{ key: "gpuMhz", label: "Takt", color: "var(--gpu)" }], { unit: " MHz" });
+  plot(gpu, "GPU-Spannung (V)", [{ key: "gpuV", label: "Spannung", color: "var(--limit)" }], { unit: " V" });
+  plot(gpu, "GPU-Lüfter (U/min)", [{ key: "gpuFanRpm", label: "GPU-Lüfter", color: "var(--gpu)" }], { min: 0, unit: " U/min" });
 
-  if (has("pingNet")) {
-    const net = section(view, "Verbindung", "Ping zu Router und Internet", { id: "network", help: HELP.network });
-    chart(net, s, "Ping (ms)", only([
-      { key: "pingNet", label: "Internet", color: "var(--limit)" },
-      { key: "pingRouter", label: "Router", color: "var(--muted)", dash: "3 3" },
-    ]), { min: 0, unit: " ms" });
+  const net = section(view, "Verbindung", "Ping zu Router und Internet", { id: "network", help: HELP.network });
+  gapNote(net, s, ["pingNet"]);
+  plot(net, "Ping (ms)", [
+    { key: "pingNet", label: "Internet", color: "var(--limit)" },
+    { key: "pingRouter", label: "Router", color: "var(--muted)", dash: "3 3" },
+  ], { min: 0, unit: " ms" });
+
+}
+
+// ---------------------------------------------------------------- Fehlende Daten
+
+/** Messwert → Anzeigename, CSV-Spalte und Datenquelle. Je nach PC liefert nicht jede Quelle etwas. */
+const FIELDS = {
+  cpuTemp: ["CPU-Temperatur", "CPU_Temp", "hwinfo"],
+  cpuW: ["CPU-Leistung", "CPU_W", "hwinfo"],
+  cpuFanRpm: ["CPU-Lüfter", "CPU_Luefter_U_min", "cpuFan"],
+  gpuTemp: ["GPU-Temperatur", "GPU_Temp", "nvml"],
+  gpuMhz: ["GPU-Takt", "GPU_MHz", "nvml"],
+  gpuW: ["GPU-Leistung", "GPU_W", "nvml"],
+  gpuV: ["GPU-Spannung", "GPU_V", "hwinfo"],
+  hotspot: ["Hotspot", "GPU_Hotspot", "hwinfo"],
+  memTemp: ["Speichertemperatur", "GPU_Speicher_Temp", "memSensor"],
+  gpuFanRpm: ["GPU-Lüfter", "GPU_Luefter_U_min", "hwinfo"],
+  cpuBusy: ["CPU-Arbeitszeit", "CPU_Busy_ms", "frames"],
+  gpuBusy: ["GPU-Arbeitszeit", "GPU_Busy_ms", "frames"],
+  thread: ["Hauptthread", "Hauptthread_Proz", "process"],
+  pacing: ["Frame-Pacing", "Pacing_ms", "frames"],
+  pingNet: ["Ping", "Ping_Internet_ms", "ping"],
+};
+
+const GAP_REASONS = {
+  old: "Diese Aufzeichnung stammt aus einer älteren Version von PerfOverlay, die diese Werte noch nicht erfasst hat.",
+  hwinfo: "HWiNFO lief während der Aufzeichnung nicht oder ohne „Shared Memory Support“ (HWiNFO → Einstellungen). "
+    + "In der kostenlosen Version muss die Option alle 12 Stunden neu eingeschaltet werden.",
+  cpuFan: "HWiNFO meldet für dieses Mainboard keinen Lüfter mit „CPU“ im Namen – z. B. weil der Kühler an einem anderen Anschluss hängt.",
+  nvml: "Diese Werte liest PerfOverlay direkt nur bei NVIDIA-Grafikkarten aus.",
+  memSensor: "Nicht jede Grafikkarte hat einen Temperatursensor für den Grafikspeicher.",
+  frames: "Die Bildmessung hat dazu keine Werte geliefert.",
+  process: "Das Spiel ließ sich nicht genauer auslesen, z. B. wegen eines Anti-Cheat-Schutzes.",
+  ping: "Die Ping-Messung war ausgeschaltet (Einstellung „PingTarget“ leer) oder es bestand keine Verbindung.",
+};
+
+/** Schreibt einen Hinweis in den Abschnitt, welche der Werte fehlen und warum – gruppiert nach Grund. */
+function gapNote(parent, s, keys) {
+  const has = key => s.d[key].some(v => v !== null);
+  const groups = new Map();
+  for (const key of keys) {
+    if (has(key)) continue;
+    const [label, column, source] = FIELDS[key];
+    let reason = source;
+    if (!s.cols.has(column)) reason = "old";
+    // Fehlt HWiNFO ganz, ist das der eigentliche Grund – nicht der fehlende Lüfter oder Sensor
+    else if ((source === "cpuFan" && !has("cpuTemp")) || (source === "memSensor" && !has("hotspot"))) reason = "hwinfo";
+    groups.set(reason, [...(groups.get(reason) || []), label]);
   }
-
+  if (!groups.size) return;
+  parent.insertAdjacentHTML("beforeend", `<div class="gaps">${[...groups].map(([reason, labels]) =>
+    `<p><b>Nicht aufgezeichnet: ${esc(labels.join(", "))}.</b> ${esc(GAP_REASONS[reason])}</p>`).join("")}</div>`);
 }
 
 // ---------------------------------------------------------------- Einordnung
