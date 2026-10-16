@@ -65,8 +65,10 @@ public sealed class SessionRecorder : IDisposable
         {
             // Spielwechsel = neue Sitzung
             if (_writer != null && f.Pid != _gamePid) Stop();
-            if (_writer == null) Start(s, f);
-            _lastFrames = s.Time;
+            // Neue Sitzung nur für ein Spiel im Vordergrund – Browser, Launcher und Apps mit
+            // DirectX-Oberfläche (Steam, Discord, Electron-Apps) liefern ebenfalls Frames.
+            if (_writer == null && f.Pid == s.ForegroundPid && !IsNonGame(f.App)) Start(s, f);
+            if (_writer != null) _lastFrames = s.Time;
         }
         else if (_writer != null && s.Time - _lastFrames > SessionTimeout)
         {
@@ -120,12 +122,35 @@ public sealed class SessionRecorder : IDisposable
         _gamePid = f.Pid;
     }
 
+    /// <summary>Kürzere Sitzungen (kurz angeklickt, Alt+Tab) werden wieder gelöscht.</summary>
+    private static readonly TimeSpan MinimumSession = TimeSpan.FromSeconds(60);
+
     public void Stop()
     {
-        _writer?.Dispose();
+        if (_writer == null) return;
+        _writer.Dispose();
         _writer = null;
+        if (_lastRow - _sessionStart < MinimumSession && CurrentFile != null)
+        {
+            try { File.Delete(CurrentFile); }
+            catch (IOException) { /* bleibt liegen – harmlos */ }
+        }
         CurrentFile = null;
     }
+
+    private static readonly HashSet<string> NonGames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Browser
+        "chrome", "msedge", "firefox", "opera", "opera_gx", "brave", "vivaldi", "iexplore", "msedgewebview2",
+        // Launcher und Chat
+        "steam", "steamwebhelper", "EpicGamesLauncher", "EpicWebHelper", "Battle.net", "EADesktop", "Origin",
+        "GalaxyClient", "UbisoftConnect", "upc", "RiotClientUx", "Discord", "Teams", "ms-teams", "slack", "Telegram", "WhatsApp",
+        // Electron-/Desktop-Apps, Medien, System
+        "claude", "Code", "Spotify", "explorer", "dwm", "ApplicationFrameHost", "SearchHost", "StartMenuExperienceHost",
+        "TextInputHost", "ShellExperienceHost", "vlc", "mpc-hc64", "obs64", "PerfOverlay", "PresentMon",
+    };
+
+    private static bool IsNonGame(string app) => NonGames.Contains(Path.GetFileNameWithoutExtension(app));
 
     public void Dispose() => Stop();
 

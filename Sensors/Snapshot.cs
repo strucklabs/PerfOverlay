@@ -135,4 +135,7 @@ public sealed record Snapshot(
 
     /// <summary>Grafikspeicher des Spiels, der in den normalen RAM ausgelagert ist.</summary>
     public double? GameSharedVramGB { get; init; }
+
+    /// <summary>Prozess des Fensters im Vordergrund (zum Messzeitpunkt).</summary>
+    public int ForegroundPid { get; init; }
 }

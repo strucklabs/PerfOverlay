@@ -163,6 +163,7 @@ internal static class SelfTest
                 },
                 MainThread = new ThreadLoad(phase == 1 ? 94 + jitter * 5 : phase == 0 ? 62 : 30, null),
                 BackgroundCpu = [],
+                ForegroundPid = frames.Pid,   // das Demo-Spiel gilt als Vordergrundfenster
             };
             recorder.Record(snapshot, analyzer.Analyze(snapshot));
         }

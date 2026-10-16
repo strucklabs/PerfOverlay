@@ -44,7 +44,8 @@ internal sealed class SensorHub : IDisposable
         if (gpu == null && _windowsGpu.Available)
             gpu = new GpuData { Name = "GPU", Source = "Windows", Load = winLoad, VramUsedGB = winVram };
 
-        var frames = _presentMon.GetStats(Win32.GetForegroundProcessId());
+        int foregroundPid = Win32.GetForegroundProcessId();
+        var frames = _presentMon.GetStats(foregroundPid);
         int gamePid = frames?.Pid ?? 0;
 
         return new Snapshot(
@@ -63,6 +64,7 @@ internal sealed class SensorHub : IDisposable
             MainThread = _processCpu.SampleMainThread(gamePid),
             BackgroundCpu = _processCpu.SampleBackground(gamePid),
             GameSharedVramGB = _windowsGpu.Available ? _windowsGpu.SharedUsageGB(gamePid) : null,
+            ForegroundPid = foregroundPid,
         };
     }
 
