@@ -51,7 +51,9 @@ public sealed class SessionRecorder : IDisposable
         "CPU_Proz", "PKern_max_Proz", "CPU_GHz", "CPU_Temp", "CPU_W",
         "GPU_Proz", "GPU_MHz", "GPU_Temp", "GPU_W", "VRAM_GB", "VRAM_ausgelagert_GB",
         "GPU_V", "GPU_Hotspot", "GPU_Speicher_Temp", "GPU_Luefter_Proz", "GPU_Luefter_U_min", "CPU_Luefter_U_min",
-        "RAM_GB", "RAM_Proz", "Nachladen_s", "Disk_Proz", "Ruckler", "Pacing_ms", "Meldungen",
+        "RAM_GB", "RAM_Proz", "Nachladen_s", "Disk_Proz", "Ruckler", "Pacing_ms",
+        "Ping_Router_ms", "Ping_Internet_ms", "Jitter_Internet_ms", "Verlust_Internet_Proz", "Netz_Down_MBs", "Netz_Up_MBs",
+        "Meldungen",
     ];
 
     public void Record(Snapshot s, Verdict v)
@@ -107,6 +109,8 @@ public sealed class SessionRecorder : IDisposable
             N(s.Memory.UsedGB, 1), N(s.Memory.LoadPercent, 0), N(s.Memory.PagesInPerSec, 0), N(s.Disk.ActivePercent, 0),
             spikes.ToString(CultureInfo.InvariantCulture),
             N(f.PacingMs, 2),
+            N(s.Network?.Router?.AvgMs, 1), N(s.Network?.Internet?.AvgMs, 1), N(s.Network?.Internet?.JitterMs, 1),
+            N(s.Network?.Internet?.LossPercent, 0), N(s.Network?.DownMBps, 2), N(s.Network?.UpMBps, 2),
             Text(string.Join(" | ", v.Notes.Select(n => n.Text)))));
     }
 

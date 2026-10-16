@@ -136,6 +136,13 @@
             <TextBlock x:Name="RamLine" Margin="0,2,0,0" />
             <TextBlock x:Name="DiskLine" />
             <TextBlock x:Name="GpuUsersLine" Foreground="#6B7280" FontFamily="Segoe UI" FontSize="11" />
+
+            <!-- ============ Verbindung ============ -->
+            <Border x:Name="SecNetwork" Style="{StaticResource Section}">
+                <TextBlock Text="VERBINDUNG" Style="{StaticResource SectionText}" />
+            </Border>
+            <TextBlock x:Name="PingLine" />
+            <TextBlock x:Name="TrafficLine" />
             <TextBlock x:Name="FooterLine" Foreground="#6B7280" FontFamily="Segoe UI" FontSize="10.5" Margin="0,5,0,0" />
         </StackPanel>
     </Border>

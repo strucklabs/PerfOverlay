@@ -131,7 +131,21 @@ public sealed record FrameStats(
 /// <summary>Auslastung des stärksten Threads eines Prozesses in % eines Kerns.</summary>
 public sealed record ThreadLoad(double Percent, string? Name);
 
-public sealed record ProcessLoad(int Pid, string Name, double Percent);
+/// <param name="Percent">CPU-Anteil an der Gesamt-CPU.</param>
+/// <param name="TransferMBps">Datendurchsatz des Prozesses (Datei- und Netzwerk-E/A zusammen), MB/s.</param>
+public sealed record ProcessLoad(int Pid, string Name, double Percent, double TransferMBps = 0);
+
+/// <summary>Verbindungsqualität: Ping zum Router und ins Internet, Datendurchsatz aller Adapter.</summary>
+public sealed record NetworkData(
+    PingStats? Router,
+    PingStats? Internet,
+    bool RouterAnswers,      // manche Router beantworten Ping nie – dann sagt fehlende Antwort nichts aus
+    double DownMBps,
+    double UpMBps)
+{
+    /// <summary>Größter Datendurchsatz außer dem Spiel – bei hohem Download vermutlich der Verursacher.</summary>
+    public ProcessLoad? TopTransfer { get; init; }
+}
 
 public sealed record Snapshot(
     DateTime Time,
@@ -162,4 +176,6 @@ public sealed record Snapshot(
     public GpuThermalData? GpuThermal { get; init; }
 
     public HwInfoStatus HwInfoStatus { get; init; } = HwInfoStatus.NotRunning;
+
+    public NetworkData? Network { get; init; }
 }

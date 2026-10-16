@@ -27,6 +27,12 @@ public sealed class Settings
 
     public bool RecordSessions { get; set; } = true;
 
+    /// <summary>
+    /// Ping-Ziel im Internet für die Verbindungsanalyse (einmal pro Sekunde, 32 Byte). Leer = nicht pingen.
+    /// Standard ist ein öffentlicher DNS-Server, der zuverlässig antwortet.
+    /// </summary>
+    public string PingTarget { get; set; } = "1.1.1.1";
+
     public static string DefaultPath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PerfOverlay", "einstellungen.json");
 

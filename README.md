@@ -70,6 +70,7 @@ Das Icon (`Assets\PerfOverlay.ico`) wird mit `Assets\make-icon.ps1` erzeugt.
 | FPS, 1%-Low, CPU-/GPU-Busy pro Frame | Intel PresentMon 2.6 (Konsolenversion in `tools\`, signiert von Intel), live per STDOUT |
 | RAM-Bestückung, Kanäle, Takt | WMI `Win32_PhysicalMemory` (SMBIOS Typ 17), einmal beim Start. Kanal aus Slot-Namen (`A2`, `DIMM_B1`, `ChannelA-DIMM0` …), sonst aus der Interleave-Tiefe. Nenntakt aus der Teilenummer (Corsair, G.Skill, Kingston, Crucial Ballistix, TeamGroup), sonst Hinweis bei JEDEC-Standardtakt. |
 | CPU-Drosselung (immer) | PDH `Processor Information(_Total)\% Performance Limit` |
+| Verbindung | Ping je Sekunde zum Router (Standard-Gateway) und zu `PingTarget` (Standard `1.1.1.1`, leer = aus) → Ø-Ping, Jitter, Verlust über 30 s; PDH `Network Interface(*)\Bytes Received/Sent`; Datendurchsatz je Prozess über `GetProcessIoCounters` (Datei + Netzwerk, daher „vermutlich“) |
 | HWiNFO-Zustand | Beim Start und bei jedem Wechsel ein Hinweis, was fehlt: HWiNFO läuft nicht / läuft, aber Sensorfenster bzw. „Shared Memory Support“ fehlt / lieferte, hat aber aufgehört (beendet oder 12-h-Grenze der Gratisversion). |
 | GPU-Spannung, Hotspot, Speicher-Junction (optional) | HWiNFO (`GPU Core Voltage`, `… Hot Spot …`, `… Memory Junction …`). Hinweise ab 100 °C Speichertemperatur (GDDR6X drosselt um 110 °C) und bei Hotspot ≥ 20 °C über GPU-Temperatur. |
 | CPU-Temperatur, Package-Leistung, PL1, Drosselungsgründe (optional) | Shared Memory von **HWiNFO** (`Global\HWiNFO_SENS_SM2`), wird automatisch erkannt. In HWiNFO muss „Shared Memory Support“ aktiv sein (Gratisversion: 12 Stunden, danach neu aktivieren). |
@@ -94,6 +95,13 @@ Ruckler und Frame-Pacing (`Sensors/FrameMetrics.cs`):
   echten Warframe-Sitzung). 1,8 statt 2,0, damit ein doppelt angezeigtes Bild bei 60 FPS (33,3 ms) erkannt wird.
 - **Frame-Pacing** = Ø Sprung der Frametime von Bild zu Bild (ohne Ruckler): unter 10 % der Frametime „ruhig“,
   ab 25 % „unruhig“ – erfasst Mikroruckeln, das aus vielen kleinen Schwankungen statt einzelner Hänger besteht.
+
+Verbindung (bremst keine FPS, verursacht aber Lag in Online-Spielen): Schwankt schon der Ping zum Router
+(Verlust ≥ 3 %, Jitter ≥ 8 ms oder Ø ≥ 20 ms), liegt es am eigenen Netz – oft WLAN. Ist der Router stabil, das
+Internet-Ziel aber nicht (Verlust ≥ 3 %, Jitter ≥ 15 ms oder Ø ≥ 100 ms), liegt es dahinter. Router, die Ping
+grundsätzlich nicht beantworten, lösen keinen Hinweis aus. Zusätzlich ein Hinweis bei großem Down-/Upload
+während des Spielens, mit dem vermutlichen Verursacher. In Kompakt/Standard nur als Hinweis, in der Analyse-Ansicht
+als Abschnitt „Verbindung“.
 
 Tests: `dotnet test tests\PerfOverlay.Tests` (Ruckler/Pacing, Engpass-Analyse mit echten Warframe-Fällen,
 Sitzungsaufzeichnung inkl. Alt+Tab, RAM-Teilenummern).
@@ -138,5 +146,3 @@ Frames kennzeichnen – bei DLSS 3 ist das nicht garantiert (ungetestet).
 - SSD-Temperatur über WMI `MSFT_StorageReliabilityCounter`
 - Hauptfenster in der EXE mit Live-Auswertung (gleiche Datenbasis wie die CSV-Sitzungen)
 - Download-Link im Kopf der Auswertung, sobald es einen Release Candidate gibt
-- Netzwerk: Ping/Jitter/Paketverlust zu Router und Internet, Bandbreite und Hintergrund-Downloads je Prozess
-  (eigene Kategorie „Verbindung“ – bremst keine FPS, verursacht aber Lag in Online-Spielen)

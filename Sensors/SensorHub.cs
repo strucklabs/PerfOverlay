@@ -18,19 +18,28 @@ internal sealed class SensorHub : IDisposable
     // WMI-Abfrage dauert einige 100 ms – im Hintergrund, damit das Overlay sofort startet
     private readonly Task<MemoryConfig?> _memoryConfig = Task.Run(MemoryConfig.Read);
 
-    public SensorHub()
+    private readonly NetworkSensor _network;
+
+    /// <param name="pingTarget">Ping-Ziel im Internet für die Verbindungsanalyse; leer = nicht pingen.</param>
+    public SensorHub(string? pingTarget = "1.1.1.1")
     {
         _cpu = new CpuSensor(_pdh);
         _memory = new MemorySensor(_pdh);
         _disk = new DiskSensor(_pdh);
         _windowsGpu = new WindowsGpuSensor(_pdh);
+        _network = new NetworkSensor(_pdh, pingTarget);
         _nvml = NvmlGpuSensor.TryCreate();
         _pdh.Collect();   // Ratenzähler brauchen zwei Messpunkte
     }
 
     public bool HasNvml => _nvml != null;
 
-    public void StartFrameCapture() => _presentMon.Start();
+    /// <summary>Startet die Hintergrundmessungen: PresentMon (Frames) und Ping (Verbindung).</summary>
+    public void StartFrameCapture()
+    {
+        _presentMon.Start();
+        _network.Start();
+    }
 
     public Snapshot Sample()
     {
@@ -63,6 +72,8 @@ internal sealed class SensorHub : IDisposable
         {
             MainThread = _processCpu.SampleMainThread(gamePid),
             BackgroundCpu = _processCpu.SampleBackground(gamePid),
+            // nach SampleBackground: dort wird auch der Datendurchsatz je Prozess aktualisiert
+            Network = _network.Read() with { TopTransfer = _processCpu.TopTransfer(gamePid) },
             GameSharedVramGB = _windowsGpu.Available ? _windowsGpu.SharedUsageGB(gamePid) : null,
             ForegroundPid = foregroundPid,
             GpuThermal = _hwInfo.Gpu,   // wird beim _hwInfo.Read() oben mitgelesen
@@ -72,6 +83,7 @@ internal sealed class SensorHub : IDisposable
 
     public void Dispose()
     {
+        _network.Dispose();
         _hwInfo.Dispose();
         _presentMon.Dispose();
         _nvml?.Dispose();

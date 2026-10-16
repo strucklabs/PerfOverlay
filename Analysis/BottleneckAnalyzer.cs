@@ -255,6 +255,9 @@ public sealed class BottleneckAnalyzer
         _history.Enqueue(new Sample(s.Time, mem.PagesInPerSec, s.Disk.ActivePercent, s.Cpu.TotalLoad, s.Cpu.MaxPerfCoreLoad, vramSpill));
         while (_history.Count > 0 && s.Time - _history.Peek().Time > HistoryWindow) _history.Dequeue();
 
+        // --- Verbindung: bremst keine FPS, verursacht aber Lag in Online-Spielen ---
+        AddNetworkNotes(s, notes);
+
         // --- Andere Prozesse auf der GPU ---
         if (f != null)
         {
@@ -369,6 +372,49 @@ public sealed class BottleneckAnalyzer
             Kind = BottleneckKind.Mixed,
             Tip = "Engpass wechselt je nach Szene – Anteile im Balken beachten",
         };
+    }
+
+    /// <summary>
+    /// Verbindungsprobleme eingrenzen: Schwankt schon der Weg zum Router, liegt es am eigenen Netz (oft WLAN);
+    /// ist der Router stabil, das Internet-Ziel aber nicht, liegt es dahinter (Anbieter, Leitung).
+    /// Zusätzlich: großer Datentransfer nebenbei, der den Ping während des Spielens hochtreibt.
+    /// Alles erst nach einigen Sekunden, damit ein einzelner verlorener Ping keinen Hinweis auslöst.
+    /// </summary>
+    private void AddNetworkNotes(Snapshot s, List<Note> notes)
+    {
+        if (s.Network is not { } net) return;
+        var router = net.Router;
+        var internet = net.Internet;
+
+        // Router: im eigenen Netz sind wenige ms normal, LAN meist < 2 ms, WLAN bis ~5 ms
+        bool routerBad = net.RouterAnswers && router != null
+            && (router.LossPercent >= 3 || router.JitterMs >= 8 || router.AvgMs >= 20);
+        // Internet: schwankender Ping stört mehr als ein konstant etwas höherer
+        bool internetBad = internet != null
+            && (internet.LossPercent >= 3 || internet.JitterMs >= 15 || internet.AvgMs >= 100);
+
+        // Beide immer auswerten, damit die Zeitmessung von "Sustained" für beide aktuell bleibt
+        bool routerSustained = Sustained("net-router", routerBad, s.Time, TimeSpan.FromSeconds(5));
+        bool internetSustained = Sustained("net-internet", internetBad && !routerBad, s.Time, TimeSpan.FromSeconds(5));
+        if (routerSustained)
+            notes.Add(new("net-router",
+                $"Verbindung zum Router instabil (Ping {router!.AvgMs:0} ms ±{router.JitterMs:0}, Verlust {router.LossPercent:0} %) – WLAN? LAN-Kabel verwenden",
+                Severity.Warn));
+        else if (internetSustained)
+            notes.Add(new("net-internet",
+                internet!.AvgMs is double ms
+                    ? $"Internetverbindung schwankt (Ping {ms:0} ms ±{internet.JitterMs:0}, Verlust {internet.LossPercent:0} %) – Problem liegt hinter dem Router"
+                    : $"Internet-Ziel antwortet nicht (Verlust {internet.LossPercent:0} %)",
+                Severity.Warn));
+
+        // Großer Transfer nebenbei während des Spielens (z. B. Spiele-Update, Cloud-Sync)
+        bool busy = s.Frames != null && (net.DownMBps >= 3 || net.UpMBps >= 1);
+        if (Sustained("net-transfer", busy, s.Time, TimeSpan.FromSeconds(5)))
+        {
+            string who = net.TopTransfer is { } p ? $" (vermutlich {p.Name})" : "";
+            string rate = net.DownMBps >= 3 ? $"Download {net.DownMBps:0.0} MB/s" : $"Upload {net.UpMBps:0.0} MB/s";
+            notes.Add(new("net-transfer", $"{rate} nebenbei{who} – kann den Ping erhöhen", Severity.Info));
+        }
     }
 
     private static readonly double[] CommonCaps = [30, 40, 45, 48, 50, 60, 72, 75, 90, 100, 120, 144, 165, 170, 180, 200, 240, 360];

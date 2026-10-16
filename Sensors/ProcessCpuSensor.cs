@@ -26,7 +26,16 @@ internal sealed class ProcessCpuSensor
 
     private double _processSampleTime;
     private Dictionary<int, TimeSpan> _processTimes = new();
+    private Dictionary<int, ulong> _processTransfer = new();
     private List<ProcessLoad> _background = [];
+    private List<ProcessLoad> _transfer = [];
+
+    /// <summary>
+    /// Prozess mit dem größten Datendurchsatz (Datei + Netzwerk) außer dem Spiel, aus dem letzten 2-s-Takt.
+    /// Windows bietet keinen einfachen Netzwerkzähler je Prozess; ein großer Download zeigt sich aber hier –
+    /// deshalb gilt der Name nur als "vermutlich".
+    /// </summary>
+    public ProcessLoad? TopTransfer(int gamePid) => _transfer.FirstOrDefault(p => p.Pid != gamePid);
 
     /// <summary>Stärkster Thread des Prozesses seit dem letzten Aufruf; null beim ersten Aufruf oder ohne Zugriff.</summary>
     public ThreadLoad? SampleMainThread(int pid)
@@ -80,6 +89,7 @@ internal sealed class ProcessCpuSensor
             return _background.Where(p => p.Pid != gamePid).ToList();
 
         var times = new Dictionary<int, TimeSpan>();
+        var transfer = new Dictionary<int, ulong>();
         var names = new Dictionary<int, string>();
         foreach (var process in Process.GetProcesses())
         {
@@ -88,9 +98,10 @@ internal sealed class ProcessCpuSensor
                 if (process.Id is 0 or 4 || process.Id == _ownPid) continue;   // Leerlauf, System, Overlay
                 // Direkt über GetProcessTimes statt Process.TotalProcessorTime: Letzteres wirft bei jedem
                 // geschützten Prozess eine Exception – ohne Admin-Rechte alle 2 s dutzendfach.
-                if (TryGetCpuTime(process.Id, out var cpu))
+                if (TryGetCpuAndTransfer(process.Id, out var cpu, out ulong bytes))
                 {
                     times[process.Id] = cpu;
+                    transfer[process.Id] = bytes;
                     names[process.Id] = process.ProcessName;   // stammt aus dem Prozess-Schnappschuss, kein Handle nötig
                 }
             }
@@ -108,7 +119,17 @@ internal sealed class ProcessCpuSensor
                 .OrderByDescending(p => p.Percent)
                 .Take(5)
                 .ToList();
+
+            const double MB = 1024 * 1024;
+            _transfer = transfer
+                .Where(t => _processTransfer.TryGetValue(t.Key, out ulong before) && t.Value >= before)
+                .Select(t => new ProcessLoad(t.Key, names[t.Key], 0, (t.Value - _processTransfer[t.Key]) / elapsed / MB))
+                .Where(p => p.TransferMBps >= 0.5)
+                .OrderByDescending(p => p.TransferMBps)
+                .Take(5)
+                .ToList();
         }
+        _processTransfer = transfer;
         _processTimes = times;
         _processSampleTime = now;
         return _background.Where(p => p.Pid != gamePid).ToList();
@@ -138,16 +159,22 @@ internal sealed class ProcessCpuSensor
         return _threadNames[threadId] = string.IsNullOrWhiteSpace(name) ? null : name;
     }
 
-    /// <summary>Kernel- plus User-Zeit eines Prozesses; false ohne Zugriff (ohne Exception).</summary>
-    private static bool TryGetCpuTime(int pid, out TimeSpan cpu)
+    /// <summary>
+    /// Kernel- plus User-Zeit und übertragene Bytes (Lesen, Schreiben, sonstige E/A inkl. Netzwerk) eines Prozesses;
+    /// false ohne Zugriff (ohne Exception).
+    /// </summary>
+    private static bool TryGetCpuAndTransfer(int pid, out TimeSpan cpu, out ulong transferBytes)
     {
         cpu = TimeSpan.Zero;
+        transferBytes = 0;
         IntPtr handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, (uint)pid);
         if (handle == IntPtr.Zero) return false;
         try
         {
             if (!GetProcessTimes(handle, out _, out _, out long kernel, out long user)) return false;
             cpu = TimeSpan.FromTicks(kernel + user);   // FILETIME-Einheiten = 100 ns = TimeSpan-Ticks
+            if (GetProcessIoCounters(handle, out var io))
+                transferBytes = io.ReadTransferCount + io.WriteTransferCount + io.OtherTransferCount;
             return true;
         }
         finally
@@ -160,6 +187,16 @@ internal sealed class ProcessCpuSensor
 
     [DllImport("kernel32.dll")]
     private static extern IntPtr OpenProcess(uint access, bool inherit, uint processId);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct IO_COUNTERS
+    {
+        public ulong ReadOperationCount, WriteOperationCount, OtherOperationCount;
+        public ulong ReadTransferCount, WriteTransferCount, OtherTransferCount;
+    }
+
+    [DllImport("kernel32.dll")]
+    private static extern bool GetProcessIoCounters(IntPtr process, out IO_COUNTERS counters);
 
     [DllImport("kernel32.dll")]
     private static extern bool GetProcessTimes(IntPtr process, out long creation, out long exit, out long kernel, out long user);

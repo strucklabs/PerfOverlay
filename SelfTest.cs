@@ -103,6 +103,7 @@ internal static class SelfTest
                 FrameSourceRunning = true,
                 FrameSourceStatus = "aktiv",
                 MainThread = new ThreadLoad(cpuPhase ? 97 : 71, "RenderThread"),
+                Network = new NetworkData(new PingStats(1, 0.3, 0), new PingStats(14, 2.1, 0), true, 0.4, 0.1),
                 BackgroundCpu = [new ProcessLoad(1, "chrome", 9), new ProcessLoad(2, "Discord", 6)],
             };
             verdict = analyzer.Analyze(snapshot);

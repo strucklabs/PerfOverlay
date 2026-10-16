@@ -195,7 +195,9 @@ function parseCsv(text, name) {
     gpu: col("GPU_Proz"), gpuTemp: col("GPU_Temp"), gpuW: col("GPU_W"), vram: col("VRAM_GB"), spill: col("VRAM_ausgelagert_GB"),
     gpuMhz: col("GPU_MHz"), gpuV: col("GPU_V"), hotspot: col("GPU_Hotspot"), memTemp: col("GPU_Speicher_Temp"),
     gpuFanPct: col("GPU_Luefter_Proz"), gpuFanRpm: col("GPU_Luefter_U_min"), cpuFanRpm: col("CPU_Luefter_U_min"),
-    ram: col("RAM_Proz"), spikes: col("Ruckler"), pacing: col("Pacing_ms"), notes: rows.map(r => r.Meldungen || ""), time: rows.map(r => r.Zeit),
+    ram: col("RAM_Proz"), spikes: col("Ruckler"), pacing: col("Pacing_ms"),
+    pingRouter: col("Ping_Router_ms"), pingNet: col("Ping_Internet_ms"), jitterNet: col("Jitter_Internet_ms"),
+    lossNet: col("Verlust_Internet_Proz"), netDown: col("Netz_Down_MBs"), netUp: col("Netz_Up_MBs"), notes: rows.map(r => r.Meldungen || ""), time: rows.map(r => r.Zeit),
   };
   return { name, meta, rows: rows.length, d, stats: computeStats(d) };
 }
@@ -242,6 +244,8 @@ function computeStats(d) {
     gpuWLoad: loadIdx.length ? avg(loadIdx.map(i => d.gpuW[i])) : null,
     hotspotMax: max(d.hotspot), memTempMax: max(d.memTemp),
     cpuFan: avg(d.cpuFanRpm), cpuFanMax: max(d.cpuFanRpm),
+    pingNet: avg(d.pingNet), pingNetMax: max(d.pingNet), jitterNet: avg(d.jitterNet),
+    lossNet: avg(d.lossNet), lossNetMax: max(d.lossNet), pingRouter: avg(d.pingRouter), netDownMax: max(d.netDown),
     gpuFanLoad: loadIdx.length ? avg(loadIdx.map(i => d.gpuFanPct[i])) : null,
     // Pacing nur im Spielgeschehen (ab 40 FPS), Ladebildschirme verzerren sonst den Mittelwert
     pacing: avg(d.pacing.map((p, i) => d.fps[i] !== null && d.fps[i] >= 40 ? p : null)),
@@ -332,6 +336,9 @@ function renderSession(view, s) {
           st.hotspotMax !== null ? `Hotspot ${fmt(st.hotspotMax, 0)}` : "",
           st.memTempMax !== null ? `Speicher ${fmt(st.memTempMax, 0)} °C` : "",
         ].filter(Boolean).join(" · ") || (st.gpuW !== null ? `Ø ${fmt(st.gpuW, 0)} W` : ""))}
+      ${card("Verbindung", st.pingNet === null ? "–" : fmt(st.pingNet, 0) + " <small>ms</small>", st.pingNet === null
+          ? "nicht aufgezeichnet"
+          : `±${fmt(st.jitterNet, 0)} ms · Verlust max ${fmt(st.lossNetMax, 0, " %")}`)}
       ${card("GPU unter Last", fmt(st.gpuMhzLoad, 0, " MHz"), [
           st.gpuVLoad !== null ? `${fmt(st.gpuVLoad, 3)} V` : "",
           st.gpuWLoad !== null ? `${fmt(st.gpuWLoad, 0)} W` : "",
@@ -371,6 +378,12 @@ function renderSession(view, s) {
       { key: "cpuFanRpm", label: "CPU", color: "var(--cpu)" },
       { key: "gpuFanRpm", label: "GPU", color: "var(--gpu)" },
     ].filter(x => d[x.key].some(v => v !== null)), { min: 0, unit: " U/min" });
+  }
+  if (d.pingNet.some(v => v !== null)) {
+    chart(ch, s, "Ping (ms)", [
+      { key: "pingNet", label: "Internet", color: "var(--limit)" },
+      { key: "pingRouter", label: "Router", color: "var(--muted)", dash: "3 3" },
+    ].filter(x => d[x.key].some(v => v !== null)), { min: 0, unit: " ms" });
   }
   if (d.gpuV.some(v => v !== null)) {
     chart(ch, s, "GPU-Spannung (V)", [
@@ -417,6 +430,9 @@ const METRICS = [
   ["Ø GPU-Takt unter Last", s => s.gpuMhzLoad, v => fmt(v, 0, " MHz"), 1],
   ["Ø GPU-Spannung unter Last", s => s.gpuVLoad, v => fmt(v, 3, " V"), 0],
   ["Ø GPU-Leistung unter Last", s => s.gpuWLoad, v => fmt(v, 0, " W"), 0],
+  ["Ø Ping Internet", s => s.pingNet, v => fmt(v, 0, " ms"), -1],
+  ["Ø Jitter Internet", s => s.jitterNet, v => "±" + fmt(v, 1, " ms"), -1],
+  ["Paketverlust max", s => s.lossNetMax, v => fmt(v, 0, " %"), -1],
   ["Ø CPU-Lüfter", s => s.cpuFan, v => fmt(v, 0, " U/min"), -1],
   ["Ø GPU-Lüfter unter Last", s => s.gpuFanLoad, v => fmt(v, 0, " %"), -1],
   ["Ø CPU-Leistung", s => s.cpuW, v => fmt(v, 0, " W"), 0],

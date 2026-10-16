@@ -89,6 +89,7 @@ public partial class OverlayWindow : Window
         TwoColumns.Visibility = Show(standard);
         RamLine.Visibility = Show(!compact);
         DiskLine.Visibility = GpuUsersLine.Visibility = FooterLine.Visibility = Show(analysis);
+        SecNetwork.Visibility = PingLine.Visibility = TrafficLine.Visibility = Show(analysis);
         CoreBars.Children.Clear();   // Balkenbreite neu berechnen
     }
 
@@ -192,7 +193,7 @@ public partial class OverlayWindow : Window
         _modifierTimer.Start();
 
         CreateTray();
-        _hub = new SensorHub();
+        _hub = new SensorHub(_settings.PingTarget);
         _hub.StartFrameCapture();
         _updateLoop = UpdateLoopAsync();
     }
@@ -395,6 +396,8 @@ public partial class OverlayWindow : Window
         Line(DiskLine, L("Disk  "), V($"{d.ActivePercent,4:0} %"), L(" aktiv  "),
             ($"{d.LatencyMs:0.0}", d.LatencyMs > 20 ? WarnBrush : null), L(" ms  "), V($"{d.MBps:0}"), L(" MB/s"));
 
+        RenderNetwork(s.Network);
+
         // Wer nutzt die Grafikkarte? Besonders im Leerlauf aufschlussreich (taktet die GPU nicht herunter?)
         var users = s.GpuTopProcesses.Take(3).Select(p => $"{p.Name} {p.Load:0} %").ToList();
         GpuUsersLine.Text = "GPU-Nutzer: " + (users.Count > 0 ? string.Join(", ", users) : "–");
@@ -402,6 +405,43 @@ public partial class OverlayWindow : Window
         string source = g?.Source == "NVML" ? "NVML" : g != null ? "Win-Zähler" : "–";
         _footerText = $"Strg+Umschalt: F10 an/aus · F9 Ecke · F8 Ansicht  |  GPU: {source} · CPU: {s.CpuThermal?.Source ?? "–"}";
         if (!_dragMode) FooterLine.Text = _footerText;
+    }
+
+    /// <summary>Analyse-Ansicht, Abschnitt Verbindung: Ping/Jitter/Verlust zu Router und Internet, Datenrate.</summary>
+    private void RenderNetwork(NetworkData? net)
+    {
+        if (_view != OverlayView.Analysis) return;
+        if (net == null)
+        {
+            Line(PingLine, L("Ping  "), ("–", MutedBrush));
+            Line(TrafficLine, L("Netz  "), ("–", MutedBrush));
+            return;
+        }
+
+        IEnumerable<(string, Brush?)> Ping(string label, PingStats? p, bool answers, double jitterWarn)
+        {
+            yield return L(label);
+            if (p == null || !answers && label.StartsWith("Router")) { yield return ("–", MutedBrush); yield break; }
+            if (p.AvgMs is not double ms) { yield return ("keine Antwort", WarnBrush); yield break; }
+            yield return V($"{ms:0}");
+            yield return L(" ms ±");
+            yield return ($"{p.JitterMs:0}", p.JitterMs >= jitterWarn ? WarnBrush : null);
+            if (p.LossPercent > 0) yield return ($"  {p.LossPercent:0} % weg", p.LossPercent >= 3 ? WarnBrush : MutedBrush);
+        }
+
+        var parts = new List<(string, Brush?)>();
+        parts.AddRange(Ping("Router ", net.Router, net.RouterAnswers, 8));
+        parts.AddRange(Ping("  Internet ", net.Internet, true, 15));
+        if (net.Router == null && net.Internet == null) parts = [L("Ping  "), ("aus", MutedBrush)];
+        Line(PingLine, parts.ToArray());
+
+        var traffic = new List<(string, Brush?)>
+        {
+            L("Netz  ↓ "), ($"{net.DownMBps:0.0}", net.DownMBps >= 3 ? WarnBrush : null), L(" MB/s  ↑ "),
+            ($"{net.UpMBps:0.0}", net.UpMBps >= 1 ? WarnBrush : null), L(" MB/s"),
+        };
+        if (net.TopTransfer is { } top) { traffic.Add(L("  ")); traffic.Add(($"{top.Name} {top.TransferMBps:0.0} MB/s", MutedBrush)); }
+        Line(TrafficLine, traffic.ToArray());
     }
 
     /// <summary>Standard-Ansicht: CPU und GPU nebeneinander, je vier Zeilen (fehlende Werte als "–").</summary>
