@@ -31,6 +31,14 @@ public sealed record CpuData(
     public bool IsPerfCore(int i) => !IsHybrid || i >= CoreClasses.Length || CoreClasses[i] == TopClass;
 }
 
+public enum HwInfoStatus
+{
+    Active,          // liefert Daten
+    NotRunning,      // HWiNFO läuft nicht
+    NoSharedMemory,  // läuft, aber Sensorfenster/„Shared Memory Support“ fehlt
+    Stopped,         // lieferte, hat aber aufgehört (beendet oder 12-h-Grenze der Gratisversion)
+}
+
 /// <summary>
 /// GPU-Werte, die NVML auf GeForce-Karten nicht liefert – aus HWiNFO.
 /// Speicher-Junction (GDDR6X drosselt um 110 °C) und Hotspot sind bei RTX 30/40 oft die heißesten Stellen.
@@ -152,4 +160,6 @@ public sealed record Snapshot(
 
     /// <summary>GPU-Spannung, Hotspot und Speichertemperatur aus HWiNFO (null ohne HWiNFO).</summary>
     public GpuThermalData? GpuThermal { get; init; }
+
+    public HwInfoStatus HwInfoStatus { get; init; } = HwInfoStatus.NotRunning;
 }

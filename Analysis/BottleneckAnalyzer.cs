@@ -48,6 +48,8 @@ public sealed class BottleneckAnalyzer
     private readonly Queue<Sample> _history = new();
     private readonly Dictionary<string, DateTime> _conditionSince = new();
     private DateTime? _startTime;
+    private HwInfoStatus? _hwInfoStatus;
+    private DateTime _hwInfoStatusSince;
 
     /// <summary>Kennzahlen je Messtakt – um Ruckler im Nachhinein einer Ursache zuzuordnen.</summary>
     private readonly record struct Sample(DateTime Time, double PagesIn, double DiskActive, double CpuTotal, double MaxPerfCore, bool VramSpill);
@@ -192,6 +194,25 @@ public sealed class BottleneckAnalyzer
         {
             notes.Add(new("cpu-perflimit",
                 $"CPU begrenzt auf {s.Cpu.PerfLimitPercent:0} % (Power-/Temperaturlimit, Details mit HWiNFO)", Severity.Warn));
+        }
+
+        // --- HWiNFO: beim Start und bei jedem Zustandswechsel kurz melden, was fehlt bzw. zu tun ist.
+        //     Danach hält das NoteLog die Meldung noch sichtbar, ohne eine Zeile dauerhaft zu belegen. ---
+        if (s.HwInfoStatus != _hwInfoStatus)
+        {
+            _hwInfoStatus = s.HwInfoStatus;
+            _hwInfoStatusSince = s.Time;
+        }
+        if (s.Time - _hwInfoStatusSince < TimeSpan.FromSeconds(15))
+        {
+            string? text = s.HwInfoStatus switch
+            {
+                HwInfoStatus.NotRunning => "Mehr Werte (CPU-Temp., GPU-Spannung, Lüfter) mit HWiNFO – hwinfo.com",
+                HwInfoStatus.NoSharedMemory => "HWiNFO: Sensorfenster öffnen und „Shared Memory Support“ aktivieren",
+                HwInfoStatus.Stopped => "HWiNFO liefert nichts mehr – Shared Memory neu aktivieren (Gratisversion: 12 h)",
+                _ => null,
+            };
+            if (text != null) notes.Add(new("hwinfo", text, Severity.Info));
         }
 
         // --- RAM-Bestückung: ändert sich nicht, daher nur in den ersten Sekunden melden.

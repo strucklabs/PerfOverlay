@@ -44,18 +44,25 @@ internal sealed class HwInfoSensor : IDisposable
     /// <summary>GPU-Werte vom letzten <see cref="Read"/>; null ohne HWiNFO oder ohne passende Sensoren.</summary>
     public GpuThermalData? Gpu { get; private set; }
 
+    /// <summary>Warum ggf. keine Daten kommen – für einen passenden Hinweis an den Nutzer.</summary>
+    public HwInfoStatus Status { get; private set; } = HwInfoStatus.NotRunning;
+
+    private bool _everActive;
+
     public CpuThermalData? Read()
     {
         if (_view == null && !TryOpen()) return null;
         var v = _view!;
         try
         {
-            if (v.ReadUInt32(0) != SignatureActive) return Close();
+            if (v.ReadUInt32(0) != SignatureActive) return Stopped();
 
             // Die Mapping-Datei bleibt bestehen, solange wir ein Handle halten – auch wenn HWiNFO beendet
             // wurde oder die 12-Stunden-Grenze der Gratisversion greift. Dann bleiben die Werte stehen.
             long age = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - v.ReadInt64(12);
-            if (age > 10) return Close();
+            if (age > 10) return Stopped();
+            Status = HwInfoStatus.Active;
+            _everActive = true;
 
             uint offR = v.ReadUInt32(32), sizeR = v.ReadUInt32(36), numR = v.ReadUInt32(40);
             if (offR + (long)sizeR * numR > v.Capacity) return Close();
@@ -103,8 +110,33 @@ internal sealed class HwInfoSensor : IDisposable
         catch (Exception ex) when (ex is FileNotFoundException or IOException or UnauthorizedAccessException)
         {
             Close();
-            return false;   // HWiNFO läuft nicht oder Shared Memory ist aus
+            // Kein Shared Memory: Läuft HWiNFO überhaupt? Wenn ja, war es entweder nie eingerichtet
+            // (Sensorfenster/Option fehlt) oder es hat aufgehört (Gratisversion: nach 12 h)
+            Status = !IsHwInfoRunning() ? HwInfoStatus.NotRunning
+                   : _everActive ? HwInfoStatus.Stopped
+                   : HwInfoStatus.NoSharedMemory;
+            return false;
         }
+    }
+
+    /// <summary>Daten veraltet oder Signatur "DEAD": HWiNFO beendet oder Shared Memory abgelaufen.</summary>
+    private CpuThermalData? Stopped()
+    {
+        Close();
+        Status = IsHwInfoRunning() ? HwInfoStatus.Stopped : HwInfoStatus.NotRunning;
+        return null;
+    }
+
+    private static bool IsHwInfoRunning()
+    {
+        foreach (var name in new[] { "HWiNFO64", "HWiNFO32", "HWiNFO" })
+        {
+            var processes = System.Diagnostics.Process.GetProcessesByName(name);
+            bool found = processes.Length > 0;
+            foreach (var p in processes) p.Dispose();
+            if (found) return true;
+        }
+        return false;
     }
 
     private void BuildIndex(MemoryMappedViewAccessor v)

@@ -57,6 +57,7 @@ Das Icon (`Assets\PerfOverlay.ico`) wird mit `Assets\make-icon.ps1` erzeugt.
 | FPS, 1%-Low, CPU-/GPU-Busy pro Frame | Intel PresentMon 2.6 (Konsolenversion in `tools\`, signiert von Intel), live per STDOUT |
 | RAM-Bestückung, Kanäle, Takt | WMI `Win32_PhysicalMemory` (SMBIOS Typ 17), einmal beim Start. Kanal aus Slot-Namen (`A2`, `DIMM_B1`, `ChannelA-DIMM0` …), sonst aus der Interleave-Tiefe. Nenntakt aus der Teilenummer (Corsair, G.Skill, Kingston, Crucial Ballistix, TeamGroup), sonst Hinweis bei JEDEC-Standardtakt. |
 | CPU-Drosselung (immer) | PDH `Processor Information(_Total)\% Performance Limit` |
+| HWiNFO-Zustand | Beim Start und bei jedem Wechsel ein Hinweis, was fehlt: HWiNFO läuft nicht / läuft, aber Sensorfenster bzw. „Shared Memory Support“ fehlt / lieferte, hat aber aufgehört (beendet oder 12-h-Grenze der Gratisversion). |
 | GPU-Spannung, Hotspot, Speicher-Junction (optional) | HWiNFO (`GPU Core Voltage`, `… Hot Spot …`, `… Memory Junction …`). Hinweise ab 100 °C Speichertemperatur (GDDR6X drosselt um 110 °C) und bei Hotspot ≥ 20 °C über GPU-Temperatur. |
 | CPU-Temperatur, Package-Leistung, PL1, Drosselungsgründe (optional) | Shared Memory von **HWiNFO** (`Global\HWiNFO_SENS_SM2`), wird automatisch erkannt. In HWiNFO muss „Shared Memory Support“ aktiv sein (Gratisversion: 12 Stunden, danach neu aktivieren). |
 
