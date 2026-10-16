@@ -362,6 +362,11 @@ function renderSession(view, s) {
   const glance = section(view, "Auf einen Blick", "automatische Einordnung", { id: "glance", open: true, help: HELP.glance });
   glance.insertAdjacentHTML("beforeend", insightList(insightsFor(s), "Regelbasierte Einordnung nach festen Schwellen – ein Hinweis, keine Diagnose."));
 
+  const nt = section(view, "Meldungen", "wie lange sie aktiv waren", { id: "notes", open: true, help: HELP.notes });
+  nt.insertAdjacentHTML("beforeend", st.notes.length
+    ? `<table class="notes"><tbody>${st.notes.slice(0, 15).map(n => `<tr><td>${esc(n.text)}</td><td class="n">${clock(n.seconds)}</td><td class="n">ab ${clock(n.first - d.t[0])}</td></tr>`).join("")}</tbody></table>`
+    : `<p class="empty">Keine Meldungen in dieser Sitzung.</p>`);
+
   const fg = st.fpsApp && st.fps && st.fpsApp < st.fps * 0.8;
   const sum = section(view, "Zusammenfassung", "", { id: "summary", open: true, help: HELP.summary });
   sum.insertAdjacentHTML("beforeend", `
@@ -438,10 +443,6 @@ function renderSession(view, s) {
     ]), { min: 0, unit: " ms" });
   }
 
-  const nt = section(view, "Meldungen", "wie lange sie aktiv waren", { id: "notes", help: HELP.notes });
-  nt.insertAdjacentHTML("beforeend", st.notes.length
-    ? `<table class="notes"><tbody>${st.notes.slice(0, 15).map(n => `<tr><td>${esc(n.text)}</td><td class="n">${clock(n.seconds)}</td><td class="n">ab ${clock(n.first - d.t[0])}</td></tr>`).join("")}</tbody></table>`
-    : `<p class="empty">Keine Meldungen in dieser Sitzung.</p>`);
 }
 
 // ---------------------------------------------------------------- Einordnung
