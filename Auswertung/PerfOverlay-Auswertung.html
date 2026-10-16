@@ -63,9 +63,10 @@
   .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; background: var(--c); vertical-align: -1px; }
 
   .chart { position: relative; margin-top: 4px; }
-  .chart svg { display: block; width: 100%; overflow: visible; }
+  .chart svg.plot { display: block; width: 100%; overflow: visible; }
   .chart .title { font-size: 13px; color: var(--muted); margin: 10px 0 2px; display: flex; gap: 14px; flex-wrap: wrap; }
   .chart .title b { color: var(--text); font-weight: 500; }
+  .swatch-line { display: inline-block; vertical-align: 1px; margin-right: 5px; }
   .swatch { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: 3px; margin-right: 5px; }
   svg text { fill: var(--muted); font-size: 11px; font-family: "Segoe UI", system-ui, sans-serif; }
   .grid line { stroke: var(--line); }
@@ -94,6 +95,7 @@
   .help > summary { cursor: pointer; color: var(--limit); width: fit-content; }
   .help > div { margin-top: 6px; line-height: 1.6; border-left: 2px solid var(--line); padding-left: 10px; }
   .help ul { margin: 4px 0; padding-left: 18px; }
+  .help p { margin: 4px 0; }
   .help b { color: var(--text); font-weight: 500; }
   /* Einordnung "Auf einen Blick" */
   .insights { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
@@ -513,47 +515,63 @@ function insightList(items, hint) {
 
 /** Lesehilfen je Abschnitt – allgemein formuliert, gelten für jedes System. */
 const HELP = {
-  glance: `Die Aussagen entstehen aus festen Regeln (dieselben Schwellen wie im Overlay). Sie zeigen, <b>wo es sich lohnt
-    genauer hinzusehen</b> – die Ursache bestätigen die Diagramme in den Abschnitten darunter.`,
+  glance: `Diese Liste fasst die Sitzung in wenigen Sätzen zusammen. Sie entsteht nach festen Regeln und zeigt,
+    <b>wo es sich lohnt, genauer hinzusehen</b>. Die Abschnitte darunter zeigen die Messwerte dazu.
+    <br>✓ in Ordnung · i zur Information · ▲ auffällig · ! dringend prüfen`,
   summary: `<ul>
-    <li><b>Ø FPS</b> sagt wenig übers Spielgefühl. Wichtiger ist das <b>1%-Low</b>: die Bildrate der langsamsten 1 % der Bilder.
-      Liegt es nahe an den Ø-FPS (ab etwa 80 %), läuft das Spiel gleichmäßig.</li>
-    <li><b>Ruckler</b> sind einzelne Bilder, die deutlich länger dauern als ihre Nachbarn. Bis etwa 2 pro Minute fällt das kaum auf.</li>
-    <li><b>Frame-Pacing</b> beschreibt, wie stark die Bildzeit von Bild zu Bild schwankt – „ruhig“ ist das Ziel.</li>
-    <li><b>Ø FPS im CPU-Limit</b> zeigt, wie schnell das Spiel läuft, wenn der Prozessor bremst – hier wirken schnellerer RAM oder eine stärkere CPU.</li></ul>`,
-  bottleneck: `<ul>
-    <li><b>GPU-limitiert</b> ist der Normalfall: Die Grafikkarte arbeitet voll. Mehr FPS gibt es über Grafikeinstellungen oder Upscaling (DLSS/FSR).</li>
-    <li><b>CPU-limitiert</b>: Die Grafikkarte wartet auf den Prozessor. Grafikeinstellungen senken hilft dann kaum; Sichtweite, Objektdichte,
-      Hintergrundprogramme und RAM-Takt schon.</li>
-    <li><b>FPS-Limit / VSync</b>: Ein Begrenzer hält die Bildrate fest – beide Komponenten haben Reserven.</li>
-    <li>Im Diagramm <b>Arbeitszeit pro Frame</b> bremst, wer näher an der Frametime-Linie liegt. Bei <b>Auslastung</b> verrät der
-      Hauptthread nahe 100 % ein CPU-Limit, auch wenn „CPU gesamt“ niedrig wirkt.</li></ul>`,
+    <li><b>FPS</b> (Bilder pro Sekunde): Je mehr, desto flüssiger. Der Durchschnitt allein sagt aber wenig darüber, wie sich das Spiel anfühlt.</li>
+    <li><b>1%-Low</b>: die Bildrate in den langsamsten Momenten. Liegt sie nah am Durchschnitt (ab etwa 80 % davon), läuft das Spiel gleichmäßig.
+      Liegt sie weit darunter, spürst du Hänger, obwohl der Durchschnitt gut aussieht.</li>
+    <li><b>Frametime</b>: wie lange ein einzelnes Bild dauert, in Millisekunden. Das ist dieselbe Information wie FPS, nur andersherum (60 FPS = 16,7 ms).</li>
+    <li><b>Ruckler</b>: einzelne Bilder, die deutlich länger dauern als die davor und danach. Bis etwa 2 pro Minute fällt das kaum auf.</li>
+    <li><b>Frame-Pacing</b>: wie gleichmäßig die Bilder aufeinander folgen. „ruhig“ ist gut, „unruhig“ fühlt sich trotz hoher FPS hakelig an.</li>
+    <li><b>Ø FPS im CPU-Limit</b>: die Bildrate in den Momenten, in denen der Prozessor bremst. An diesem Wert siehst du, ob schnellerer Arbeitsspeicher
+      oder ein anderer Prozessor etwas gebracht hat.</li></ul>`,
+  bottleneck: `<p>Ein Bild entsteht in zwei Schritten: Zuerst bereitet der Prozessor (<b>CPU</b>) es vor, dann zeichnet die Grafikkarte (<b>GPU</b>) es.
+    Der langsamere der beiden bestimmt die Bildrate. Er ist der <b>Engpass</b>.</p><ul>
+    <li><b>GPU-limitiert</b>: Die Grafikkarte arbeitet voll. Das ist normal und gewollt. Mehr FPS bekommst du über niedrigere Grafikeinstellungen,
+      eine geringere Auflösung oder DLSS bzw. FSR (das Spiel rechnet intern kleiner und skaliert das Bild hoch).</li>
+    <li><b>CPU-limitiert</b>: Die Grafikkarte wartet auf den Prozessor. Niedrigere Grafikeinstellungen helfen dann kaum. Was hilft: Sichtweite oder
+      Menge an Figuren und Objekten verringern, Programme im Hintergrund schließen, Arbeitsspeicher im BIOS mit XMP bzw. EXPO auf vollen Takt stellen.</li>
+    <li><b>FPS-Limit / VSync</b>: Eine Begrenzung hält die Bildrate absichtlich fest, etwa auf die Bildwiederholrate des Monitors.
+      Beide Bauteile haben dann noch Luft.</li>
+    <li>Diagramm <b>Arbeitszeit pro Frame</b>: Die höhere der beiden Linien (CPU oder GPU) bremst. Die gestrichelte Linie ist die tatsächliche Dauer pro Bild.</li>
+    <li>Diagramm <b>Auslastung</b>: Viele Spiele erledigen den Großteil ihrer Arbeit auf einem einzigen Prozessorkern, dem <b>Hauptthread</b>.
+      Steht er nahe 100 %, bremst der Prozessor, auch wenn „CPU gesamt“ niedrig aussieht.</li></ul>`,
   frames: `<ul>
-    <li>Eine <b>ruhige FPS-Linie</b> mit dem 1%-Low dicht darunter ist das Ziel.</li>
-    <li><b>Rote Striche</b> markieren Ruckler. Häufen sie sich beim Betreten neuer Bereiche, sind meist Nachladen oder Shader-Kompilierung die Ursache –
-      oft wird es beim zweiten Durchlauf besser.</li>
-    <li>Die <b>Farbleiste</b> unter dem Diagramm zeigt den Engpass je Sekunde (Farben wie im Abschnitt „Engpass“).</li>
-    <li>Fällt die Linie dauerhaft ab, lohnt der Blick auf Temperaturen und Takt: Drosselung zeigt sich oft erst nach einigen Minuten.</li></ul>`,
+    <li>Ideal ist eine <b>ruhige FPS-Linie</b> mit der gestrichelten 1%-Low-Linie dicht darunter.</li>
+    <li><b>Rote Striche</b> markieren Ruckler. Häufen sie sich beim Laden oder in neuen Gebieten, liegt das meist daran, dass das Spiel Daten nachlädt
+      oder Grafikdaten zum ersten Mal vorbereitet. Beim zweiten Besuch derselben Stelle wird es oft besser.</li>
+    <li>Die <b>Farbleiste</b> unter dem Diagramm zeigt für jede Sekunde den Engpass, in denselben Farben wie im Abschnitt „Engpass“.</li>
+    <li>Sinkt die Linie nach einigen Minuten dauerhaft, wird oft etwas zu warm und drosselt sich. Das zeigen die Abschnitte „Prozessor“ und „Grafikkarte“.</li></ul>`,
   cpu: `<ul>
-    <li><b>Temperatur</b>: Intel-CPUs drosseln bei etwa 100 °C, Werte bis etwa 85 °C unter Spielelast sind unbedenklich.
-      AMD Ryzen 7000/9000 boostet bewusst bis 95 °C – dort ist das normal.</li>
-    <li>Erreicht die CPU schon bei Spielelast (nicht Volllast) Werte nahe ihrer Grenze, passen Kühler, Anpressdruck oder Wärmeleitpaste oft nicht.</li>
-    <li><b>Lüfter</b>: Dreht er bei mittlerer Last schon hoch, kommt die Wärme schlecht weg (Staub, Luftstrom im Gehäuse).</li></ul>`,
+    <li><b>Temperatur</b>: Bis etwa 85 °C beim Spielen ist alles in Ordnung. Intel-Prozessoren bremsen sich bei etwa 100 °C selbst ein (<b>Drosselung</b>),
+      um sich zu schützen. Aktuelle AMD-Ryzen-Modelle (7000/9000) laufen absichtlich bis 95 °C, dort ist das normal.</li>
+    <li>Wird der Prozessor schon beim Spielen fast so heiß wie seine Grenze, führt der Kühler die Wärme nicht gut ab. Häufige Gründe: Staub, zu
+      schwacher Kühler, alte oder schlecht aufgetragene Wärmeleitpaste (die Paste zwischen Prozessor und Kühler).</li>
+    <li><b>Lüfter</b>: Dreht er schon bei mittlerer Last hoch, kommt die Wärme schlecht weg. Staub und der Luftstrom im Gehäuse sind dann die ersten Kandidaten.</li></ul>`,
   gpu: `<ul>
-    <li><b>GPU-Temperatur</b>: Viele Karten senken ab etwa 83 °C den Takt. Ein Takt, der mit steigender Temperatur fällt, zeigt genau das.</li>
-    <li><b>Hotspot</b> liegt üblicherweise 10–20 °C über der GPU-Temperatur. Deutlich mehr deutet auf ungleichmäßigen Kühlerkontakt hin.</li>
-    <li><b>Speicher</b> (GDDR6X) ist bis etwa 95 °C unkritisch, ab 100 °C lohnt ein Blick auf Wärmeleitpads und Luftstrom; um 110 °C drosselt er.</li>
-    <li><b>Takt</b>: gleichmäßig ist gut. <b>Spannung</b>: Eine bewusst begrenzte Spannung (Undervolting) zeigt sich unter Last als flache Linie.</li></ul>`,
+    <li><b>GPU</b>: Viele Grafikkarten senken ab etwa 83 °C ihren Takt, sie werden also langsamer. Fällt im Diagramm „GPU-Takt“ der Wert, während
+      die Temperatur steigt, drosselt die Karte.</li>
+    <li><b>Hotspot</b>: die heißeste Stelle auf dem Grafikchip. 10–20 °C über der GPU-Temperatur ist normal. Liegt der Wert deutlich höher,
+      sitzt der Kühler oft nicht gleichmäßig auf.</li>
+    <li><b>Speicher</b>: die Temperatur des Grafikspeichers. Bis etwa 95 °C ist das unkritisch. Ab 100 °C lohnt ein Blick auf Kühlung und Luftstrom,
+      bei manchen Karten auf die Wärmeleitpads (weiche Kühlkissen auf den Speicherchips). Um 110 °C bremst sich der Speicher selbst.</li>
+    <li><b>Takt</b>: Gleichmäßig ist gut. <b>Spannung</b>: Wer die Spannung absichtlich begrenzt hat (Undervolting, für weniger Wärme und Strom),
+      sieht hier unter Last eine flache Linie.</li></ul>`,
   network: `<ul>
-    <li>Die Verbindung beeinflusst nicht die FPS, sondern <b>Lag</b> in Online-Spielen.</li>
-    <li><b>Router</b>: per Kabel meist unter 2 ms, per WLAN unter 5 ms. Schwankt schon dieser Wert, liegt das Problem im eigenen Netz.</li>
-    <li><b>Internet</b>: Der absolute Wert hängt vom Ziel ab. Wichtiger sind gleichmäßige Werte – <b>Jitter</b> (Schwankung) und
-      <b>Verlust</b> stören mehr als ein konstant etwas höherer Ping.</li></ul>`,
-  notes: `Alle Hinweise, die das Overlay während der Sitzung angezeigt hat, mit der Gesamtdauer und dem ersten Auftreten.
-    Lange aktive Warnungen sind die besten Ansatzpunkte.`,
-  compare: `Ein Vergleich ist nur aussagekräftig bei <b>gleichem Spiel, gleicher Szene und gleichen Einstellungen</b> – am besten dieselbe
-    Mission oder Benchmark-Strecke, mehrere Minuten lang. Grün markiert Verbesserungen gegenüber der ersten Sitzung, Rot Verschlechterungen;
-    unter 2 % Abweichung gilt als Messrauschen.`,
+    <li>Die Verbindung ändert nichts an den FPS. Sie entscheidet darüber, wie schnell deine Eingaben in Online-Spielen beim Server ankommen.
+      Eine schlechte Verbindung spürst du als Verzögerung oder springende Figuren („Lag“).</li>
+    <li><b>Ping</b>: wie lange ein kleines Datenpaket hin und zurück braucht, in Millisekunden. Weniger ist besser.</li>
+    <li><b>Router</b> (gestrichelt): die Strecke vom PC zu deinem Router. Per Kabel meist unter 2 ms, per WLAN unter 5 ms.
+      Schwankt schon dieser Wert, liegt das Problem in deinem eigenen Netz, oft beim WLAN.</li>
+    <li><b>Internet</b>: die Strecke bis ins Internet. Wichtiger als ein niedriger Wert sind gleichmäßige Werte. <b>Schwankung</b> (Jitter) und
+      <b>Verlust</b> (Pakete, die nie ankommen) stören mehr als ein gleichbleibend etwas höherer Ping.</li></ul>`,
+  notes: `Hier stehen alle Hinweise, die das Overlay während der Sitzung angezeigt hat. Daneben siehst du, wie lange sie insgesamt aktiv waren
+    und wann sie zum ersten Mal auftauchten. Hinweise, die lange aktiv waren, sind die besten Ansatzpunkte zur Verbesserung.`,
+  compare: `Ein Vergleich ist nur aussagekräftig bei <b>gleichem Spiel, gleicher Stelle im Spiel und gleichen Einstellungen</b>. Am besten spielst du dieselbe
+    Mission oder Strecke mehrere Minuten lang. Grün heißt besser als die erste Sitzung, Rot heißt schlechter.
+    Abweichungen unter 2 % sind normale Messschwankungen.`,
 };
 
 /** Wie FrameMetrics.PacingRating im Overlay: unter 10 % der Frametime ruhig, ab 25 % unruhig */
@@ -669,12 +687,17 @@ function renderComparison(view) {
 // ---------------------------------------------------------------- Diagramme (SVG, ohne Bibliothek)
 
 const charts = [];
+
+/** Legendenlinie im selben Strichmuster wie die Kurve im Diagramm */
+function swatch(x) {
+  return `<svg class="swatch-line" width="16" height="6" aria-hidden="true"><line x1="0" x2="16" y1="3" y2="3" stroke="${x.color}" stroke-width="2"${x.dash ? ` stroke-dasharray="${x.dash}"` : ""}/></svg>`;
+}
 const H = 150, PAD = { l: 38, r: 8, t: 8, b: 20 };
 
 function chart(parent, s, title, series, opt = {}) {
   const wrap = document.createElement("div");
   wrap.className = "chart";
-  wrap.innerHTML = `<div class="title"><b>${title}</b>${series.map(x => `<span><span class="swatch" style="background:${x.color}"></span>${x.label}</span>`).join("")}</div>`;
+  wrap.innerHTML = `<div class="title"><b>${title}</b>${series.map(x => `<span>${swatch(x)}${x.label}</span>`).join("")}</div>`;
   parent.append(wrap);
   const c = { wrap, sessions: [s], series, opt, single: true };
   charts.push(c);
@@ -692,7 +715,7 @@ function compareChart(parent) {
 }
 
 function draw(c) {
-  c.wrap.querySelector("svg")?.remove();
+  c.wrap.querySelector("svg.plot")?.remove();
   const W = Math.max(300, c.wrap.clientWidth);
   const iw = W - PAD.l - PAD.r, ih = H - PAD.t - PAD.b - (c.opt.strip ? 8 : 0);
 
@@ -720,7 +743,7 @@ function draw(c) {
 
   const X = t => PAD.l + t / tMax * iw;
   const Y = v => PAD.t + ih - (v - lo) / (hi - lo) * ih;
-  let svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`;
+  let svg = `<svg class="plot" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`;
 
   // Raster und Beschriftung
   svg += `<g class="grid">`;
@@ -768,7 +791,7 @@ function draw(c) {
   svg += `<rect x="${PAD.l}" y="${PAD.t}" width="${iw}" height="${ih}" fill="transparent"/></svg>`;
   c.wrap.insertAdjacentHTML("beforeend", svg);
 
-  const el = c.wrap.querySelector("svg");
+  const el = c.wrap.querySelector("svg.plot");
   c.X = X; c.tMax = tMax; c.iw = iw;
   el.onmousemove = ev => hover(c, ev);
   el.onmouseleave = () => { document.getElementById("tip").style.display = "none"; charts.forEach(k => k.wrap.querySelector(".cross")?.setAttribute("visibility", "hidden")); };
@@ -797,7 +820,7 @@ function hover(c, ev) {
     s.d.t.forEach((v, j) => { const dist = Math.abs(v - t0 - t); if (dist < best) { best = dist; i = j; } });
     if (best > 2) continue;
     if (c.single) {
-      html += c.series.map(x => `<br><span class="swatch" style="background:${x.color}"></span>${x.label}: ${fmt(s.d[x.key][i], 1)}${c.opt.unit || ""}`).join("");
+      html += c.series.map(x => `<br>${swatch(x)}${x.label}: ${fmt(s.d[x.key][i], 1)}${c.opt.unit || ""}`).join("");
       html += `<br><span style="color:var(--muted)">${esc(s.d.title[i] || "")}</span>`;
     } else {
       html += `<br><span class="swatch" style="background:${s.color}"></span>${esc(sessionLabel(s))}: ${fmt(s.d.fps[i], 0)} FPS`;
