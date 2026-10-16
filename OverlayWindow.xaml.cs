@@ -37,6 +37,7 @@ public partial class OverlayWindow : Window
     private int _corner = 1;   // 0 = oben links, 1 = oben rechts, 2 = unten rechts, 3 = unten links
     private IntPtr _monitor = Win32.PrimaryMonitor;
     private bool _details = true;
+    private readonly Settings _settings = Settings.Load();
     private bool _exiting;
 
     // Verschieben mit der Maus: solange Strg+Umschalt gedrückt ist, nimmt das Overlay Klicks an.
@@ -57,6 +58,7 @@ public partial class OverlayWindow : Window
         InitializeComponent();
         SizeChanged += (_, _) => Reposition();
         CreateNoteRows();
+        ApplySettings();
         _modifierTimer.Tick += (_, _) => SetDragMode(Win32.IsKeyDown(Win32.VK_CONTROL) && Win32.IsKeyDown(Win32.VK_SHIFT));
         MouseLeftButtonDown += OnDragStart;
     }
@@ -93,6 +95,7 @@ public partial class OverlayWindow : Window
         if (Win32.GetWorkArea(_monitor) is not { } area) return;
         Win32.GetWindowRect(_hwnd, out var rect);
         _customOffset = (rect.Left - area.Left, rect.Top - area.Top);
+        SaveSettings();
         Reposition();   // ggf. vollständig in den sichtbaren Bereich ziehen
     }
 
@@ -131,6 +134,8 @@ public partial class OverlayWindow : Window
         Win32.RegisterHotKey(_hwnd, HotkeyCorner, mods, VK_F9);
         Win32.RegisterHotKey(_hwnd, HotkeyToggle, mods, VK_F10);
         Win32.RegisterHotKey(_hwnd, HotkeyDetails, mods, VK_F8);
+        // Gespeicherten Monitor wiederfinden; ist er nicht angeschlossen, bleibt es der Hauptmonitor
+        if (Win32.FindMonitor(_settings.Monitor) is var saved && saved != IntPtr.Zero) _monitor = saved;
         Reposition();
         _modifierTimer.Start();
 
@@ -563,6 +568,7 @@ public partial class OverlayWindow : Window
         if (monitor != _monitor)
         {
             _monitor = monitor;
+            SaveSettings();
             Reposition();
         }
     }
@@ -607,6 +613,7 @@ public partial class OverlayWindow : Window
     {
         if (_customOffset != null) _customOffset = null;
         else _corner = (_corner + 1) % 4;
+        SaveSettings();
         Reposition();
     }
 
@@ -620,6 +627,28 @@ public partial class OverlayWindow : Window
     {
         _details = !_details;
         DetailPanel.Visibility = _details ? Visibility.Visible : Visibility.Collapsed;
+        SaveSettings();
+    }
+
+    /// <summary>Gespeicherte Einstellungen übernehmen (Monitor erst, wenn das Fenster ein Handle hat).</summary>
+    private void ApplySettings()
+    {
+        _corner = _settings.Corner;
+        _customOffset = _settings.OffsetX is int x && _settings.OffsetY is int y ? (x, y) : null;
+        _details = _settings.Details;
+        DetailPanel.Visibility = _details ? Visibility.Visible : Visibility.Collapsed;
+        _recorder.Enabled = _settings.RecordSessions;
+    }
+
+    private void SaveSettings()
+    {
+        _settings.Corner = _corner;
+        _settings.OffsetX = _customOffset?.X;
+        _settings.OffsetY = _customOffset?.Y;
+        _settings.Monitor = Win32.MonitorDeviceName(_monitor);
+        _settings.Details = _details;
+        _settings.RecordSessions = _recorder.Enabled;
+        _settings.Save();
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -645,7 +674,11 @@ public partial class OverlayWindow : Window
         menu.Items.Add("Details an/aus\tStrg+Umschalt+F8", null, (_, _) => ToggleDetails());
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         var record = new System.Windows.Forms.ToolStripMenuItem("Sitzungen aufzeichnen") { Checked = _recorder.Enabled, CheckOnClick = true };
-        record.CheckedChanged += (_, _) => _recorder.Enabled = record.Checked;
+        record.CheckedChanged += (_, _) =>
+        {
+            _recorder.Enabled = record.Checked;
+            SaveSettings();
+        };
         menu.Items.Add(record);
         menu.Items.Add("Sitzungsordner öffnen", null, (_, _) =>
         {

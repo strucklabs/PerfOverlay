@@ -108,6 +108,46 @@ internal static class Win32
 
     public static IntPtr PrimaryMonitor => MonitorFromPoint(new POINT(), MONITOR_DEFAULTTOPRIMARY);
 
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct MONITORINFOEX
+    {
+        public uint cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+        public string szDevice;
+    }
+
+    [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW", CharSet = CharSet.Unicode)]
+    private static extern bool GetMonitorInfoEx(IntPtr hMonitor, ref MONITORINFOEX info);
+
+    private delegate bool MonitorEnumProc(IntPtr monitor, IntPtr hdc, IntPtr rect, IntPtr data);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr clip, MonitorEnumProc callback, IntPtr data);
+
+    /// <summary>Gerätename eines Monitors (z. B. "\\.\DISPLAY2") – bleibt über Neustarts gleich, das Handle nicht.</summary>
+    public static string? MonitorDeviceName(IntPtr monitor)
+    {
+        var info = new MONITORINFOEX { cbSize = (uint)Marshal.SizeOf<MONITORINFOEX>() };
+        return monitor != IntPtr.Zero && GetMonitorInfoEx(monitor, ref info) ? info.szDevice : null;
+    }
+
+    /// <summary>Monitor zu einem gespeicherten Gerätenamen; IntPtr.Zero, wenn er nicht (mehr) angeschlossen ist.</summary>
+    public static IntPtr FindMonitor(string? deviceName)
+    {
+        if (string.IsNullOrEmpty(deviceName)) return IntPtr.Zero;
+        IntPtr found = IntPtr.Zero;
+        EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (monitor, _, _, _) =>
+        {
+            if (MonitorDeviceName(monitor) != deviceName) return true;   // weitersuchen
+            found = monitor;
+            return false;
+        }, IntPtr.Zero);
+        return found;
+    }
+
     [DllImport("shcore.dll")]
     private static extern int GetDpiForMonitor(IntPtr monitor, int dpiType, out uint dpiX, out uint dpiY);
 

@@ -24,6 +24,10 @@ Das Overlay ist nur über **randlosen Fenstermodus / Fenstermodus** sichtbar, ni
 
 Beenden über das Tray-Icon (Rechtsklick → Beenden).
 
+Ecke bzw. gezogene Position, Monitor, Detailmodus und „Sitzungen aufzeichnen“ werden in
+`%APPDATA%\PerfOverlay\einstellungen.json` gespeichert. Ist der gespeicherte Monitor nicht angeschlossen,
+erscheint das Overlay auf dem Hauptmonitor; eine beschädigte Datei führt zu den Standardwerten.
+
 Selbsttest ohne Fenster: `PerfOverlay.exe --selftest 6` schreibt `selftest.txt` und `selftest.png` neben die EXE.
 
 ## Sitzungen aufzeichnen und auswerten
@@ -123,7 +127,6 @@ Frames kennzeichnen – bei DLSS 3 ist das nicht garantiert (ungetestet).
 - Weitere Temperaturquellen neben HWiNFO: Core Temp, MSI Afterburner (Shared Memory)
 - AMD-spezifische Werte über ADLX
 - SSD-Temperatur über WMI `MSFT_StorageReliabilityCounter`
-- Einstellungen speichern
 - Hauptfenster in der EXE mit Live-Auswertung (gleiche Datenbasis wie die CSV-Sitzungen)
 - Download-Link im Kopf der Auswertung, sobald es einen Release Candidate gibt
 - Automatisch kompakter Modus (bei der Layout-Überarbeitung – ändert die Overlay-Größe)

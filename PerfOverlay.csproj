@@ -44,4 +44,9 @@
     <PackageReference Include="System.Management" Version="10.0.13" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Testprojekt darf interne Hilfsklassen (Win32, Sensoren) prüfen -->
+    <InternalsVisibleTo Include="PerfOverlay.Tests" />
+  </ItemGroup>
+
 </Project>
