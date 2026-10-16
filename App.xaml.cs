@@ -26,14 +26,29 @@ public partial class App : Application
             return;
         }
 
-        _singleInstance = new Mutex(true, "PerfOverlay_SingleInstance", out bool isNew);
-        if (!isNew)
+        if (!AcquireSingleInstance())
         {
             Shutdown();
             return;
         }
 
         new OverlayWindow().Show();
+    }
+
+    private const string MutexName = "PerfOverlay_SingleInstance";
+
+    /// <summary>Übernimmt die Einzelinstanz-Sperre; false, wenn bereits eine andere Instanz läuft.</summary>
+    public static bool AcquireSingleInstance()
+    {
+        if (_singleInstance != null) return true;
+        var mutex = new Mutex(true, MutexName, out bool isNew);
+        if (!isNew)
+        {
+            mutex.Dispose();
+            return false;
+        }
+        _singleInstance = mutex;
+        return true;
     }
 
     /// <summary>Vor einem Neustart (z. B. als Admin) freigeben, damit die neue Instanz starten darf.</summary>

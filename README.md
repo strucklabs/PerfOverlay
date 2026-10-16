@@ -82,7 +82,10 @@ Ruckler und Frame-Pacing (`Sensors/FrameMetrics.cs`):
 - **Frame-Pacing** = Ø Sprung der Frametime von Bild zu Bild (ohne Ruckler): unter 10 % der Frametime „ruhig“,
   ab 25 % „unruhig“ – erfasst Mikroruckeln, das aus vielen kleinen Schwankungen statt einzelner Hänger besteht.
 
-Tests: `dotnet test tests\PerfOverlay.Tests`
+Tests: `dotnet test tests\PerfOverlay.Tests` (Ruckler/Pacing, Engpass-Analyse mit echten Warframe-Fällen,
+Sitzungsaufzeichnung inkl. Alt+Tab, RAM-Teilenummern).
+
+Unerwartete Fehler landen in `Dokumente\PerfOverlay\fehler.log`; das Overlay läuft dabei weiter.
 
 Zusätzliche Hinweise: GPU-Drosselung (Temperatur, Power-Brake), PCIe-Link reduziert, VRAM-Auslagerung in den RAM
 (`GPU Process Memory\Shared Usage` des Spiels), RAM knapp, Datenträger ausgelastet, Ruckler mit Ursache

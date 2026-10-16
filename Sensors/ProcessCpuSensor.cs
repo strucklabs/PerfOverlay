@@ -86,14 +86,12 @@ internal sealed class ProcessCpuSensor
             using (process)
             {
                 if (process.Id is 0 or 4 || process.Id == _ownPid) continue;   // Leerlauf, System, Overlay
-                try
+                // Direkt über GetProcessTimes statt Process.TotalProcessorTime: Letzteres wirft bei jedem
+                // geschützten Prozess eine Exception – ohne Admin-Rechte alle 2 s dutzendfach.
+                if (TryGetCpuTime(process.Id, out var cpu))
                 {
-                    times[process.Id] = process.TotalProcessorTime;
-                    names[process.Id] = process.ProcessName;
-                }
-                catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
-                {
-                    // geschützter Prozess – überspringen
+                    times[process.Id] = cpu;
+                    names[process.Id] = process.ProcessName;   // stammt aus dem Prozess-Schnappschuss, kein Handle nötig
                 }
             }
         }
@@ -139,6 +137,32 @@ internal sealed class ProcessCpuSensor
         }
         return _threadNames[threadId] = string.IsNullOrWhiteSpace(name) ? null : name;
     }
+
+    /// <summary>Kernel- plus User-Zeit eines Prozesses; false ohne Zugriff (ohne Exception).</summary>
+    private static bool TryGetCpuTime(int pid, out TimeSpan cpu)
+    {
+        cpu = TimeSpan.Zero;
+        IntPtr handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, (uint)pid);
+        if (handle == IntPtr.Zero) return false;
+        try
+        {
+            if (!GetProcessTimes(handle, out _, out _, out long kernel, out long user)) return false;
+            cpu = TimeSpan.FromTicks(kernel + user);   // FILETIME-Einheiten = 100 ns = TimeSpan-Ticks
+            return true;
+        }
+        finally
+        {
+            CloseHandle(handle);
+        }
+    }
+
+    private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr OpenProcess(uint access, bool inherit, uint processId);
+
+    [DllImport("kernel32.dll")]
+    private static extern bool GetProcessTimes(IntPtr process, out long creation, out long exit, out long kernel, out long user);
 
     private const uint THREAD_QUERY_LIMITED_INFORMATION = 0x0800;
 

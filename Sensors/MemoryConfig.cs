@@ -42,12 +42,14 @@ public sealed record MemoryConfig(
                 ChannelMode.Quad => " Quad",
                 _ => "",
             };
-            return $"{size} GB {Type}-{ConfiguredMTs}{channels}";
+            // Manche Systeme (VMs, einzelne Boards) melden keinen Takt – dann nur den Typ zeigen
+            string speed = ConfiguredMTs > 0 ? $"-{ConfiguredMTs}" : "";
+            return $"{size} GB {Type}{speed}{channels}";
         }
     }
 
     /// <summary>JEDEC-Standardtakt ohne XMP/EXPO – Gaming-Kits sind praktisch immer schneller ausgelegt.</summary>
-    public bool RunsAtJedecBase => Type switch
+    public bool RunsAtJedecBase => ConfiguredMTs > 0 && Type switch
     {
         "DDR4" => ConfiguredMTs <= 2400,
         "DDR5" => ConfiguredMTs <= 4800,
@@ -101,7 +103,8 @@ public sealed record MemoryConfig(
             };
             int configuredMts = modules.Min(m => m.ConfiguredMTs);
             int? rated = modules.Select(m => RatedFromPartNumber(m.PartNumber)).FirstOrDefault(r => r.HasValue);
-            if (rated <= configuredMts) rated = null;   // nur relevant, wenn der Riegel schneller könnte
+            // Nur relevant, wenn der Riegel schneller könnte – und nur bei bekanntem aktuellen Takt
+            if (rated <= configuredMts || configuredMts <= 0) rated = null;
 
             var (channels, sameChannel) = DetectMode(modules);
             return new MemoryConfig(modules, Math.Max(slots, modules.Count), type, formFactor == 12,

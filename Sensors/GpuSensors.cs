@@ -154,7 +154,11 @@ internal sealed class WindowsGpuSensor
     private string ProcessName(int pid)
     {
         if (_names.TryGetValue(pid, out var name)) return name;
-        try { name = Process.GetProcessById(pid).ProcessName; }
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            name = process.ProcessName;
+        }
         catch { name = $"PID {pid}"; }
         if (_names.Count > 500) _names.Clear();
         return _names[pid] = name;

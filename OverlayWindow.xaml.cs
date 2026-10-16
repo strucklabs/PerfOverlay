@@ -137,8 +137,10 @@ public partial class OverlayWindow : Window
         CreateTray();
         _hub = new SensorHub();
         _hub.StartFrameCapture();
-        _ = UpdateLoopAsync();
+        _updateLoop = UpdateLoopAsync();
     }
+
+    private Task? _updateLoop;
 
     private async Task UpdateLoopAsync()
     {
@@ -147,18 +149,27 @@ public partial class OverlayWindow : Window
         {
             while (await timer.WaitForNextTickAsync(_cts.Token))
             {
-                var hub = _hub!;
-                var snapshot = await Task.Run(hub.Sample);
-                if (_exiting) return;
-                var verdict = _analyzer.Analyze(snapshot);
-                Render(snapshot, verdict, LogNotes(verdict, snapshot.Time));
-                try { _recorder.Record(snapshot, verdict); }
-                catch (IOException) { _recorder.Stop(); }   // z. B. Datei gesperrt – Overlay läuft weiter
-                UpdateTrayText(snapshot);
-                FollowGameMonitor(snapshot);
-                // Manche Spiele schieben sich nach vorn – Topmost regelmäßig erneuern
-                Win32.SetWindowPos(_hwnd, Win32.HWND_TOPMOST, 0, 0, 0, 0,
-                    Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE | Win32.SWP_NOOWNERZORDER);
+                // Ein Fehler in einem einzelnen Takt (Sensor, Analyse, Darstellung) darf die Schleife nicht
+                // beenden – sonst friert das Overlay ohne jeden Hinweis ein. Er wird protokolliert, weiter geht's.
+                try
+                {
+                    var hub = _hub!;
+                    var snapshot = await Task.Run(hub.Sample);
+                    if (_exiting) return;
+                    var verdict = _analyzer.Analyze(snapshot);
+                    Render(snapshot, verdict, LogNotes(verdict, snapshot.Time));
+                    try { _recorder.Record(snapshot, verdict); }
+                    catch (IOException) { _recorder.Stop(); }   // z. B. Datei gesperrt – Overlay läuft weiter
+                    UpdateTrayText(snapshot);
+                    FollowGameMonitor(snapshot);
+                    // Manche Spiele schieben sich nach vorn – Topmost regelmäßig erneuern
+                    Win32.SetWindowPos(_hwnd, Win32.HWND_TOPMOST, 0, 0, 0, 0,
+                        Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE | Win32.SWP_NOOWNERZORDER);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    ErrorLog.Write(ex);
+                }
             }
         }
         catch (OperationCanceledException) { }
@@ -572,7 +583,8 @@ public partial class OverlayWindow : Window
         }
         Win32.GetWindowRect(_hwnd, out var rect);
         int w = rect.Right - rect.Left, h = rect.Bottom - rect.Top;
-        int margin = (int)Math.Round(12 * VisualTreeHelper.GetDpi(this).DpiScaleX);
+        // Skalierung des Zielmonitors, nicht des Monitors, auf dem das Fenster gerade noch liegt
+        int margin = (int)Math.Round(12 * Win32.MonitorScale(_monitor));
 
         int x, y;
         if (_customOffset is { } off)
@@ -690,15 +702,25 @@ public partial class OverlayWindow : Window
         }
         catch (System.ComponentModel.Win32Exception)
         {
-            return;   // UAC-Abfrage abgelehnt – weiterlaufen
+            // UAC-Abfrage abgelehnt – weiterlaufen und die Einzelinstanz-Sperre wieder übernehmen
+            App.AcquireSingleInstance();
+            return;
         }
         ExitApp();
     }
 
-    private void ExitApp()
+    private async void ExitApp()
     {
+        if (_exiting) return;
         _exiting = true;
         _cts.Cancel();
+        // Erst warten, bis ein gerade laufender Messtakt fertig ist – sonst würden PDH-, NVML- und
+        // HWiNFO-Handles freigegeben, während der Threadpool sie noch benutzt.
+        if (_updateLoop != null)
+        {
+            try { await _updateLoop; }
+            catch (Exception ex) { ErrorLog.Write(ex); }
+        }
         if (_hwnd != IntPtr.Zero)
             foreach (int id in new[] { HotkeyCorner, HotkeyToggle, HotkeyDetails })
                 Win32.UnregisterHotKey(_hwnd, id);

@@ -96,7 +96,31 @@ internal sealed class PresentMonSource : IDisposable
         new Thread(() => ReadLoop(reader)) { IsBackground = true, Name = "PresentMon reader" }.Start();
     }
 
+    /// <summary>
+    /// Läuft in einem eigenen Hintergrundthread. Eine unbehandelte Ausnahme dort würde den ganzen Prozess
+    /// beenden – daher wird alles abgefangen und als Status gemeldet (beim Beenden ist der Stream ggf. schon zu).
+    /// </summary>
     private void ReadLoop(StreamReader reader)
+    {
+        try
+        {
+            ReadFrames(reader);
+        }
+        catch (Exception ex) when (ex is ObjectDisposedException or IOException && _disposed)
+        {
+            // Overlay wird beendet – erwartet
+        }
+        catch (Exception ex)
+        {
+            _lastError = "PresentMon-Ausgabe nicht lesbar: " + ex.Message;
+            _exited = true;
+            ErrorLog.Write(ex);
+        }
+    }
+
+    private volatile bool _disposed;
+
+    private void ReadFrames(StreamReader reader)
     {
         int iApp = -1, iPid = -1, iMs = -1, iCpuBusy = -1, iCpuWait = -1, iGpuBusy = -1, iGpuWait = -1;
         int iMode = -1, iSync = -1, iTearing = -1, iFrameType = -1;
@@ -123,6 +147,13 @@ internal sealed class PresentMonSource : IDisposable
                 iSync = Col("SyncInterval");
                 iTearing = Col("AllowsTearing");
                 iFrameType = Col("FrameType");
+                if (iPid < 0 || iMs < 0)
+                {
+                    // Ohne Prozess-ID und Frametime ist keine Auswertung möglich (z. B. geändertes Format einer neuen Version)
+                    _lastError = "Unbekanntes PresentMon-Ausgabeformat (ProcessID/Frametime fehlen)";
+                    _exited = true;
+                    return;
+                }
                 _headerSeen = true;
                 continue;
             }
@@ -248,6 +279,7 @@ internal sealed class PresentMonSource : IDisposable
 
     public void Dispose()
     {
+        _disposed = true;
         if (_process == null) return;
         try
         {

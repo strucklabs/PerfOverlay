@@ -1,0 +1,91 @@
+using System.IO;
+using PerfOverlay.Analysis;
+using PerfOverlay.Sensors;
+
+namespace PerfOverlay.Tests;
+
+/// <summary>Sitzungsaufzeichnung: Start/Ende, Alt+Tab, Ruckler-Zählung. Schreibt in einen temporären Ordner.</summary>
+public sealed class SessionRecorderTests : IDisposable
+{
+    private const int GamePid = 100, ClaudePid = 200, OtherGamePid = 300;
+    private static readonly DateTime T0 = new(2026, 10, 16, 20, 0, 0);
+    private readonly string _folder = Path.Combine(Path.GetTempPath(), "PerfOverlayTests_" + Guid.NewGuid().ToString("N"));
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_folder)) Directory.Delete(_folder, true);
+    }
+
+    private static FrameStats Frames(int pid, string app, params double[] spikeTimes) =>
+        new(pid, app, 120, 100, 8.3, 8.3, 10, 5, 0.5, 8, 0) { AppFps = 120, SpikeTimes = spikeTimes };
+
+    private static Snapshot Snap(double seconds, FrameStats? frames, int foreground) =>
+        new(T0.AddSeconds(seconds),
+            new CpuData(30, [30, 30], 4500, 5000),
+            new MemoryData(12, 32, 40, 18, 55, 0),
+            new DiskData(1, 0.1, 1),
+            null, [], frames, "aktiv", true, null, null)
+        { ForegroundPid = foreground };
+
+    private static readonly Verdict Verdict = new("GPU-LIMITIERT", "", Severity.Good, []) { Kind = BottleneckKind.Gpu };
+
+    private string[] Files() => Directory.Exists(_folder) ? Directory.GetFiles(_folder, "*.csv") : [];
+
+    private static int SpikeSum(string file) =>
+        File.ReadAllLines(file).Where(l => !l.StartsWith('#')).Skip(1)
+            .Sum(l => int.Parse(l.Split(';')[Array.IndexOf(SessionRecorder.Columns, "Ruckler")]));
+
+    [Fact]
+    public void Alt_Tab_in_App_mit_eigener_Grafikausgabe_beendet_die_Spielsitzung_nicht()
+    {
+        using var recorder = new SessionRecorder(_folder);
+        double t = 0;
+        for (; t < 70; t += 0.5) recorder.Record(Snap(t, Frames(GamePid, "Warframe.x64.exe"), GamePid), Verdict);
+        // 10 s in der Claude-App, die selbst Frames liefert
+        for (; t < 80; t += 0.5) recorder.Record(Snap(t, Frames(ClaudePid, "claude.exe"), ClaudePid), Verdict);
+        for (; t < 100; t += 0.5) recorder.Record(Snap(t, Frames(GamePid, "Warframe.x64.exe"), GamePid), Verdict);
+        recorder.Stop();
+
+        var file = Assert.Single(Files());
+        var rows = File.ReadAllLines(file).Where(l => !l.StartsWith('#')).Skip(1).ToList();
+        Assert.DoesNotContain(rows, l => l.Contains("claude.exe"));
+        // Eine durchgehende Sitzung bis zum Ende – nicht bei Sekunde 70 abgebrochen
+        int secondCol = Array.IndexOf(SessionRecorder.Columns, "Sekunde");
+        Assert.True(rows.Max(l => int.Parse(l.Split(';')[secondCol])) >= 95);
+    }
+
+    [Fact]
+    public void Wechsel_zu_anderem_Spiel_im_Vordergrund_beginnt_neue_Sitzung()
+    {
+        using var recorder = new SessionRecorder(_folder);
+        double t = 0;
+        for (; t < 70; t += 0.5) recorder.Record(Snap(t, Frames(GamePid, "Warframe.x64.exe"), GamePid), Verdict);
+        for (; t < 140; t += 0.5) recorder.Record(Snap(t, Frames(OtherGamePid, "Cyberpunk2077.exe"), OtherGamePid), Verdict);
+        recorder.Stop();
+
+        Assert.Equal(2, Files().Length);
+    }
+
+    [Fact]
+    public void Ruckler_vor_Sitzungsbeginn_werden_nicht_gezaehlt()
+    {
+        using var recorder = new SessionRecorder(_folder);
+        // PresentMon hält 10 s Verlauf: beim Start sind schon zwei ältere Ruckler (Zeit 3 und 4) enthalten
+        double t = 0;
+        for (; t < 30; t += 0.5) recorder.Record(Snap(t, Frames(GamePid, "Spiel.exe", 3, 4), GamePid), Verdict);
+        // während der Sitzung kommt einer dazu
+        for (; t < 70; t += 0.5) recorder.Record(Snap(t, Frames(GamePid, "Spiel.exe", 3, 4, 50), GamePid), Verdict);
+        recorder.Stop();
+
+        Assert.Equal(1, SpikeSum(Assert.Single(Files())));
+    }
+
+    [Fact]
+    public void Kurze_Sitzungen_werden_verworfen()
+    {
+        using var recorder = new SessionRecorder(_folder);
+        for (double t = 0; t < 20; t += 0.5) recorder.Record(Snap(t, Frames(GamePid, "Spiel.exe"), GamePid), Verdict);
+        recorder.Stop();
+        Assert.Empty(Files());
+    }
+}

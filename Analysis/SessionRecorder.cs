@@ -63,13 +63,17 @@ public sealed class SessionRecorder : IDisposable
         }
 
         var f = s.Frames;
+        // Frames eines anderen Prozesses während einer Sitzung: Nur ein anderes Spiel im Vordergrund beendet
+        // die Sitzung. Alt+Tab in eine App mit eigener Grafikausgabe (Browser, Discord, Claude) zählt wie
+        // "Spiel liefert gerade nichts" – sonst würde jede kurze Unterbrechung die Aufzeichnung zerteilen.
+        if (f != null && _writer != null && f.Pid != _gamePid)
+        {
+            if (IsGameInForeground(s, f)) Stop();
+            else f = null;
+        }
         if (f != null)
         {
-            // Spielwechsel = neue Sitzung
-            if (_writer != null && f.Pid != _gamePid) Stop();
-            // Neue Sitzung nur für ein Spiel im Vordergrund – Browser, Launcher und Apps mit
-            // DirectX-Oberfläche (Steam, Discord, Electron-Apps) liefern ebenfalls Frames.
-            if (_writer == null && f.Pid == s.ForegroundPid && !IsNonGame(f.App)) Start(s, f);
+            if (_writer == null && IsGameInForeground(s, f)) Start(s, f);
             if (_writer != null) _lastFrames = s.Time;
         }
         else if (_writer != null && s.Time - _lastFrames > SessionTimeout)
@@ -127,8 +131,15 @@ public sealed class SessionRecorder : IDisposable
         _sessionStart = s.Time;
         _lastRow = s.Time - RowInterval;
         _gamePid = f.Pid;
-        _lastSpikeTime = double.MinValue;
+        // Ruckler, die vor Sitzungsbeginn liegen (PresentMon hält 10 s Verlauf), nicht mitzählen
+        _lastSpikeTime = f.SpikeTimes.Length > 0 ? f.SpikeTimes.Max() : double.MinValue;
     }
+
+    /// <summary>
+    /// Neue Sitzung nur für ein Spiel im Vordergrund – Browser, Launcher und Apps mit DirectX-Oberfläche
+    /// (Steam, Discord, Electron-Apps) liefern ebenfalls Frames.
+    /// </summary>
+    private static bool IsGameInForeground(Snapshot s, FrameStats f) => f.Pid == s.ForegroundPid && !IsNonGame(f.App);
 
     /// <summary>Kürzere Sitzungen (kurz angeklickt, Alt+Tab) werden wieder gelöscht.</summary>
     private static readonly TimeSpan MinimumSession = TimeSpan.FromSeconds(60);
