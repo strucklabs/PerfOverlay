@@ -5,7 +5,7 @@ namespace PerfOverlay.Tests;
 public class MemoryConfigTests
 {
     [Theory]
-    [InlineData("CMK32GX4M2E3200C16", 3200)]        // Corsair Vengeance LPX (Marcos Kit)
+    [InlineData("CMK32GX4M2E3200C16", 3200)]        // Corsair Vengeance LPX
     [InlineData("CMH32GX5M2B6000C30", 6000)]        // Corsair DDR5
     [InlineData("F4-3600C16D-32GVKC", 3600)]        // G.Skill DDR4
     [InlineData("F5-6000J3038F16GX2-TZ5N", 6000)]   // G.Skill DDR5 ("J" statt "C")

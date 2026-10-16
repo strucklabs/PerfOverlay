@@ -101,7 +101,7 @@
 
 <main>
   <div id="drop">
-    <p><strong>Sitzungsdateien hierher ziehen</strong> – eine Datei für die Auswertung, mehrere für einen Vergleich (z. B. vor und nach XMP).</p>
+    <p><strong>Sitzungsdateien hierher ziehen</strong> – eine Datei für die Auswertung, mehrere für einen Vergleich (z. B. vor und nach einer Einstellungsänderung).</p>
     <button id="pick">Dateien auswählen …</button>
     <input id="file" type="file" accept=".csv,text/csv" multiple hidden>
   </div>
@@ -367,13 +367,13 @@ function renderSession(view, s) {
     { key: "gpuMhz", label: "Takt", color: "var(--gpu)" },
   ], { unit: " MHz" });
   if (d.cpuFanRpm.some(v => v !== null) || d.gpuFanRpm.some(v => v !== null)) {
-    chart(ch, s, "Lüfter (U/min) – nach dem Reinigen sollten sie bei gleicher Last ruhiger drehen", [
+    chart(ch, s, "Lüfter (U/min)", [
       { key: "cpuFanRpm", label: "CPU", color: "var(--cpu)" },
       { key: "gpuFanRpm", label: "GPU", color: "var(--gpu)" },
     ].filter(x => d[x.key].some(v => v !== null)), { min: 0, unit: " U/min" });
   }
   if (d.gpuV.some(v => v !== null)) {
-    chart(ch, s, "GPU-Spannung (V) – beim Undervolting bleibt sie unter Last flach", [
+    chart(ch, s, "GPU-Spannung (V)", [
       { key: "gpuV", label: "Spannung", color: "var(--limit)" },
     ], { unit: " V" });
   }
