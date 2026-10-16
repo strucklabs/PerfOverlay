@@ -25,6 +25,25 @@ Beenden über das Tray-Icon (Rechtsklick → Beenden).
 
 Selbsttest ohne Fenster: `PerfOverlay.exe --selftest 6` schreibt `selftest.txt` und `selftest.png` neben die EXE.
 
+## Sitzungen aufzeichnen und auswerten
+
+Sobald ein Spiel Frames liefert, schreibt das Overlay eine Sitzung nach `Dokumente\PerfOverlay\Sitzungen`
+(eine CSV-Zeile pro Sekunde; Semikolon und Dezimalkomma, öffnet sich in deutschem Excel direkt). Nach 30 s ohne
+Frames oder beim Spielwechsel beginnt eine neue Datei. Abschaltbar im Tray-Menü („Sitzungen aufzeichnen“).
+
+`Auswertung\PerfOverlay-Auswertung.html` (Tray-Menü → „Auswertung öffnen“) wertet die Dateien per Drag & Drop
+im Browser aus – ohne Internet, ohne Upload:
+- Zusammenfassung: Ø FPS, Ø 1%-Low, Ruckler pro Minute, Hauptengpass, **Ø FPS im CPU-Limit**, Temperaturen
+- Engpass-Anteile, Verlaufsdiagramme (FPS mit Engpass-Streifen und Rucklern, CPU-/GPU-Arbeitszeit,
+  Auslastung, Temperaturen) mit synchronem Fadenkreuz
+- Mehrere Dateien: Vergleichstabelle mit Abweichung zur ersten Sitzung, z. B. vor/nach XMP.
+  „Ø FPS im CPU-Limit“ zeigt den Effekt von schnellerem RAM am deutlichsten.
+
+`PerfOverlay.exe --preview` erzeugt neben der EXE zusätzlich zwei **künstliche** Beispielsitzungen
+(`preview-sitzung-vorher.csv` / `-nachher.csv`) zum Ausprobieren der Auswertung.
+
+Das Icon (`Assets\PerfOverlay.ico`) wird mit `Assets\make-icon.ps1` erzeugt.
+
 ## Datenquellen
 
 | Bereich | Quelle |
@@ -88,7 +107,9 @@ Frames kennzeichnen – bei DLSS 3 ist das nicht garantiert (ungetestet).
 - Weitere Temperaturquellen neben HWiNFO: Core Temp, MSI Afterburner (Shared Memory)
 - AMD-spezifische Werte über ADLX
 - SSD-Temperatur über WMI `MSFT_StorageReliabilityCounter`
-- Sitzungs-Protokoll (CSV) mit Zusammenfassung, Einstellungen speichern
+- Einstellungen speichern
+- Hauptfenster in der EXE mit Live-Auswertung (gleiche Datenbasis wie die CSV-Sitzungen)
+- Download-Link im Kopf der Auswertung, sobald es einen Release Candidate gibt
 - Automatisch kompakter Modus (bei der Layout-Überarbeitung – ändert die Overlay-Größe)
 - GPU-Nutzer im Leerlauf anzeigen (z. B. „wallpaper64 8 %, chrome 3 %“) – Daten liegen schon in
   `Snapshot.GpuTopProcesses` vor; erst bei der Layout-Überarbeitung einbauen, damit das Overlay nicht überladen wirkt

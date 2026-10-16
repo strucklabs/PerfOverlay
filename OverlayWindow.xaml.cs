@@ -29,6 +29,7 @@ public partial class OverlayWindow : Window
 
     private readonly CancellationTokenSource _cts = new();
     private readonly BottleneckAnalyzer _analyzer = new();
+    private readonly SessionRecorder _recorder = new();
     private SensorHub? _hub;
     private System.Windows.Forms.NotifyIcon? _tray;
     private IntPtr _hwnd;
@@ -104,6 +105,9 @@ public partial class OverlayWindow : Window
                 if (_exiting) return;
                 var verdict = _analyzer.Analyze(snapshot);
                 Render(snapshot, verdict, LogNotes(verdict, snapshot.Time));
+                try { _recorder.Record(snapshot, verdict); }
+                catch (IOException) { _recorder.Stop(); }   // z. B. Datei gesperrt – Overlay läuft weiter
+                UpdateTrayText(snapshot);
                 FollowGameMonitor(snapshot);
                 // Manche Spiele schieben sich nach vorn – Topmost regelmäßig erneuern
                 Win32.SetWindowPos(_hwnd, Win32.HWND_TOPMOST, 0, 0, 0, 0,
@@ -540,6 +544,19 @@ public partial class OverlayWindow : Window
         menu.Items.Add("Ein-/Ausblenden\tStrg+Umschalt+F10", null, (_, _) => ToggleVisible());
         menu.Items.Add("Position wechseln\tStrg+Umschalt+F9", null, (_, _) => NextCorner());
         menu.Items.Add("Details an/aus\tStrg+Umschalt+F8", null, (_, _) => ToggleDetails());
+        menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+        var record = new System.Windows.Forms.ToolStripMenuItem("Sitzungen aufzeichnen") { Checked = _recorder.Enabled, CheckOnClick = true };
+        record.CheckedChanged += (_, _) => _recorder.Enabled = record.Checked;
+        menu.Items.Add(record);
+        menu.Items.Add("Sitzungsordner öffnen", null, (_, _) =>
+        {
+            Directory.CreateDirectory(SessionRecorder.Folder);
+            Process.Start(new ProcessStartInfo(SessionRecorder.Folder) { UseShellExecute = true });
+        });
+        string viewer = System.IO.Path.Combine(AppContext.BaseDirectory, "Auswertung", "PerfOverlay-Auswertung.html");
+        if (File.Exists(viewer))
+            menu.Items.Add("Auswertung öffnen (Browser)", null, (_, _) =>
+                Process.Start(new ProcessStartInfo(viewer) { UseShellExecute = true }));
         if (!Win32.IsElevated())
         {
             menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
@@ -550,12 +567,31 @@ public partial class OverlayWindow : Window
 
         _tray = new System.Windows.Forms.NotifyIcon
         {
-            Icon = System.Drawing.SystemIcons.Application,
+            Icon = LoadTrayIcon(),
             Text = "PerfOverlay",
             Visible = true,
             ContextMenuStrip = menu,
         };
         _tray.DoubleClick += (_, _) => ToggleVisible();
+    }
+
+    /// <summary>Eigenes Icon aus den eingebetteten Ressourcen, in der Größe passend zur Tray-Skalierung.</summary>
+    internal static System.Drawing.Icon LoadTrayIcon()
+    {
+        using var stream = typeof(OverlayWindow).Assembly.GetManifestResourceStream("PerfOverlay.ico");
+        if (stream == null) return System.Drawing.SystemIcons.Application;
+        return new System.Drawing.Icon(stream, System.Windows.Forms.SystemInformation.SmallIconSize);
+    }
+
+    /// <summary>Tooltip am Tray-Icon (max. 63 Zeichen): zeigt, ob gerade aufgezeichnet wird.</summary>
+    private void UpdateTrayText(Snapshot s)
+    {
+        if (_tray == null) return;
+        string state = _recorder.Recording ? "● Aufzeichnung läuft"
+                     : !_recorder.Enabled ? "Aufzeichnung aus"
+                     : s.Frames != null ? "Spiel erkannt" : "wartet auf Spiel";
+        string text = $"PerfOverlay – {state}";
+        if (_tray.Text != text) _tray.Text = text.Length > 63 ? text[..63] : text;
     }
 
     private void RestartElevated()
@@ -584,6 +620,7 @@ public partial class OverlayWindow : Window
             _tray.Visible = false;
             _tray.Dispose();
         }
+        _recorder.Dispose();
         _hub?.Dispose();
         Application.Current.Shutdown();
     }

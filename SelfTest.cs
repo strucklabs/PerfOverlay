@@ -28,6 +28,8 @@ internal static class SelfTest
         hub.StartFrameCapture();
         var analyzer = new BottleneckAnalyzer();
         log.AppendLine($"Admin: {Win32.IsElevated()}   NVML: {hub.HasNvml}   PresentMon: {PresentMonSource.ExePath}");
+        using (var icon = OverlayWindow.LoadTrayIcon())
+            log.AppendLine($"Tray-Icon: {(icon == System.Drawing.SystemIcons.Application ? "Standard (eigenes fehlt!)" : $"eigenes, {icon.Width}×{icon.Height}")}");
 
         // Echte Meldungen der Messung sammeln – das Bild zeigt am Ende denselben Stand wie das Overlay
         var window = new OverlayWindow();
@@ -108,5 +110,61 @@ internal static class SelfTest
 
         window.Render(snapshot!, verdict!, notes);
         window.SaveImage(Path.Combine(AppContext.BaseDirectory, "preview.png"));
+
+        var baseSnapshot = hub.Sample();
+        WriteSampleSession(baseSnapshot, "preview-sitzung-vorher.csv", cpuSpeedup: 1.0, seed: 1);
+        WriteSampleSession(baseSnapshot, "preview-sitzung-nachher.csv", cpuSpeedup: 1.18, seed: 2);
+    }
+
+    /// <summary>
+    /// Künstliche 3-Minuten-Sitzung zum Testen von Auswertung.html: 60 s GPU-limitiert, 60 s CPU-limitiert
+    /// (offene Welt, mit Rucklern), 60 s im 60-FPS-Limit. cpuSpeedup simuliert z. B. aktiviertes XMP.
+    /// </summary>
+    private static void WriteSampleSession(Snapshot real, string fileName, double cpuSpeedup, int seed)
+    {
+        var rnd = new Random(seed);
+        var analyzer = new BottleneckAnalyzer();
+        using var recorder = new SessionRecorder(AppContext.BaseDirectory, fileName);
+        var start = new DateTime(2026, 10, 16, 20, 0, 0).AddMinutes(seed * 10);
+
+        for (int tick = 0; tick < 360; tick++)
+        {
+            double t = tick * 0.5;
+            int phase = t < 60 ? 0 : t < 120 ? 1 : 2;
+            double jitter = rnd.NextDouble();
+            double ms = phase switch
+            {
+                0 => 9.0 + jitter * 0.8,                       // GPU-limitiert, ~105 FPS
+                1 => (12.5 + jitter * 2.5) / cpuSpeedup,       // CPU-limitiert, profitiert von schnellerem RAM
+                _ => 16.67,                                    // 60-FPS-Limit
+            };
+            double gpuBusy = phase == 0 ? ms * 0.97 : phase == 1 ? 8.6 : 9.0;
+            double cpuBusy = phase == 1 ? ms * 0.95 : phase == 0 ? ms * 0.6 : 16.4;
+            bool spike = phase == 1 && rnd.NextDouble() < 0.08;
+            var frames = new FrameStats(4711, "DemoSpiel.exe", 1000 / ms, 1000 / (ms * (spike ? 3 : 1.35)), ms, ms, ms * 1.35,
+                cpuBusy, phase == 2 ? 0.1 : 0.3, gpuBusy, Math.Max(0, ms - gpuBusy))
+            {
+                AppFps = 1000 / ms,
+                SyncInterval = 0,
+                SpikeAges = spike ? [0.2] : [],
+            };
+            var snapshot = real with
+            {
+                Time = start.AddSeconds(t),
+                Frames = frames,
+                FrameSourceRunning = true,
+                FrameSourceStatus = "aktiv",
+                Cpu = real.Cpu with { TotalLoad = phase == 1 ? 38 + jitter * 6 : 22 + jitter * 5 },
+                Gpu = real.Gpu == null ? null : real.Gpu with
+                {
+                    Load = Math.Min(99, gpuBusy / ms * 100),
+                    TempC = 62 + Math.Min(t, 120) / 12,
+                    PowerW = 180 + gpuBusy / ms * 130,
+                },
+                MainThread = new ThreadLoad(phase == 1 ? 94 + jitter * 5 : phase == 0 ? 62 : 30, null),
+                BackgroundCpu = [],
+            };
+            recorder.Record(snapshot, analyzer.Analyze(snapshot));
+        }
     }
 }

@@ -10,6 +10,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <PlatformTarget>x64</PlatformTarget>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\PerfOverlay.ico</ApplicationIcon>
     <AssemblyName>PerfOverlay</AssemblyName>
     <RootNamespace>PerfOverlay</RootNamespace>
     <Version>0.1.0</Version>
@@ -26,6 +27,9 @@
   <ItemGroup>
     <!-- Wird als eigener Prozess gestartet, darf also nicht in eine Single-File-EXE gebündelt werden -->
     <None Update="tools\PresentMon.exe" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <None Update="Auswertung\PerfOverlay-Auswertung.html" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <!-- Tray-Icon; Quelle wird mit Assets\make-icon.ps1 erzeugt -->
+    <EmbeddedResource Include="Assets\PerfOverlay.ico" LogicalName="PerfOverlay.ico" />
   </ItemGroup>
 
   <ItemGroup>
