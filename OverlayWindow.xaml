@@ -12,7 +12,24 @@
         <Style TargetType="TextBlock">
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
+        <!-- Abschnittsüberschrift der Analyse-Ansicht -->
+        <Style x:Key="Section" TargetType="Border">
+            <Setter Property="BorderBrush" Value="#22FFFFFF" />
+            <Setter Property="BorderThickness" Value="0,1,0,0" />
+            <Setter Property="Margin" Value="0,5,0,1" />
+            <Setter Property="Padding" Value="0,2,0,0" />
+        </Style>
+        <Style x:Key="SectionText" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="#6B7280" />
+        </Style>
     </Window.Resources>
+
+    <!--
+        Drei Ansichten (Strg+Umschalt+F8): Kompakt, Standard, Analyse. Jede hat eine feste Breite und Höhe;
+        welche Elemente sichtbar sind, legt OverlayWindow.ApplyView fest.
+    -->
     <Border x:Name="Root" Background="#D0101418" BorderBrush="#33FFFFFF" BorderThickness="1"
             CornerRadius="6" Padding="10,8" Width="460">
         <StackPanel>
@@ -25,17 +42,31 @@
                                    HorizontalAlignment="Right" VerticalAlignment="Center" />
                     </Grid>
                     <Grid x:Name="ShareBar" Height="4" Margin="0,3,0,3" Background="#26FFFFFF" />
-                    <!-- Zeile 1: Messwerte, Zeile 2: Tipp – immer genau zwei Zeilen hoch -->
+                    <!-- Analyse: Messwerte + Tipp (2 Zeilen), Standard: nur Tipp (1 Zeile), Kompakt: ausgeblendet -->
                     <TextBlock x:Name="VerdictDetail" FontFamily="Segoe UI" FontSize="11.5" Opacity="0.9"
                                LineStackingStrategy="BlockLineHeight" LineHeight="15" Height="30" />
                 </StackPanel>
             </Border>
-            <!-- feste Anzahl Meldungszeilen, wird im Code befüllt -->
+            <!-- feste Anzahl Meldungszeilen je Ansicht, wird im Code befüllt -->
             <StackPanel x:Name="NotesPanel" Margin="0,0,0,4" />
 
+            <!-- ============ Bild ============ -->
+            <Border x:Name="SecImage" Style="{StaticResource Section}">
+                <TextBlock Text="BILD" Style="{StaticResource SectionText}" />
+            </Border>
+            <!-- Kompakt/Standard: große FPS-Zahl -->
+            <Grid x:Name="FpsBig">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock x:Name="FpsBigValue" FontSize="22" VerticalAlignment="Bottom" />
+                    <TextBlock x:Name="FpsBigRest" Margin="6,0,0,3" VerticalAlignment="Bottom" />
+                </StackPanel>
+                <TextBlock x:Name="FpsBigApp" Foreground="#6B7280" FontFamily="Segoe UI" FontSize="11"
+                           HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,3" />
+            </Grid>
+            <!-- Analyse: FPS als Textzeile -->
             <TextBlock x:Name="FpsLine" />
-            <!-- Frametime-Verlauf der letzten 5 Sekunden -->
-            <Border Height="40" Margin="0,3,0,4" Background="#14FFFFFF" CornerRadius="2" ClipToBounds="True">
+            <!-- Frametime-Verlauf der letzten 5 Sekunden (Höhe je Ansicht) -->
+            <Border x:Name="GraphBorder" Height="40" Margin="0,3,0,4" Background="#14FFFFFF" CornerRadius="2" ClipToBounds="True">
                 <Grid>
                     <Canvas x:Name="FrameGraph" />
                     <!-- Frame-Pacing rechts oben im Graph, z. B. "Pacing ruhig · ±0,4 ms" -->
@@ -47,41 +78,65 @@
                                HorizontalAlignment="Center" VerticalAlignment="Center" Text="Frametime-Verlauf erscheint mit einem Spiel" />
                 </Grid>
             </Border>
+            <!-- Analyse: Arbeitszeit pro Frame als Balken relativ zur Frametime – der längere Balken bremst -->
+            <Grid x:Name="BusyGrid" Margin="0,0,0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="42" />
+                    <ColumnDefinition Width="140" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition />
+                    <RowDefinition />
+                </Grid.RowDefinitions>
+                <TextBlock Text="CPU" Foreground="#9CA3AF" />
+                <Border Grid.Column="1" Height="8" Background="#26FFFFFF" VerticalAlignment="Center">
+                    <Rectangle x:Name="CpuBusyBar" HorizontalAlignment="Left" Width="0" />
+                </Border>
+                <TextBlock x:Name="CpuBusyText" Grid.Column="2" Margin="6,0,0,0" />
+                <TextBlock Grid.Row="1" Text="GPU" Foreground="#9CA3AF" />
+                <Border Grid.Row="1" Grid.Column="1" Height="8" Background="#26FFFFFF" VerticalAlignment="Center">
+                    <Rectangle x:Name="GpuBusyBar" HorizontalAlignment="Left" Width="0" />
+                </Border>
+                <TextBlock x:Name="GpuBusyText" Grid.Row="1" Grid.Column="2" Margin="6,0,0,0" />
+            </Grid>
+
+            <!-- ============ Prozessor ============ -->
+            <Border x:Name="SecCpu" Style="{StaticResource Section}">
+                <TextBlock Text="PROZESSOR" Style="{StaticResource SectionText}" />
+            </Border>
             <TextBlock x:Name="CpuLine" />
-            <StackPanel Orientation="Horizontal" Margin="42,3,0,3">
+            <StackPanel x:Name="CoreBarsRow" Orientation="Horizontal" Margin="42,3,0,3">
                 <StackPanel x:Name="CoreBars" Orientation="Horizontal" Height="18" />
                 <TextBlock x:Name="CoreMaxLine" VerticalAlignment="Bottom" Margin="6,0,0,0" />
             </StackPanel>
-            <TextBlock x:Name="GpuLine" />
 
-            <StackPanel x:Name="DetailPanel">
-                <TextBlock x:Name="GpuLine2" />
-                <!-- Arbeitszeit pro Frame als Balken relativ zur Frametime: der längere Balken bremst -->
-                <Grid Margin="0,2,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="42" />
-                        <ColumnDefinition Width="140" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition />
-                        <RowDefinition />
-                    </Grid.RowDefinitions>
-                    <TextBlock Text="CPU" Foreground="#9CA3AF" />
-                    <Border Grid.Column="1" Height="8" Background="#26FFFFFF" VerticalAlignment="Center">
-                        <Rectangle x:Name="CpuBusyBar" HorizontalAlignment="Left" Width="0" />
-                    </Border>
-                    <TextBlock x:Name="CpuBusyText" Grid.Column="2" Margin="6,0,0,0" />
-                    <TextBlock Grid.Row="1" Text="GPU" Foreground="#9CA3AF" />
-                    <Border Grid.Row="1" Grid.Column="1" Height="8" Background="#26FFFFFF" VerticalAlignment="Center">
-                        <Rectangle x:Name="GpuBusyBar" HorizontalAlignment="Left" Width="0" />
-                    </Border>
-                    <TextBlock x:Name="GpuBusyText" Grid.Row="1" Grid.Column="2" Margin="6,0,0,0" />
-                </Grid>
-                <TextBlock x:Name="RamLine" />
-                <TextBlock x:Name="DiskLine" />
-                <TextBlock x:Name="FooterLine" Foreground="#6B7280" FontFamily="Segoe UI" FontSize="10.5" Margin="0,5,0,0" />
-            </StackPanel>
+            <!-- ============ Grafikkarte ============ -->
+            <Border x:Name="SecGpu" Style="{StaticResource Section}">
+                <TextBlock Text="GRAFIKKARTE" Style="{StaticResource SectionText}" />
+            </Border>
+            <TextBlock x:Name="GpuLine" />
+            <TextBlock x:Name="GpuLine2" />
+
+            <!-- Standard: CPU und GPU nebeneinander, je 4 Zeilen fester Höhe -->
+            <Grid x:Name="TwoColumns" Margin="0,2,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="CpuColumn" LineStackingStrategy="BlockLineHeight" LineHeight="16" Height="64" />
+                <TextBlock x:Name="GpuColumn" Grid.Column="1" Margin="8,0,0,0"
+                           LineStackingStrategy="BlockLineHeight" LineHeight="16" Height="64" />
+            </Grid>
+
+            <!-- ============ System ============ -->
+            <Border x:Name="SecSystem" Style="{StaticResource Section}">
+                <TextBlock Text="SYSTEM" Style="{StaticResource SectionText}" />
+            </Border>
+            <TextBlock x:Name="RamLine" Margin="0,2,0,0" />
+            <TextBlock x:Name="DiskLine" />
+            <TextBlock x:Name="GpuUsersLine" Foreground="#6B7280" FontFamily="Segoe UI" FontSize="11" />
+            <TextBlock x:Name="FooterLine" Foreground="#6B7280" FontFamily="Segoe UI" FontSize="10.5" Margin="0,5,0,0" />
         </StackPanel>
     </Border>
 </Window>

@@ -20,11 +20,20 @@ Das Overlay ist nur über **randlosen Fenstermodus / Fenstermodus** sichtbar, ni
 | Strg+Umschalt+F10 | Overlay ein/aus |
 | Strg+Umschalt+F9 | Ecke wechseln (verwirft eine gezogene Position) |
 | Strg+Umschalt **gedrückt halten** | Overlay mit der Maus verschieben (grüner Rahmen); losgelassen lässt es Klicks wieder durch |
-| Strg+Umschalt+F8 | Detailzeilen ein/aus |
+| Strg+Umschalt+F8 | Ansicht wechseln: Kompakt → Standard → Analyse |
 
 Beenden über das Tray-Icon (Rechtsklick → Beenden).
 
-Ecke bzw. gezogene Position, Monitor, Detailmodus und „Sitzungen aufzeichnen“ werden in
+**Ansichten** – jede mit fester Größe, das Overlay ändert seine Größe nur beim Umschalten:
+- **Kompakt** (260 px): Urteil, FPS, kleiner Frametime-Graph, je eine Zeile CPU/GPU, wichtigste Meldung
+- **Standard** (340 px, Voreinstellung): Urteil mit Anteilen und Tipp, zwei Meldungen, FPS mit Graph und Pacing,
+  CPU und GPU nebeneinander, RAM-Bestückung
+- **Analyse** (460 px): alle Werte, gegliedert in Bild, Prozessor, Grafikkarte, System – inkl. CPU-/GPU-Arbeitszeit
+  pro Frame, Kernbalken, GPU-Speicher/Hotspot und GPU-Nutzern
+
+`PerfOverlay.exe --preview` rendert alle drei Ansichten mit künstlichen Daten nach `preview-*.png`.
+
+Ecke bzw. gezogene Position, Monitor, Ansicht und „Sitzungen aufzeichnen“ werden in
 `%APPDATA%\PerfOverlay\einstellungen.json` gespeichert. Ist der gespeicherte Monitor nicht angeschlossen,
 erscheint das Overlay auf dem Hauptmonitor; eine beschädigte Datei führt zu den Standardwerten.
 
@@ -129,6 +138,5 @@ Frames kennzeichnen – bei DLSS 3 ist das nicht garantiert (ungetestet).
 - SSD-Temperatur über WMI `MSFT_StorageReliabilityCounter`
 - Hauptfenster in der EXE mit Live-Auswertung (gleiche Datenbasis wie die CSV-Sitzungen)
 - Download-Link im Kopf der Auswertung, sobald es einen Release Candidate gibt
-- Automatisch kompakter Modus (bei der Layout-Überarbeitung – ändert die Overlay-Größe)
-- GPU-Nutzer im Leerlauf anzeigen (z. B. „wallpaper64 8 %, chrome 3 %“) – Daten liegen schon in
-  `Snapshot.GpuTopProcesses` vor; erst bei der Layout-Überarbeitung einbauen, damit das Overlay nicht überladen wirkt
+- Netzwerk: Ping/Jitter/Paketverlust zu Router und Internet, Bandbreite und Hintergrund-Downloads je Prozess
+  (eigene Kategorie „Verbindung“ – bremst keine FPS, verursacht aber Lag in Online-Spielen)

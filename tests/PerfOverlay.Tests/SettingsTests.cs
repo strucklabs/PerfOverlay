@@ -15,7 +15,7 @@ public sealed class SettingsTests : IDisposable
     [Fact]
     public void Gespeicherte_Werte_werden_wieder_geladen()
     {
-        new Settings { Corner = 3, OffsetX = 40, OffsetY = 120, Monitor = @"\\.\DISPLAY2", Details = false, RecordSessions = false }.Save(_path);
+        new Settings { Corner = 3, OffsetX = 40, OffsetY = 120, Monitor = @"\\.\DISPLAY2", View = OverlayView.Compact, RecordSessions = false }.Save(_path);
 
         var loaded = Settings.Load(_path);
 
@@ -23,8 +23,20 @@ public sealed class SettingsTests : IDisposable
         Assert.Equal(40, loaded.OffsetX);
         Assert.Equal(120, loaded.OffsetY);
         Assert.Equal(@"\\.\DISPLAY2", loaded.Monitor);
-        Assert.False(loaded.Details);
+        Assert.Equal(OverlayView.Compact, loaded.View);
         Assert.False(loaded.RecordSessions);
+        Assert.Contains("\"Compact\"", File.ReadAllText(_path));   // Ansicht als lesbarer Text gespeichert
+    }
+
+    [Fact]
+    public void Alte_Einstellungsdatei_mit_Details_Schalter_wird_weiter_gelesen()
+    {
+        // Vor den Ansichten gab es nur "Details": true/false – die Datei darf dadurch nicht ungültig werden
+        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+        File.WriteAllText(_path, "{ \"Corner\": 2, \"Details\": false, \"RecordSessions\": true }");
+        var loaded = Settings.Load(_path);
+        Assert.Equal(2, loaded.Corner);
+        Assert.Equal(OverlayView.Standard, loaded.View);
     }
 
     [Fact]
@@ -33,7 +45,7 @@ public sealed class SettingsTests : IDisposable
         var loaded = Settings.Load(_path);
         Assert.Equal(1, loaded.Corner);
         Assert.Null(loaded.OffsetX);
-        Assert.True(loaded.Details);
+        Assert.Equal(OverlayView.Standard, loaded.View);
         Assert.True(loaded.RecordSessions);
     }
 

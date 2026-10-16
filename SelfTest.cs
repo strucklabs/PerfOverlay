@@ -64,7 +64,7 @@ internal static class SelfTest
 
     /// <summary>
     /// "PerfOverlay.exe --preview": rendert das Overlay mit KÜNSTLICHEN Frame-Daten (CPU-limitierte Szene
-    /// mit Rucklern) nach preview.png – nur zur Kontrolle der Darstellung ohne laufendes Spiel.
+    /// mit Rucklern) in allen drei Ansichten nach preview-*.png – nur zur Kontrolle der Darstellung ohne laufendes Spiel.
     /// Echte Hardwarewerte (CPU, GPU, RAM) stammen weiterhin von diesem PC.
     /// </summary>
     public static async Task PreviewAsync()
@@ -109,8 +109,13 @@ internal static class SelfTest
             notes = window.LogNotes(verdict, snapshot.Time);
         }
 
-        window.Render(snapshot!, verdict!, notes);
-        window.SaveImage(Path.Combine(AppContext.BaseDirectory, "preview.png"));
+        // Alle drei Ansichten rendern: preview-kompakt.png, preview-standard.png, preview-analyse.png
+        foreach (var (view, name) in new[] { (OverlayView.Compact, "kompakt"), (OverlayView.Standard, "standard"), (OverlayView.Analysis, "analyse") })
+        {
+            window.ApplyView(view);
+            window.Render(snapshot!, verdict!, notes);
+            window.SaveImage(Path.Combine(AppContext.BaseDirectory, $"preview-{name}.png"));
+        }
 
         var baseSnapshot = hub.Sample();
         WriteSampleSession(baseSnapshot, "preview-sitzung-vorher.csv", cpuSpeedup: 1.0, seed: 1);

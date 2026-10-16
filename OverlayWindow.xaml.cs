@@ -16,7 +16,7 @@ namespace PerfOverlay;
 
 public partial class OverlayWindow : Window
 {
-    private const int HotkeyCorner = 1, HotkeyToggle = 2, HotkeyDetails = 3;
+    private const int HotkeyCorner = 1, HotkeyToggle = 2, HotkeyView = 3;
     private const uint VK_F8 = 0x77, VK_F9 = 0x78, VK_F10 = 0x79;
     private const double BarHeight = 18;
 
@@ -36,7 +36,7 @@ public partial class OverlayWindow : Window
     private IntPtr _hwnd;
     private int _corner = 1;   // 0 = oben links, 1 = oben rechts, 2 = unten rechts, 3 = unten links
     private IntPtr _monitor = Win32.PrimaryMonitor;
-    private bool _details = true;
+    private OverlayView _view = OverlayView.Standard;
     private readonly Settings _settings = Settings.Load();
     private bool _exiting;
 
@@ -48,8 +48,60 @@ public partial class OverlayWindow : Window
     private static readonly Brush DragBorderBrush = Frozen("#4ADE80");
     private static readonly Brush NormalBorderBrush = Frozen("#33FFFFFF");
 
-    /// <summary>Feste Anzahl Meldungszeilen, damit das Overlay seine Größe nicht ändert.</summary>
+    /// <summary>Maximale Meldungszeilen (Analyse); kleinere Ansichten zeigen davon nur die ersten.</summary>
     public const int NoteSlots = 4;
+
+    /// <summary>Feste Maße je Ansicht – das Overlay ändert seine Größe nur, wenn der Nutzer die Ansicht wechselt.</summary>
+    private static (double Width, int Notes, double GraphHeight) Layout(OverlayView view) => view switch
+    {
+        OverlayView.Compact => (260, 1, 22),
+        OverlayView.Standard => (340, 2, 26),
+        _ => (460, NoteSlots, 40),
+    };
+
+    /// <summary>Innenbreite des Inhalts: Overlay-Breite minus Innenabstand (2 × 10) und Rahmen (2 × 1).</summary>
+    private double ContentWidth => Root.Width - 22;
+
+    /// <summary>Blendet je Ansicht die passenden Elemente ein und setzt die festen Maße.</summary>
+    public void ApplyView(OverlayView view)
+    {
+        _view = view;
+        var (width, notes, graphHeight) = Layout(view);
+        bool compact = view == OverlayView.Compact, standard = view == OverlayView.Standard, analysis = view == OverlayView.Analysis;
+        static Visibility Show(bool on) => on ? Visibility.Visible : Visibility.Collapsed;
+
+        Root.Width = width;
+        ShareBar.Visibility = Show(!compact);
+        VerdictDetail.Visibility = Show(!compact);
+        VerdictDetail.Height = analysis ? 30 : 15;
+        for (int i = 0; i < _noteRows.Count; i++) _noteRows[i].Row.Visibility = Show(i < notes);
+
+        SecImage.Visibility = SecCpu.Visibility = SecGpu.Visibility = SecSystem.Visibility = Show(analysis);
+        FpsBig.Visibility = Show(!analysis);
+        FpsBigValue.FontSize = compact ? 22 : 20;
+        FpsBigApp.Visibility = Show(standard);
+        FpsLine.Visibility = Show(analysis);
+        GraphBorder.Height = graphHeight;
+        BusyGrid.Visibility = Show(analysis);
+
+        CpuLine.Visibility = GpuLine.Visibility = Show(!standard);
+        CoreBarsRow.Visibility = GpuLine2.Visibility = Show(analysis);
+        TwoColumns.Visibility = Show(standard);
+        RamLine.Visibility = Show(!compact);
+        DiskLine.Visibility = GpuUsersLine.Visibility = FooterLine.Visibility = Show(analysis);
+        CoreBars.Children.Clear();   // Balkenbreite neu berechnen
+    }
+
+    /// <summary>Kompakt → Standard → Analyse → Kompakt …</summary>
+    private void CycleView()
+    {
+        ApplyView((OverlayView)(((int)_view + 1) % 3));
+        if (_lastSnapshot is { } s && _lastVerdict is { } v) Render(s, v, LogNotes(v, s.Time));
+        SaveSettings();
+    }
+
+    private Snapshot? _lastSnapshot;
+    private Verdict? _lastVerdict;
     private readonly NoteLog _noteLog = new();
     private readonly List<(Grid Row, TextBlock Text, TextBlock Age)> _noteRows = new();
 
@@ -133,7 +185,7 @@ public partial class OverlayWindow : Window
         const uint mods = Win32.MOD_CONTROL | Win32.MOD_SHIFT | Win32.MOD_NOREPEAT;
         Win32.RegisterHotKey(_hwnd, HotkeyCorner, mods, VK_F9);
         Win32.RegisterHotKey(_hwnd, HotkeyToggle, mods, VK_F10);
-        Win32.RegisterHotKey(_hwnd, HotkeyDetails, mods, VK_F8);
+        Win32.RegisterHotKey(_hwnd, HotkeyView, mods, VK_F8);
         // Gespeicherten Monitor wiederfinden; ist er nicht angeschlossen, bleibt es der Hauptmonitor
         if (Win32.FindMonitor(_settings.Monitor) is var saved && saved != IntPtr.Zero) _monitor = saved;
         Reposition();
@@ -184,14 +236,17 @@ public partial class OverlayWindow : Window
 
     public void Render(Snapshot s, Verdict v, IReadOnlyList<LoggedNote> notes)
     {
+        _lastSnapshot = s;
+        _lastVerdict = v;
         Brush sevBrush = SeverityBrush(v.Severity);
         VerdictTitle.Text = v.Title;
         VerdictTitle.Foreground = sevBrush;
         VerdictDetail.Inlines.Clear();
-        VerdictDetail.Inlines.Add(new Run(v.Detail));
+        if (_view == OverlayView.Analysis || v.Tip == null) VerdictDetail.Inlines.Add(new Run(v.Detail));
         if (v.Tip != null)
         {
-            VerdictDetail.Inlines.Add(new LineBreak());
+            // Standard zeigt nur den Tipp (eine Zeile), Analyse Messwerte und Tipp
+            if (_view == OverlayView.Analysis) VerdictDetail.Inlines.Add(new LineBreak());
             VerdictDetail.Inlines.Add(new Run("→ " + v.Tip) { Foreground = sevBrush });
         }
         var tint = ((SolidColorBrush)sevBrush).Color;
@@ -202,17 +257,32 @@ public partial class OverlayWindow : Window
 
         // FPS (mit Frame Generation zusätzlich die vom Spiel gerenderten)
         var f = s.Frames;
+        string noFrames = s.FrameSourceRunning ? "keine 3D-Anwendung" : s.FrameSourceStatus;
+        Brush noFramesBrush = s.FrameSourceRunning ? MutedBrush : WarnBrush;
         if (f != null)
         {
             var fps = new List<(string, Brush?)> { L("FPS   "), V($"{f.Fps,4:0}") };
             if (f.GeneratedShare > 0.3) fps.Add(($" ({f.AppFps:0} echt)", MutedBrush));
             fps.AddRange([L("  1%↓ "), V($"{f.Low1Fps:0}"), L("  "), V($"{f.AvgMs:0.0}"), L(" ms  "), (Shorten(f.App, 20), MutedBrush)]);
             Line(FpsLine, fps.ToArray());
+
+            FpsBigValue.Text = $"{f.Fps:0}";
+            var rest = new List<(string, Brush?)> { L("FPS") };
+            if (f.GeneratedShare > 0.3) rest.Add(($" ({f.AppFps:0} echt)", MutedBrush));
+            rest.AddRange([L("  1%↓ "), V($"{f.Low1Fps:0}"), L("  "), V($"{f.AvgMs:0.0}"), L(" ms")]);
+            Line(FpsBigRest, rest.ToArray());
+            FpsBigApp.Text = Shorten(System.IO.Path.GetFileNameWithoutExtension(f.App), 14);
         }
         else
-            Line(FpsLine, L("FPS   "), V("   –  "),
-                (s.FrameSourceRunning ? "keine 3D-Anwendung" : s.FrameSourceStatus, s.FrameSourceRunning ? MutedBrush : WarnBrush));
+        {
+            Line(FpsLine, L("FPS   "), V("   –  "), (noFrames, noFramesBrush));
+            FpsBigValue.Text = "–";
+            Line(FpsBigRest, (noFrames, noFramesBrush));
+            FpsBigApp.Text = "";
+        }
         RenderFrameGraph(f);
+
+        RenderColumns(s);
 
         // CPU
         var c = s.Cpu;
@@ -232,8 +302,15 @@ public partial class OverlayWindow : Window
             }
             if (th.FanRpm is double rpm && rpm > 0) { cpuParts.Add(L("  ")); cpuParts.Add(V($"{rpm:0}")); cpuParts.Add(L(" U/min")); }
         }
+        if (_view == OverlayView.Compact)
+        {
+            // Kompakt: nur Last, Temperatur, Leistung
+            cpuParts = [L("CPU "), V($"{c.TotalLoad,3:0} %")];
+            if (s.CpuThermal?.TempC is double kt) { cpuParts.Add(L("  ")); cpuParts.Add(($"{kt:0} °C", CpuTempBrush(s.CpuThermal))); }
+            if (s.CpuThermal?.PowerW is double kw) { cpuParts.Add(L("  ")); cpuParts.Add(V($"{kw:0}")); cpuParts.Add(L(" W")); }
+        }
         Line(CpuLine, cpuParts.ToArray());
-        RenderCoreBars(c);
+        if (_view == OverlayView.Analysis) RenderCoreBars(c);
         if (c.IsHybrid)
             Line(CoreMaxLine, L("P max "), (Pct(c.MaxPerfCoreLoad), LoadBrush(c.MaxPerfCoreLoad)),
                 L("  E max "), (Pct(c.MaxEffCoreLoad), MutedBrush));
@@ -245,7 +322,7 @@ public partial class OverlayWindow : Window
         if (g == null)
         {
             Line(GpuLine, L("GPU   "), ("nicht gefunden", MutedBrush));
-            GpuLine2.Visibility = Visibility.Collapsed;
+            Line(GpuLine2, ("–", MutedBrush));
         }
         else
         {
@@ -258,6 +335,14 @@ public partial class OverlayWindow : Window
             {
                 parts.Add(L("  ")); parts.Add(V($"{w:0}"));
                 parts.Add(L(g.PowerLimitW is double lim ? $"/{lim:0} W" : " W"));
+            }
+            if (_view == OverlayView.Compact)
+            {
+                // Kompakt: Last, Takt, Temperatur, Leistung
+                parts = [L("GPU "), V($"{g.Load ?? 0,3:0} %")];
+                if (g.CoreMhz is double km) { parts.Add(L("  ")); parts.Add(V($"{km:0}")); parts.Add(L(" MHz")); }
+                if (g.TempC is double kt) { parts.Add(L("  ")); parts.Add(($"{kt:0} °C", TempBrush(kt))); }
+                if (g.PowerW is double kw) { parts.Add(L("  ")); parts.Add(V($"{kw:0}")); parts.Add(L(" W")); }
             }
             Line(GpuLine, parts.ToArray());
 
@@ -280,7 +365,6 @@ public partial class OverlayWindow : Window
                 if (!hasTemps) p2.Add(L(" " + PStateLabel(ps)));
             }
             Line(GpuLine2, p2.ToArray());
-            GpuLine2.Visibility = Visibility.Visible;
         }
 
         RenderBusyBars(s, v);
@@ -301,16 +385,80 @@ public partial class OverlayWindow : Window
         {
             ramParts.Add(L("Commit ")); ramParts.Add(V($"{m.CommitGB:0}/{m.CommitLimitGB:0}")); ramParts.Add(L(" GB"));
         }
-        ramParts.Add(L("  Nachl. "));
-        ramParts.Add(($"{m.PagesInPerSec:0}/s", m.PagesInPerSec > 500 ? WarnBrush : null));
+        if (_view == OverlayView.Analysis)
+        {
+            ramParts.Add(L("  Nachl. "));
+            ramParts.Add(($"{m.PagesInPerSec:0}/s", m.PagesInPerSec > 500 ? WarnBrush : null));
+        }
         Line(RamLine, ramParts.ToArray());
         var d = s.Disk;
         Line(DiskLine, L("Disk  "), V($"{d.ActivePercent,4:0} %"), L(" aktiv  "),
             ($"{d.LatencyMs:0.0}", d.LatencyMs > 20 ? WarnBrush : null), L(" ms  "), V($"{d.MBps:0}"), L(" MB/s"));
 
+        // Wer nutzt die Grafikkarte? Besonders im Leerlauf aufschlussreich (taktet die GPU nicht herunter?)
+        var users = s.GpuTopProcesses.Take(3).Select(p => $"{p.Name} {p.Load:0} %").ToList();
+        GpuUsersLine.Text = "GPU-Nutzer: " + (users.Count > 0 ? string.Join(", ", users) : "–");
+
         string source = g?.Source == "NVML" ? "NVML" : g != null ? "Win-Zähler" : "–";
-        _footerText = $"Strg+Umschalt: F10 an/aus · F9 Ecke · F8 Details  |  GPU: {source} · CPU: {s.CpuThermal?.Source ?? "–"}";
+        _footerText = $"Strg+Umschalt: F10 an/aus · F9 Ecke · F8 Ansicht  |  GPU: {source} · CPU: {s.CpuThermal?.Source ?? "–"}";
         if (!_dragMode) FooterLine.Text = _footerText;
+    }
+
+    /// <summary>Standard-Ansicht: CPU und GPU nebeneinander, je vier Zeilen (fehlende Werte als "–").</summary>
+    private void RenderColumns(Snapshot s)
+    {
+        if (_view != OverlayView.Standard) return;
+        var c = s.Cpu;
+        var th = s.CpuThermal;
+        var cpu = new List<(string, Brush?)[]>
+        {
+            new[] { L("CPU") },
+            new[] { V($"{c.TotalLoad:0} %"), L(" · "), V($"{c.AvgMhz / 1000:0.0}"), L(" GHz") },
+            th?.TempC is double ct
+                ? new[] { ($"{ct:0} °C", CpuTempBrush(th)), L(" · "), V(th.PowerW is double cw ? $"{cw:0}" : "–"), L(" W") }
+                : new (string, Brush?)[] { ("– °C", MutedBrush) },
+            s.MainThread is { } mt ? new[] { L("Thread "), ($"{mt.Percent:0} %", LoadBrush(mt.Percent)) } : new[] { L("Thread –") },
+        };
+        Lines(CpuColumn, cpu);
+
+        var g = s.Gpu;
+        var gt = s.GpuThermal;
+        var gpu = new List<(string, Brush?)[]> { new[] { L("GPU") } };
+        if (g == null)
+        {
+            gpu.Add(new (string, Brush?)[] { ("nicht gefunden", MutedBrush) });
+        }
+        else
+        {
+            gpu.Add(new[] { V($"{g.Load ?? 0:0} %"), L(" · "), V(g.CoreMhz is double mhz ? $"{mhz:0}" : "–"), L(" MHz") });
+            gpu.Add(g.TempC is double t
+                ? new[] { ($"{t:0} °C", TempBrush(t)), L(" · "), V(g.PowerW is double w ? $"{w:0}" : "–"), L(" W") }
+                : new (string, Brush?)[] { ("– °C", MutedBrush) });
+            var last = new List<(string, Brush?)>();
+            if (gt?.CoreVoltage is double volt && volt > 0) { last.Add(V($"{volt:0.000}")); last.Add(L(" V · ")); }
+            last.Add(L("Lüfter "));
+            last.Add(V(g.FanPercent is double fan ? $"{fan:0} %" : "–"));
+            gpu.Add(last.ToArray());
+        }
+        Lines(GpuColumn, gpu);
+    }
+
+    /// <summary>Mehrere Zeilen in einen TextBlock, getrennt durch Zeilenumbrüche.</summary>
+    private static void Lines(TextBlock target, IEnumerable<(string Text, Brush? Brush)[]> lines)
+    {
+        target.Inlines.Clear();
+        bool first = true;
+        foreach (var line in lines)
+        {
+            if (!first) target.Inlines.Add(new LineBreak());
+            first = false;
+            foreach (var (text, brush) in line)
+            {
+                var run = new Run(text);
+                if (brush != null) run.Foreground = brush;
+                target.Inlines.Add(run);
+            }
+        }
     }
 
     private static readonly (BottleneckKind Kind, string Label, Brush Brush)[] ShareKinds =
@@ -331,6 +479,7 @@ public partial class OverlayWindow : Window
             ? ""
             : "30 s: " + string.Join(" · ", parts
                 .OrderByDescending(k => v.Shares[k.Kind])
+                .Take(_view switch { OverlayView.Compact => 1, OverlayView.Standard => 2, _ => 4 })   // was in die Breite passt
                 .Select(k => $"{k.Label} {v.Shares[k.Kind] * 100:0} %"));
 
         for (int i = 0; i < parts.Count; i++)
@@ -342,7 +491,9 @@ public partial class OverlayWindow : Window
         }
     }
 
-    private const double GraphWidth = 438, GraphHeight = 40, GraphSeconds = 5;
+    private const double GraphSeconds = 5;
+    private double GraphWidth => ContentWidth;
+    private double GraphHeight => GraphBorder.Height;
 
     /// <summary>
     /// Frametime-Verlauf: links alt, rechts neu. Eine ruhige Linie heißt gleichmäßige Bildausgabe,
@@ -623,20 +774,12 @@ public partial class OverlayWindow : Window
         else Show();
     }
 
-    private void ToggleDetails()
-    {
-        _details = !_details;
-        DetailPanel.Visibility = _details ? Visibility.Visible : Visibility.Collapsed;
-        SaveSettings();
-    }
-
     /// <summary>Gespeicherte Einstellungen übernehmen (Monitor erst, wenn das Fenster ein Handle hat).</summary>
     private void ApplySettings()
     {
         _corner = _settings.Corner;
         _customOffset = _settings.OffsetX is int x && _settings.OffsetY is int y ? (x, y) : null;
-        _details = _settings.Details;
-        DetailPanel.Visibility = _details ? Visibility.Visible : Visibility.Collapsed;
+        ApplyView(_settings.View);
         _recorder.Enabled = _settings.RecordSessions;
     }
 
@@ -646,7 +789,7 @@ public partial class OverlayWindow : Window
         _settings.OffsetX = _customOffset?.X;
         _settings.OffsetY = _customOffset?.Y;
         _settings.Monitor = Win32.MonitorDeviceName(_monitor);
-        _settings.Details = _details;
+        _settings.View = _view;
         _settings.RecordSessions = _recorder.Enabled;
         _settings.Save();
     }
@@ -659,7 +802,7 @@ public partial class OverlayWindow : Window
             {
                 case HotkeyCorner: NextCorner(); break;
                 case HotkeyToggle: ToggleVisible(); break;
-                case HotkeyDetails: ToggleDetails(); break;
+                case HotkeyView: CycleView(); break;
             }
             handled = true;
         }
@@ -671,7 +814,7 @@ public partial class OverlayWindow : Window
         var menu = new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add("Ein-/Ausblenden\tStrg+Umschalt+F10", null, (_, _) => ToggleVisible());
         menu.Items.Add("Position wechseln\tStrg+Umschalt+F9", null, (_, _) => NextCorner());
-        menu.Items.Add("Details an/aus\tStrg+Umschalt+F8", null, (_, _) => ToggleDetails());
+        menu.Items.Add("Ansicht wechseln (Kompakt / Standard / Analyse)\tStrg+Umschalt+F8", null, (_, _) => CycleView());
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         var record = new System.Windows.Forms.ToolStripMenuItem("Sitzungen aufzeichnen") { Checked = _recorder.Enabled, CheckOnClick = true };
         record.CheckedChanged += (_, _) =>
@@ -755,7 +898,7 @@ public partial class OverlayWindow : Window
             catch (Exception ex) { ErrorLog.Write(ex); }
         }
         if (_hwnd != IntPtr.Zero)
-            foreach (int id in new[] { HotkeyCorner, HotkeyToggle, HotkeyDetails })
+            foreach (int id in new[] { HotkeyCorner, HotkeyToggle, HotkeyView })
                 Win32.UnregisterHotKey(_hwnd, id);
         if (_tray != null)
         {
