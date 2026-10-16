@@ -41,6 +41,15 @@ internal static class Win32
     [DllImport("user32.dll")]
     public static extern IntPtr GetForegroundWindow();
 
+    public const int VK_SHIFT = 0x10;
+    public const int VK_CONTROL = 0x11;
+
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vk);
+
+    /// <summary>Taste gerade gedrückt – systemweit, auch wenn ein anderes Fenster (das Spiel) den Fokus hat.</summary>
+    public static bool IsKeyDown(int vk) => (GetAsyncKeyState(vk) & 0x8000) != 0;
+
     [DllImport("user32.dll")]
     public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 

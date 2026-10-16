@@ -18,7 +18,8 @@ Das Overlay ist nur über **randlosen Fenstermodus / Fenstermodus** sichtbar, ni
 | Hotkey | Funktion |
 |---|---|
 | Strg+Umschalt+F10 | Overlay ein/aus |
-| Strg+Umschalt+F9 | Ecke wechseln |
+| Strg+Umschalt+F9 | Ecke wechseln (verwirft eine gezogene Position) |
+| Strg+Umschalt **gedrückt halten** | Overlay mit der Maus verschieben (grüner Rahmen); losgelassen lässt es Klicks wieder durch |
 | Strg+Umschalt+F8 | Detailzeilen ein/aus |
 
 Beenden über das Tray-Icon (Rechtsklick → Beenden).

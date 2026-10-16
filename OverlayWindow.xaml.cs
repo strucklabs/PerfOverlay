@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -38,6 +39,14 @@ public partial class OverlayWindow : Window
     private bool _details = true;
     private bool _exiting;
 
+    // Verschieben mit der Maus: solange Strg+Umschalt gedrückt ist, nimmt das Overlay Klicks an.
+    // Eigene Position = Abstand zur linken oberen Ecke des Arbeitsbereichs; null = feste Ecke (_corner).
+    private readonly System.Windows.Threading.DispatcherTimer _modifierTimer = new() { Interval = TimeSpan.FromMilliseconds(80) };
+    private bool _dragMode;
+    private (int X, int Y)? _customOffset;
+    private static readonly Brush DragBorderBrush = Frozen("#4ADE80");
+    private static readonly Brush NormalBorderBrush = Frozen("#33FFFFFF");
+
     /// <summary>Feste Anzahl Meldungszeilen, damit das Overlay seine Größe nicht ändert.</summary>
     public const int NoteSlots = 4;
     private readonly NoteLog _noteLog = new();
@@ -48,6 +57,43 @@ public partial class OverlayWindow : Window
         InitializeComponent();
         SizeChanged += (_, _) => Reposition();
         CreateNoteRows();
+        _modifierTimer.Tick += (_, _) => SetDragMode(Win32.IsKeyDown(Win32.VK_CONTROL) && Win32.IsKeyDown(Win32.VK_SHIFT));
+        MouseLeftButtonDown += OnDragStart;
+    }
+
+    /// <summary>
+    /// Verschiebemodus an/aus: Ohne WS_EX_TRANSPARENT nimmt das Fenster Mausklicks an, mit lässt es sie
+    /// zum Spiel durch. Der grüne Rahmen zeigt, dass das Overlay gerade greifbar ist.
+    /// </summary>
+    private void SetDragMode(bool on)
+    {
+        if (on == _dragMode || _hwnd == IntPtr.Zero) return;
+        _dragMode = on;
+        long ex = Win32.GetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE).ToInt64();
+        ex = on ? ex & ~(long)Win32.WS_EX_TRANSPARENT : ex | Win32.WS_EX_TRANSPARENT;
+        Win32.SetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE, new IntPtr(ex));
+        Root.BorderBrush = on ? DragBorderBrush : NormalBorderBrush;
+        Cursor = on ? Cursors.SizeAll : null;
+        FooterLine.Text = on ? "Mit der Maus ziehen zum Verschieben · Strg+Umschalt+F9: zurück in die Ecke" : _footerText;
+    }
+
+    private string _footerText = "";
+
+    private void OnDragStart(object sender, MouseButtonEventArgs e)
+    {
+        if (!_dragMode) return;
+        DragMove();   // kehrt zurück, sobald die Maustaste losgelassen wird
+        RememberPosition();
+    }
+
+    /// <summary>Merkt sich die gezogene Position relativ zum Monitor, auf dem das Overlay jetzt liegt.</summary>
+    private void RememberPosition()
+    {
+        _monitor = Win32.MonitorFromWindow(_hwnd, Win32.MONITOR_DEFAULTTONEAREST);
+        if (Win32.GetWorkArea(_monitor) is not { } area) return;
+        Win32.GetWindowRect(_hwnd, out var rect);
+        _customOffset = (rect.Left - area.Left, rect.Top - area.Top);
+        Reposition();   // ggf. vollständig in den sichtbaren Bereich ziehen
     }
 
     private void CreateNoteRows()
@@ -86,6 +132,7 @@ public partial class OverlayWindow : Window
         Win32.RegisterHotKey(_hwnd, HotkeyToggle, mods, VK_F10);
         Win32.RegisterHotKey(_hwnd, HotkeyDetails, mods, VK_F8);
         Reposition();
+        _modifierTimer.Start();
 
         CreateTray();
         _hub = new SensorHub();
@@ -244,7 +291,8 @@ public partial class OverlayWindow : Window
             ($"{d.LatencyMs:0.0}", d.LatencyMs > 20 ? WarnBrush : null), L(" ms  "), V($"{d.MBps:0}"), L(" MB/s"));
 
         string source = g?.Source == "NVML" ? "NVML" : g != null ? "Win-Zähler" : "–";
-        FooterLine.Text = $"Strg+Umschalt: F10 an/aus · F9 Ecke · F8 Details  |  GPU: {source} · CPU: {s.CpuThermal?.Source ?? "–"}";
+        _footerText = $"Strg+Umschalt: F10 an/aus · F9 Ecke · F8 Details  |  GPU: {source} · CPU: {s.CpuThermal?.Source ?? "–"}";
+        if (!_dragMode) FooterLine.Text = _footerText;
     }
 
     private static readonly (BottleneckKind Kind, string Label, Brush Brush)[] ShareKinds =
@@ -524,14 +572,27 @@ public partial class OverlayWindow : Window
         int w = rect.Right - rect.Left, h = rect.Bottom - rect.Top;
         int margin = (int)Math.Round(12 * VisualTreeHelper.GetDpi(this).DpiScaleX);
 
-        int x = _corner is 0 or 3 ? area.Left + margin : area.Right - w - margin;
-        int y = _corner is 0 or 1 ? area.Top + margin : area.Bottom - h - margin;
+        int x, y;
+        if (_customOffset is { } off)
+        {
+            // Gezogene Position: gleicher Abstand zur Ecke – auch auf einem anderen Monitor –,
+            // aber immer vollständig im sichtbaren Bereich
+            x = Math.Clamp(area.Left + off.X, area.Left, Math.Max(area.Left, area.Right - w));
+            y = Math.Clamp(area.Top + off.Y, area.Top, Math.Max(area.Top, area.Bottom - h));
+        }
+        else
+        {
+            x = _corner is 0 or 3 ? area.Left + margin : area.Right - w - margin;
+            y = _corner is 0 or 1 ? area.Top + margin : area.Bottom - h - margin;
+        }
         Win32.SetWindowPos(_hwnd, Win32.HWND_TOPMOST, x, y, 0, 0, Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE);
     }
 
+    /// <summary>Feste Ecken durchschalten; eine gezogene Position wird dabei verworfen.</summary>
     private void NextCorner()
     {
-        _corner = (_corner + 1) % 4;
+        if (_customOffset != null) _customOffset = null;
+        else _corner = (_corner + 1) % 4;
         Reposition();
     }
 
