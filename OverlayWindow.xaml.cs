@@ -186,6 +186,8 @@ public partial class OverlayWindow : Window
         {
             var parts = new List<(string, Brush?)> { L("GPU   "), V($"{g.Load ?? 0,4:0} %") };
             if (g.CoreMhz is double mhz) { parts.Add(L("  ")); parts.Add(V($"{mhz:0}")); parts.Add(L(" MHz")); }
+            // Spannung (HWiNFO): zeigt direkt, ob ein Undervolting greift
+            if (s.GpuThermal?.CoreVoltage is double volt && volt > 0) { parts.Add(L(" ")); parts.Add(V($"{volt:0.000}")); parts.Add(L(" V")); }
             if (g.TempC is double t) { parts.Add(L("  ")); parts.Add(($"{t:0} °C", TempBrush(t))); }
             if (g.PowerW is double w)
             {
@@ -197,9 +199,21 @@ public partial class OverlayWindow : Window
             var p2 = new List<(string, Brush?)> { L("VRAM  ") };
             p2.Add(V(g.VramTotalGB is double tot ? $"{g.VramUsedGB:0.0}/{tot:0.0}" : $"{g.VramUsedGB:0.0}"));
             p2.Add(L(" GB"));
-            if (g.PcieGen is int gen && g.PcieWidth is int width) { p2.Add(L("  PCIe ")); p2.Add(V($"{gen}.0 x{width}")); }
+            var gt = s.GpuThermal;
+            bool hasTemps = gt?.MemoryJunctionC != null || gt?.HotspotC != null;
+            if (hasTemps)
+            {
+                // Mit HWiNFO: Speicher- und Hotspot-Temperatur statt PCIe (ein reduzierter Link wird ohnehin gemeldet)
+                if (gt!.MemoryJunctionC is double mem) { p2.Add(L("  ")); p2.Add(($"{mem:0} °C", MemTempBrush(mem))); }
+                if (gt.HotspotC is double hot) { p2.Add(L("  Hotspot ")); p2.Add(($"{hot:0} °C", HotspotBrush(hot))); }
+            }
+            else if (g.PcieGen is int gen && g.PcieWidth is int width) { p2.Add(L("  PCIe ")); p2.Add(V($"{gen}.0 x{width}")); }
             if (g.FanPercent is double fan) { p2.Add(L("  Lüfter ")); p2.Add(V($"{fan:0} %")); }
-            if (g.PState is int ps) { p2.Add(L("  ")); p2.Add(V($"P{ps}")); p2.Add(L(" " + PStateLabel(ps))); }
+            if (g.PState is int ps)
+            {
+                p2.Add(L("  ")); p2.Add(V($"P{ps}"));
+                if (!hasTemps) p2.Add(L(" " + PStateLabel(ps)));
+            }
             Line(GpuLine2, p2.ToArray());
             GpuLine2.Visibility = Visibility.Visible;
         }
@@ -433,6 +447,9 @@ public partial class OverlayWindow : Window
 
     private static Brush? LoadBrush(double load) => load >= 90 ? BadBrush : load >= 70 ? WarnBrush : null;
     private static Brush? TempBrush(double t) => t >= 87 ? BadBrush : t >= 80 ? WarnBrush : null;
+    /// <summary>GDDR6X drosselt um 110 °C; ab 100 °C lohnt ein Blick auf die Wärmeleitpads.</summary>
+    private static Brush? MemTempBrush(double t) => t >= 106 ? BadBrush : t >= 100 ? WarnBrush : null;
+    private static Brush? HotspotBrush(double t) => t >= 105 ? BadBrush : t >= 95 ? WarnBrush : null;
     /// <summary>
     /// Farbe relativ zur Maximaltemperatur (TjMax) statt fester Grenzen: Ryzen 7000 läuft regulär bei 95 °C,
     /// ein Intel mit TjMax 100 °C wäre dort schon kurz vor der Drosselung.

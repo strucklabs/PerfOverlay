@@ -135,6 +135,18 @@ public sealed class BottleneckAnalyzer
                 notes.Add(new("pcie-gen", $"PCIe nur Gen {g} statt Gen {mg}", Severity.Info));
         }
 
+        // --- GPU-Temperaturen aus HWiNFO: Speicher-Junction und Hotspot ---
+        if (s.GpuThermal is { } gt && gpuLoad > 60)
+        {
+            // GDDR6X (RTX 3080/3090, 40er) drosselt um 110 °C – oft durch gealterte Wärmeleitpads
+            if (gt.MemoryJunctionC is double memJunction && memJunction >= 100)
+                notes.Add(new("gpu-memtemp", $"GPU-Speicher sehr heiß ({memJunction:0} °C) – Wärmeleitpads/Gehäuselüftung prüfen",
+                    memJunction >= 106 ? Severity.Bad : Severity.Warn));
+            // Großer Abstand Hotspot ↔ GPU-Temperatur deutet auf ungleichmäßigen Kontakt des Kühlers
+            if (gt.HotspotC is double hot && gpu?.TempC is double core && hot - core >= 20)
+                notes.Add(new("gpu-hotspot", $"Hotspot {hot - core:0} °C über GPU-Temperatur – Wärmeleitpaste/Anpressdruck prüfen", Severity.Warn));
+        }
+
         // --- VRAM: voll ist erst ein Problem, wenn das Spiel in den RAM auslagert ---
         bool vramFull = gpu?.VramUsedGB is double used && gpu.VramTotalGB is double total && used / total > 0.90;
         bool vramSpill = vramFull && s.GameSharedVramGB > 1.0;

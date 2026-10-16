@@ -38,6 +38,10 @@ internal sealed class HwInfoSensor : IDisposable
     private long _powerDeviation = -1;
     private readonly List<(long Offset, string Reason)> _flags = new();    // Intel/AMD: Ja/Nein-Flags
     private readonly List<(long Offset, string Reason)> _limits = new();   // AMD: Auslastung eines Limits in %
+    private long _gpuVoltage = -1, _gpuHotspot = -1, _gpuMemJunction = -1;
+
+    /// <summary>GPU-Werte vom letzten <see cref="Read"/>; null ohne HWiNFO oder ohne passende Sensoren.</summary>
+    public GpuThermalData? Gpu { get; private set; }
 
     public CpuThermalData? Read()
     {
@@ -70,6 +74,10 @@ internal sealed class HwInfoSensor : IDisposable
             // TjMax steht nicht direkt im Shared Memory. Intel: Temperatur + Abstand zu TjMax.
             // AMD: kein Abstand vorhanden, daher aus dem Modellnamen abgeleitet.
             double? tjMax = Value(_tjTemp) + Value(_tjDistance) ?? (_isAmd ? AmdTjMax(_cpuName) : null);
+
+            Gpu = _gpuVoltage >= 0 || _gpuHotspot >= 0 || _gpuMemJunction >= 0
+                ? new GpuThermalData(Value(_gpuVoltage), Value(_gpuHotspot), Value(_gpuMemJunction))
+                : null;
 
             return new CpuThermalData("HWiNFO", Value(_temp), Value(_coreMax), Value(_power), Value(_powerLimit),
                 reasons, tjMax, _isAmd, Value(_powerDeviation));
@@ -108,6 +116,7 @@ internal sealed class HwInfoSensor : IDisposable
             sensors[i] = ReadString(v, offS + (long)i * sizeS + 8, 128);
 
         _temp = _coreMax = _power = _powerLimit = _tjTemp = _tjDistance = _powerDeviation = -1;
+        _gpuVoltage = _gpuHotspot = _gpuMemJunction = -1;
         _flags.Clear();
         _limits.Clear();
         // Sensorname z. B. "CPU [#0]: AMD Ryzen 9 5900XT" bzw. "CPU [#0]: Intel Core i5-13600KF: DTS"
@@ -123,7 +132,20 @@ internal sealed class HwInfoSensor : IDisposable
         {
             long o = offR + i * sizeR;
             uint sensorIndex = v.ReadUInt32(o + 4);
-            if (sensorIndex >= numS || !sensors[sensorIndex].StartsWith("CPU [#", StringComparison.Ordinal)) continue;
+            if (sensorIndex >= numS) continue;
+            string sensor = sensors[sensorIndex];
+
+            // Grafikkarte: "GPU [#0]: …" bzw. "dGPU [#0]: NVIDIA GeForce RTX 3080: …" (nicht die iGPU)
+            if (sensor.StartsWith("GPU [#", StringComparison.Ordinal) || sensor.StartsWith("dGPU [#", StringComparison.Ordinal))
+            {
+                string gpuLabel = ReadString(v, o + 12, 128);
+                string gpuUnit = ReadString(v, o + 268, 16);
+                if (gpuLabel.StartsWith("GPU Core Voltage", StringComparison.Ordinal) && gpuUnit == "V" && _gpuVoltage < 0) _gpuVoltage = o;
+                else if ((gpuLabel.Contains("Hot Spot") || gpuLabel.Contains("Hotspot")) && gpuUnit.EndsWith('C') && _gpuHotspot < 0) _gpuHotspot = o;
+                else if (gpuLabel.Contains("Memory Junction") && gpuUnit.EndsWith('C') && _gpuMemJunction < 0) _gpuMemJunction = o;
+                continue;
+            }
+            if (!sensor.StartsWith("CPU [#", StringComparison.Ordinal)) continue;
 
             string label = ReadString(v, o + 12, 128);
             string unit = ReadString(v, o + 268, 16);
@@ -196,7 +218,7 @@ internal sealed class HwInfoSensor : IDisposable
     /// Für Tests auf fremder Hardware: alle Messwerte der CPU-Sensoren als Text
     /// (Sensor | Label | Wert Einheit), damit die Zuordnung z. B. für AMD angepasst werden kann.
     /// </summary>
-    public static string DumpCpuReadings()
+    public static string DumpReadings()
     {
         try
         {
@@ -210,15 +232,15 @@ internal sealed class HwInfoSensor : IDisposable
             for (int i = 0; i < numS; i++)
             {
                 sensors[i] = ReadString(v, offS + (long)i * sizeS + 8, 128);
-                // Nur CPU und Mainboard: Laufwerks-Sensoren enthalten Seriennummern
-                if (sensors[i].StartsWith("CPU [#", StringComparison.Ordinal) || sensors[i].StartsWith("System:", StringComparison.Ordinal))
+                // Nur CPU, GPU und Mainboard: Laufwerks-Sensoren enthalten Seriennummern
+                if (IsDumped(sensors[i]) || sensors[i].StartsWith("System:", StringComparison.Ordinal))
                     sb.AppendLine($"Sensor {i}: {sensors[i]}");
             }
             for (long i = 0; i < numR; i++)
             {
                 long o = offR + i * sizeR;
                 uint si = v.ReadUInt32(o + 4);
-                if (si >= numS || !sensors[si].StartsWith("CPU [#", StringComparison.Ordinal)) continue;
+                if (si >= numS || !IsDumped(sensors[si])) continue;
                 sb.AppendLine($"  [{si}] {ReadString(v, o + 12, 128)} | {v.ReadDouble(o + 284):0.##} {ReadString(v, o + 268, 16)}");
             }
             return sb.ToString();
@@ -228,6 +250,11 @@ internal sealed class HwInfoSensor : IDisposable
             return "HWiNFO Shared Memory nicht verfügbar: " + ex.Message;
         }
     }
+
+    private static bool IsDumped(string sensor) =>
+        sensor.StartsWith("CPU [#", StringComparison.Ordinal) ||
+        sensor.StartsWith("GPU [#", StringComparison.Ordinal) ||
+        sensor.StartsWith("dGPU [#", StringComparison.Ordinal);
 
     private static string ReadString(MemoryMappedViewAccessor v, long offset, int length)
     {
@@ -244,6 +271,7 @@ internal sealed class HwInfoSensor : IDisposable
         _view = null;
         _mmf = null;
         _indexedCount = 0;
+        Gpu = null;
         return null;
     }
 

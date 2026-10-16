@@ -193,6 +193,7 @@ function parseCsv(text, name) {
     kind: rows.map(r => r.Engpass || "None"), title: rows.map(r => r.Urteil),
     thread: col("Hauptthread_Proz"), cpu: col("CPU_Proz"), pmax: col("PKern_max_Proz"), cpuTemp: col("CPU_Temp"), cpuW: col("CPU_W"),
     gpu: col("GPU_Proz"), gpuTemp: col("GPU_Temp"), gpuW: col("GPU_W"), vram: col("VRAM_GB"), spill: col("VRAM_ausgelagert_GB"),
+    gpuMhz: col("GPU_MHz"), gpuV: col("GPU_V"), hotspot: col("GPU_Hotspot"), memTemp: col("GPU_Speicher_Temp"),
     ram: col("RAM_Proz"), spikes: col("Ruckler"), notes: rows.map(r => r.Meldungen || ""), time: rows.map(r => r.Zeit),
   };
   return { name, meta, rows: rows.length, d, stats: computeStats(d) };
@@ -213,6 +214,8 @@ function computeStats(d) {
   const top = Object.entries(shares).sort((a, b) => b[1] - a[1])[0];
   const spikes = valid(d.spikes).reduce((x, y) => x + y, 0);
   const cpuIdx = d.kind.map((k, i) => k === "Cpu" ? i : -1).filter(i => i >= 0);
+  // "unter Last": GPU zu mindestens 90 % ausgelastet – nur dort sind Takt und Spannung vergleichbar
+  const loadIdx = d.gpu.map((g, i) => g !== null && g >= 90 ? i : -1).filter(i => i >= 0);
 
   // Meldungen zusammenfassen: Text ohne wechselnde Zahlen als Schlüssel
   const notes = new Map();
@@ -233,6 +236,10 @@ function computeStats(d) {
     cpuBusy: avg(d.cpuBusy), gpuBusy: avg(d.gpuBusy), thread: avg(d.thread),
     cpu: avg(d.cpu), gpu: avg(d.gpu), cpuTempMax: max(d.cpuTemp), gpuTempMax: max(d.gpuTemp),
     cpuW: avg(d.cpuW), gpuW: avg(d.gpuW), vramMax: max(d.vram), spillMax: max(d.spill),
+    gpuMhzLoad: loadIdx.length ? avg(loadIdx.map(i => d.gpuMhz[i])) : null,
+    gpuVLoad: loadIdx.length ? avg(loadIdx.map(i => d.gpuV[i])) : null,
+    gpuWLoad: loadIdx.length ? avg(loadIdx.map(i => d.gpuW[i])) : null,
+    hotspotMax: max(d.hotspot), memTempMax: max(d.memTemp),
     notes: [...notes.values()].sort((a, b) => b.seconds - a.seconds),
   };
 }
@@ -311,7 +318,14 @@ function renderSession(view, s) {
       ${card("Hauptengpass", st.top ? KINDS[st.top[0]]?.short ?? st.top[0] : "–", st.top ? pct(st.top[1]) + " der Zeit" : "")}
       ${card("Ø FPS im CPU-Limit", fmt(st.fpsCpu, 0), st.fpsCpu === null ? "kein CPU-Limit" : "hier wirken RAM/CPU")}
       ${card("CPU max", fmt(st.cpuTempMax, 0, " °C"), st.cpuW !== null ? `Ø ${fmt(st.cpuW, 0)} W` : "")}
-      ${card("GPU max", fmt(st.gpuTempMax, 0, " °C"), st.gpuW !== null ? `Ø ${fmt(st.gpuW, 0)} W` : "")}
+      ${card("GPU max", fmt(st.gpuTempMax, 0, " °C"), [
+          st.hotspotMax !== null ? `Hotspot ${fmt(st.hotspotMax, 0)}` : "",
+          st.memTempMax !== null ? `Speicher ${fmt(st.memTempMax, 0)} °C` : "",
+        ].filter(Boolean).join(" · ") || (st.gpuW !== null ? `Ø ${fmt(st.gpuW, 0)} W` : ""))}
+      ${card("GPU unter Last", fmt(st.gpuMhzLoad, 0, " MHz"), [
+          st.gpuVLoad !== null ? `${fmt(st.gpuVLoad, 3)} V` : "",
+          st.gpuWLoad !== null ? `${fmt(st.gpuWLoad, 0)} W` : "",
+        ].filter(Boolean).join(" · ") || "GPU ≥ 90 % ausgelastet")}
     </div>`);
 
   const bn = section(view, "Engpass", "Anteil der Sitzungszeit");
@@ -334,8 +348,18 @@ function renderSession(view, s) {
   ], { min: 0, max: 100, unit: " %" });
   chart(ch, s, "Temperatur (°C)", [
     { key: "gpuTemp", label: "GPU", color: "var(--gpu)" },
+    { key: "hotspot", label: "GPU-Hotspot", color: "var(--gpu)", dash: "4 3" },
+    { key: "memTemp", label: "GPU-Speicher", color: "var(--bad)", dash: "2 2" },
     { key: "cpuTemp", label: "CPU", color: "var(--cpu)" },
-  ], { unit: " °C" });
+  ].filter(x => d[x.key].some(v => v !== null)), { unit: " °C" });
+  chart(ch, s, "GPU-Takt (MHz)", [
+    { key: "gpuMhz", label: "Takt", color: "var(--gpu)" },
+  ], { unit: " MHz" });
+  if (d.gpuV.some(v => v !== null)) {
+    chart(ch, s, "GPU-Spannung (V) – beim Undervolting bleibt sie unter Last flach", [
+      { key: "gpuV", label: "Spannung", color: "var(--limit)" },
+    ], { unit: " V" });
+  }
 
   const nt = section(view, "Meldungen", "wie lange sie aktiv waren");
   nt.insertAdjacentHTML("beforeend", st.notes.length
@@ -363,6 +387,11 @@ const METRICS = [
   ["Ø Hauptthread", s => s.thread, v => fmt(v, 0, " %"), 0],
   ["CPU-Temperatur max", s => s.cpuTempMax, v => fmt(v, 0, " °C"), -1],
   ["GPU-Temperatur max", s => s.gpuTempMax, v => fmt(v, 0, " °C"), -1],
+  ["GPU-Hotspot max", s => s.hotspotMax, v => fmt(v, 0, " °C"), -1],
+  ["GPU-Speicher max", s => s.memTempMax, v => fmt(v, 0, " °C"), -1],
+  ["Ø GPU-Takt unter Last", s => s.gpuMhzLoad, v => fmt(v, 0, " MHz"), 1],
+  ["Ø GPU-Spannung unter Last", s => s.gpuVLoad, v => fmt(v, 3, " V"), 0],
+  ["Ø GPU-Leistung unter Last", s => s.gpuWLoad, v => fmt(v, 0, " W"), 0],
   ["Ø CPU-Leistung", s => s.cpuW, v => fmt(v, 0, " W"), 0],
   ["Ø GPU-Leistung", s => s.gpuW, v => fmt(v, 0, " W"), 0],
 ];
@@ -423,15 +452,21 @@ function draw(c) {
   const W = Math.max(300, c.wrap.clientWidth);
   const iw = W - PAD.l - PAD.r, ih = H - PAD.t - PAD.b - (c.opt.strip ? 8 : 0);
 
-  // Wertebereich über alle Linien
+  // Wertebereich über alle Linien. Oben zählt das 99. Perzentil: Einzelne Ausreißer (z. B. ein
+  // 90-ms-Frame beim Laden) würden sonst den ganzen Verlauf flach an den Boden drücken – sie werden abgeschnitten.
   let lo = c.opt.min ?? Infinity, hi = c.opt.max ?? -Infinity, tMax = 0;
+  const all = [];
   for (const s of c.sessions) {
     const t0 = s.d.t[0];
     tMax = Math.max(tMax, s.d.t[s.d.t.length - 1] - t0);
     for (const x of c.series) for (const v of s.d[x.key]) if (v !== null) {
       if (c.opt.min === undefined) lo = Math.min(lo, v);
-      if (c.opt.max === undefined) hi = Math.max(hi, v);
+      all.push(v);
     }
+  }
+  if (c.opt.max === undefined && all.length) {
+    all.sort((a, b) => a - b);
+    hi = all[Math.min(all.length - 1, Math.floor(all.length * 0.99))];
   }
   if (!Number.isFinite(lo) || !Number.isFinite(hi)) { lo = 0; hi = 1; }
   if (c.opt.min === undefined) lo = Math.floor(lo * 0.9);

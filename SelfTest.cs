@@ -54,8 +54,8 @@ internal static class SelfTest
         log.AppendLine("=== System ===");
         log.AppendLine($"Windows: {Environment.OSVersion.VersionString}   Kerne (logisch): {Environment.ProcessorCount}");
         log.AppendLine();
-        log.AppendLine("=== HWiNFO: CPU-Sensoren (Rohdaten) ===");
-        log.AppendLine(HwInfoSensor.DumpCpuReadings());
+        log.AppendLine("=== HWiNFO: CPU- und GPU-Sensoren (Rohdaten) ===");
+        log.AppendLine(HwInfoSensor.DumpReadings());
         File.WriteAllText(Path.Combine(dir, "selftest.txt"), log.ToString());
 
         window.Render(snapshot!, verdict!, notes);
@@ -164,6 +164,11 @@ internal static class SelfTest
                 MainThread = new ThreadLoad(phase == 1 ? 94 + jitter * 5 : phase == 0 ? 62 : 30, null),
                 BackgroundCpu = [],
                 ForegroundPid = frames.Pid,   // das Demo-Spiel gilt als Vordergrundfenster
+                // "nachher" simuliert ein GPU-Undervolting: niedrigere Spannung, kühlerer Speicher
+                GpuThermal = new GpuThermalData(
+                    cpuSpeedup > 1 ? 0.850 : 1.050,
+                    62 + Math.Min(t, 120) / 12 + (cpuSpeedup > 1 ? 9 : 14),
+                    cpuSpeedup > 1 ? 88 + Math.Min(t, 120) / 20 : 96 + Math.Min(t, 120) / 15),
             };
             recorder.Record(snapshot, analyzer.Analyze(snapshot));
         }

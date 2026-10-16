@@ -65,6 +65,7 @@ internal sealed class SensorHub : IDisposable
             BackgroundCpu = _processCpu.SampleBackground(gamePid),
             GameSharedVramGB = _windowsGpu.Available ? _windowsGpu.SharedUsageGB(gamePid) : null,
             ForegroundPid = foregroundPid,
+            GpuThermal = _hwInfo.Gpu,   // wird beim _hwInfo.Read() oben mitgelesen
         };
     }
 
