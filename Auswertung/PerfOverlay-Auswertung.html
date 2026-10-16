@@ -194,6 +194,7 @@ function parseCsv(text, name) {
     thread: col("Hauptthread_Proz"), cpu: col("CPU_Proz"), pmax: col("PKern_max_Proz"), cpuTemp: col("CPU_Temp"), cpuW: col("CPU_W"),
     gpu: col("GPU_Proz"), gpuTemp: col("GPU_Temp"), gpuW: col("GPU_W"), vram: col("VRAM_GB"), spill: col("VRAM_ausgelagert_GB"),
     gpuMhz: col("GPU_MHz"), gpuV: col("GPU_V"), hotspot: col("GPU_Hotspot"), memTemp: col("GPU_Speicher_Temp"),
+    gpuFanPct: col("GPU_Luefter_Proz"), gpuFanRpm: col("GPU_Luefter_U_min"), cpuFanRpm: col("CPU_Luefter_U_min"),
     ram: col("RAM_Proz"), spikes: col("Ruckler"), pacing: col("Pacing_ms"), notes: rows.map(r => r.Meldungen || ""), time: rows.map(r => r.Zeit),
   };
   return { name, meta, rows: rows.length, d, stats: computeStats(d) };
@@ -240,6 +241,8 @@ function computeStats(d) {
     gpuVLoad: loadIdx.length ? avg(loadIdx.map(i => d.gpuV[i])) : null,
     gpuWLoad: loadIdx.length ? avg(loadIdx.map(i => d.gpuW[i])) : null,
     hotspotMax: max(d.hotspot), memTempMax: max(d.memTemp),
+    cpuFan: avg(d.cpuFanRpm), cpuFanMax: max(d.cpuFanRpm),
+    gpuFanLoad: loadIdx.length ? avg(loadIdx.map(i => d.gpuFanPct[i])) : null,
     // Pacing nur im Spielgeschehen (ab 40 FPS), Ladebildschirme verzerren sonst den Mittelwert
     pacing: avg(d.pacing.map((p, i) => d.fps[i] !== null && d.fps[i] >= 40 ? p : null)),
     notes: [...notes.values()].sort((a, b) => b.seconds - a.seconds),
@@ -321,7 +324,10 @@ function renderSession(view, s) {
           st.pacing === null ? "nicht aufgezeichnet" : pacingRating(st.pacing, st.ft))}
       ${card("Hauptengpass", st.top ? KINDS[st.top[0]]?.short ?? st.top[0] : "–", st.top ? pct(st.top[1]) + " der Zeit" : "")}
       ${card("Ø FPS im CPU-Limit", fmt(st.fpsCpu, 0), st.fpsCpu === null ? "kein CPU-Limit" : "hier wirken RAM/CPU")}
-      ${card("CPU max", fmt(st.cpuTempMax, 0, " °C"), st.cpuW !== null ? `Ø ${fmt(st.cpuW, 0)} W` : "")}
+      ${card("CPU max", fmt(st.cpuTempMax, 0, " °C"), [
+          st.cpuW !== null ? `Ø ${fmt(st.cpuW, 0)} W` : "",
+          st.cpuFan !== null ? `Lüfter Ø ${fmt(st.cpuFan, 0)} U/min` : "",
+        ].filter(Boolean).join(" · "))}
       ${card("GPU max", fmt(st.gpuTempMax, 0, " °C"), [
           st.hotspotMax !== null ? `Hotspot ${fmt(st.hotspotMax, 0)}` : "",
           st.memTempMax !== null ? `Speicher ${fmt(st.memTempMax, 0)} °C` : "",
@@ -329,6 +335,7 @@ function renderSession(view, s) {
       ${card("GPU unter Last", fmt(st.gpuMhzLoad, 0, " MHz"), [
           st.gpuVLoad !== null ? `${fmt(st.gpuVLoad, 3)} V` : "",
           st.gpuWLoad !== null ? `${fmt(st.gpuWLoad, 0)} W` : "",
+          st.gpuFanLoad !== null ? `Lüfter ${fmt(st.gpuFanLoad, 0)} %` : "",
         ].filter(Boolean).join(" · ") || "GPU ≥ 90 % ausgelastet")}
     </div>`);
 
@@ -359,6 +366,12 @@ function renderSession(view, s) {
   chart(ch, s, "GPU-Takt (MHz)", [
     { key: "gpuMhz", label: "Takt", color: "var(--gpu)" },
   ], { unit: " MHz" });
+  if (d.cpuFanRpm.some(v => v !== null) || d.gpuFanRpm.some(v => v !== null)) {
+    chart(ch, s, "Lüfter (U/min) – nach dem Reinigen sollten sie bei gleicher Last ruhiger drehen", [
+      { key: "cpuFanRpm", label: "CPU", color: "var(--cpu)" },
+      { key: "gpuFanRpm", label: "GPU", color: "var(--gpu)" },
+    ].filter(x => d[x.key].some(v => v !== null)), { min: 0, unit: " U/min" });
+  }
   if (d.gpuV.some(v => v !== null)) {
     chart(ch, s, "GPU-Spannung (V) – beim Undervolting bleibt sie unter Last flach", [
       { key: "gpuV", label: "Spannung", color: "var(--limit)" },
@@ -404,6 +417,8 @@ const METRICS = [
   ["Ø GPU-Takt unter Last", s => s.gpuMhzLoad, v => fmt(v, 0, " MHz"), 1],
   ["Ø GPU-Spannung unter Last", s => s.gpuVLoad, v => fmt(v, 3, " V"), 0],
   ["Ø GPU-Leistung unter Last", s => s.gpuWLoad, v => fmt(v, 0, " W"), 0],
+  ["Ø CPU-Lüfter", s => s.cpuFan, v => fmt(v, 0, " U/min"), -1],
+  ["Ø GPU-Lüfter unter Last", s => s.gpuFanLoad, v => fmt(v, 0, " %"), -1],
   ["Ø CPU-Leistung", s => s.cpuW, v => fmt(v, 0, " W"), 0],
   ["Ø GPU-Leistung", s => s.gpuW, v => fmt(v, 0, " W"), 0],
 ];

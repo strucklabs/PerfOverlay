@@ -38,7 +38,8 @@ internal sealed class HwInfoSensor : IDisposable
     private long _powerDeviation = -1;
     private readonly List<(long Offset, string Reason)> _flags = new();    // Intel/AMD: Ja/Nein-Flags
     private readonly List<(long Offset, string Reason)> _limits = new();   // AMD: Auslastung eines Limits in %
-    private long _gpuVoltage = -1, _gpuHotspot = -1, _gpuMemJunction = -1;
+    private long _gpuVoltage = -1, _gpuHotspot = -1, _gpuMemJunction = -1, _gpuFan = -1, _cpuFan = -1;
+    private const uint SensorTypeFan = 3;   // HWiNFO SENSOR_READING_TYPE: 1 Temp, 2 Volt, 3 Fan, 5 Power, 6 Clock, 7 Usage, 8 Other
 
     /// <summary>GPU-Werte vom letzten <see cref="Read"/>; null ohne HWiNFO oder ohne passende Sensoren.</summary>
     public GpuThermalData? Gpu { get; private set; }
@@ -75,12 +76,12 @@ internal sealed class HwInfoSensor : IDisposable
             // AMD: kein Abstand vorhanden, daher aus dem Modellnamen abgeleitet.
             double? tjMax = Value(_tjTemp) + Value(_tjDistance) ?? (_isAmd ? AmdTjMax(_cpuName) : null);
 
-            Gpu = _gpuVoltage >= 0 || _gpuHotspot >= 0 || _gpuMemJunction >= 0
-                ? new GpuThermalData(Value(_gpuVoltage), Value(_gpuHotspot), Value(_gpuMemJunction))
+            Gpu = _gpuVoltage >= 0 || _gpuHotspot >= 0 || _gpuMemJunction >= 0 || _gpuFan >= 0
+                ? new GpuThermalData(Value(_gpuVoltage), Value(_gpuHotspot), Value(_gpuMemJunction), Value(_gpuFan))
                 : null;
 
             return new CpuThermalData("HWiNFO", Value(_temp), Value(_coreMax), Value(_power), Value(_powerLimit),
-                reasons, tjMax, _isAmd, Value(_powerDeviation));
+                reasons, tjMax, _isAmd, Value(_powerDeviation), Value(_cpuFan));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
@@ -116,7 +117,7 @@ internal sealed class HwInfoSensor : IDisposable
             sensors[i] = ReadString(v, offS + (long)i * sizeS + 8, 128);
 
         _temp = _coreMax = _power = _powerLimit = _tjTemp = _tjDistance = _powerDeviation = -1;
-        _gpuVoltage = _gpuHotspot = _gpuMemJunction = -1;
+        _gpuVoltage = _gpuHotspot = _gpuMemJunction = _gpuFan = _cpuFan = -1;
         _flags.Clear();
         _limits.Clear();
         // Sensorname z. B. "CPU [#0]: AMD Ryzen 9 5900XT" bzw. "CPU [#0]: Intel Core i5-13600KF: DTS"
@@ -143,6 +144,15 @@ internal sealed class HwInfoSensor : IDisposable
                 if (gpuLabel.StartsWith("GPU Core Voltage", StringComparison.Ordinal) && gpuUnit == "V" && _gpuVoltage < 0) _gpuVoltage = o;
                 else if ((gpuLabel.Contains("Hot Spot") || gpuLabel.Contains("Hotspot")) && gpuUnit.EndsWith('C') && _gpuHotspot < 0) _gpuHotspot = o;
                 else if (gpuLabel.Contains("Memory Junction") && gpuUnit.EndsWith('C') && _gpuMemJunction < 0) _gpuMemJunction = o;
+                else if (gpuLabel.StartsWith("GPU Fan", StringComparison.Ordinal) && gpuUnit == "RPM" && _gpuFan < 0) _gpuFan = o;
+                continue;
+            }
+
+            // CPU-Lüfter hängt am Sensorchip des Mainboards (z. B. "… (ITE IT8689E)"), Label "CPU", "CPU_FAN", "CPU Fan" …
+            if (v.ReadUInt32(o) == SensorTypeFan && !sensor.StartsWith("CPU [#", StringComparison.Ordinal))
+            {
+                string fanLabel = ReadString(v, o + 12, 128);
+                if (fanLabel.Contains("CPU", StringComparison.OrdinalIgnoreCase) && _cpuFan < 0) _cpuFan = o;
                 continue;
             }
             if (!sensor.StartsWith("CPU [#", StringComparison.Ordinal)) continue;

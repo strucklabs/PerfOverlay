@@ -211,8 +211,10 @@ public partial class OverlayWindow : Window
             if (th.PowerW is double cw)
             {
                 cpuParts.Add(L("  ")); cpuParts.Add(V($"{cw:0}"));
-                cpuParts.Add(L(th.PowerLimitW is double pl ? $"/{pl:0} W" : " W"));
+                // Mit Lüfteranzeige fehlt der Platz für "/PL1" – das Power-Limit meldet ohnehin der Drosselungs-Hinweis
+                cpuParts.Add(L(th.PowerLimitW is double pl && th.FanRpm == null ? $"/{pl:0} W" : " W"));
             }
+            if (th.FanRpm is double rpm && rpm > 0) { cpuParts.Add(L("  ")); cpuParts.Add(V($"{rpm:0}")); cpuParts.Add(L(" U/min")); }
         }
         Line(CpuLine, cpuParts.ToArray());
         RenderCoreBars(c);

@@ -50,7 +50,7 @@ public sealed class SessionRecorder : IDisposable
         "CPU_Busy_ms", "GPU_Busy_ms", "GPU_Wartet_ms", "Engpass", "Urteil", "Hauptthread_Proz",
         "CPU_Proz", "PKern_max_Proz", "CPU_GHz", "CPU_Temp", "CPU_W",
         "GPU_Proz", "GPU_MHz", "GPU_Temp", "GPU_W", "VRAM_GB", "VRAM_ausgelagert_GB",
-        "GPU_V", "GPU_Hotspot", "GPU_Speicher_Temp",
+        "GPU_V", "GPU_Hotspot", "GPU_Speicher_Temp", "GPU_Luefter_Proz", "GPU_Luefter_U_min", "CPU_Luefter_U_min",
         "RAM_GB", "RAM_Proz", "Nachladen_s", "Disk_Proz", "Ruckler", "Pacing_ms", "Meldungen",
     ];
 
@@ -99,6 +99,7 @@ public sealed class SessionRecorder : IDisposable
             N(cpu.TotalLoad, 0), N(cpu.MaxPerfCoreLoad, 0), N(cpu.AvgMhz / 1000, 2), N(th?.TempC, 0), N(th?.PowerW, 0),
             N(gpu?.Load, 0), N(gpu?.CoreMhz, 0), N(gpu?.TempC, 0), N(gpu?.PowerW, 0), N(gpu?.VramUsedGB, 2), N(s.GameSharedVramGB, 2),
             N(s.GpuThermal?.CoreVoltage, 3), N(s.GpuThermal?.HotspotC, 0), N(s.GpuThermal?.MemoryJunctionC, 0),
+            N(gpu?.FanPercent, 0), N(s.GpuThermal?.FanRpm, 0), N(th?.FanRpm, 0),
             N(s.Memory.UsedGB, 1), N(s.Memory.LoadPercent, 0), N(s.Memory.PagesInPerSec, 0), N(s.Disk.ActivePercent, 0),
             spikes.ToString(CultureInfo.InvariantCulture),
             N(f.PacingMs, 2),

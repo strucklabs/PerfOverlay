@@ -35,7 +35,7 @@ public sealed record CpuData(
 /// GPU-Werte, die NVML auf GeForce-Karten nicht liefert – aus HWiNFO.
 /// Speicher-Junction (GDDR6X drosselt um 110 °C) und Hotspot sind bei RTX 30/40 oft die heißesten Stellen.
 /// </summary>
-public sealed record GpuThermalData(double? CoreVoltage, double? HotspotC, double? MemoryJunctionC);
+public sealed record GpuThermalData(double? CoreVoltage, double? HotspotC, double? MemoryJunctionC, double? FanRpm = null);
 
 /// <summary>CPU-Werte, die nur mit Ring-0-Zugriff lesbar sind – hier aus dem Shared Memory von HWiNFO.</summary>
 public sealed record CpuThermalData(
@@ -47,7 +47,8 @@ public sealed record CpuThermalData(
     IReadOnlyList<string> ThrottleReasons,  // aktive Drosselungsgründe, bereits auf Deutsch zusammengefasst
     double? TjMaxC,                         // Maximaltemperatur der CPU (Intel: aus "Distance to TjMAX" berechnet)
     bool IsAmd,                             // Ryzen boostet bis an TjMax – hohe Temperatur ist dort Normalbetrieb
-    double? PowerReportingDeviation = null) // AMD: < 100 % = Mainboard meldet der CPU zu wenig Strom
+    double? PowerReportingDeviation = null, // AMD: < 100 % = Mainboard meldet der CPU zu wenig Strom
+    double? FanRpm = null)                  // CPU-Lüfter am Mainboard-Sensor (U/min)
 {
     /// <summary>Wie weit die CPU noch von ihrer Maximaltemperatur entfernt ist.</summary>
     public double? HeadroomC => TempC is double t && TjMaxC is double tj ? tj - t : null;
