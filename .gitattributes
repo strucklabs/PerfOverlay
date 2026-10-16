@@ -1,0 +1,14 @@
+# Zeilenenden einheitlich: im Repository und im Arbeitsverzeichnis LF.
+# Visual Studio, VS Code, dotnet und Git kommen damit unter Windows problemlos zurecht.
+* text=auto eol=lf
+
+# Batch-Dateien brauchen unter cmd.exe CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binärdateien nie umwandeln
+*.exe binary
+*.dll binary
+*.ico binary
+*.png binary
+*.zip binary
