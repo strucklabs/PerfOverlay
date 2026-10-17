@@ -68,10 +68,17 @@ public static class FrameMetrics
         return n > 0 ? sum / n : double.NaN;
     }
 
-    /// <summary>Einstufung des Pacings relativ zur Frametime: unter 10 % ruhig, ab 25 % unruhig.</summary>
+    /// <summary>Unter dieser Schwankung von Bild zu Bild ist die Ausgabe immer ruhig – das nimmt niemand wahr.</summary>
+    public const double PacingNoticeableMs = 1.0;
+
+    /// <summary>
+    /// Einstufung des Pacings relativ zur Frametime: unter 10 % ruhig, ab 25 % unruhig. Schwankungen unter 1 ms
+    /// gelten immer als ruhig – sonst wären Menüs und Ladebildschirme mit mehreren hundert FPS "unruhig".
+    /// </summary>
     public static string PacingRating(double pacingMs, double frametimeMs)
     {
         if (double.IsNaN(pacingMs) || frametimeMs <= 0) return "";
+        if (pacingMs < PacingNoticeableMs) return "ruhig";
         double ratio = pacingMs / frametimeMs;
         return ratio < 0.10 ? "ruhig" : ratio < 0.25 ? "leicht unruhig" : "unruhig";
     }

@@ -54,7 +54,9 @@ im Browser aus – ohne Internet, ohne Upload:
   nur bei NVIDIA verfügbar, Spiel nicht auslesbar (Anti-Cheat), Ping-Messung aus
 - Zusammenfassung: Ø FPS, Ø 1%-Low, Ruckler pro Minute, Hauptengpass, **Ø FPS im CPU-Limit**, Temperaturen
 - Engpass-Anteile, Verlaufsdiagramme (FPS mit Engpass-Streifen und Rucklern, CPU-/GPU-Arbeitszeit,
-  Auslastung, Temperaturen) mit synchronem Fadenkreuz
+  Auslastung, Temperaturen) mit synchronem Fadenkreuz. Bei langen Sitzungen je Pixelspalte zusammengefasst
+  (Mittelwert als Linie, Minimum bis Maximum als Band); Zeitbereich mit der Maus aufziehen zoomt alle
+  Diagramme synchron, Doppelklick zeigt wieder die ganze Sitzung
 - Mehrere Dateien: Vergleichstabelle mit Abweichung zur ersten Sitzung, z. B. vor/nach XMP.
   „Ø FPS im CPU-Limit“ zeigt den Effekt von schnellerem RAM am deutlichsten. Darüber eine Einordnung je
   Sitzung (besser/schlechter/gemischt) und ein Hinweis, wenn die Sitzungen aus verschiedenen Spielen stammen.

@@ -77,6 +77,14 @@ public class FrameMetricsTests
     }
 
     [Fact]
+    public void Schwankung_unter_einer_Millisekunde_ist_auch_bei_sehr_hohen_FPS_ruhig()
+    {
+        // Menü mit ~900 FPS: ±0,3 ms sind 27 % der Frametime, aber nicht wahrnehmbar
+        Assert.Equal("ruhig", FrameMetrics.PacingRating(0.3, 1.1));
+        Assert.Equal("unruhig", FrameMetrics.PacingRating(1.5, 4.0));
+    }
+
+    [Fact]
     public void Wechselnde_Frametimes_haben_unruhiges_Pacing_ohne_Ruckler()
     {
         // 8 / 18 ms im Wechsel: kein Einzelframe fällt auf, die Ausgabe wirkt trotzdem unruhig

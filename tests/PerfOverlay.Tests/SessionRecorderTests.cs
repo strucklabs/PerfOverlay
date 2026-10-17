@@ -55,6 +55,23 @@ public sealed class SessionRecorderTests : IDisposable
     }
 
     [Fact]
+    public void Leicht_schwankender_Messtakt_ergibt_trotzdem_eine_Zeile_pro_Sekunde()
+    {
+        // Der 500-ms-Takt kommt mal ein paar Millisekunden zu früh, mal zu spät
+        using var recorder = new SessionRecorder(_folder);
+        var rnd = new Random(42);
+        for (int i = 0; i < 240; i++)
+        {
+            double t = i * 0.5 + (rnd.NextDouble() - 0.5) * 0.010;
+            recorder.Record(Snap(Math.Max(0, t), Frames(GamePid, "Warframe.x64.exe"), GamePid), Verdict);
+        }
+        recorder.Stop();
+
+        var rows = File.ReadAllLines(Assert.Single(Files())).Where(l => !l.StartsWith('#')).Skip(1).Count();
+        Assert.InRange(rows, 118, 121);   // 120 s → 120 Zeilen, ohne Toleranz nur 95
+    }
+
+    [Fact]
     public void Wechsel_zu_anderem_Spiel_im_Vordergrund_beginnt_neue_Sitzung()
     {
         using var recorder = new SessionRecorder(_folder);

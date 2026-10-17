@@ -16,6 +16,7 @@ namespace PerfOverlay.Analysis;
 public sealed class SessionRecorder : IDisposable
 {
     private static readonly TimeSpan RowInterval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan RowTolerance = TimeSpan.FromMilliseconds(150);
     private static readonly TimeSpan SessionTimeout = TimeSpan.FromSeconds(30);
     private static readonly CultureInfo De = CultureInfo.GetCultureInfo("de-DE");
 
@@ -84,7 +85,8 @@ public sealed class SessionRecorder : IDisposable
             return;
         }
 
-        if (_writer == null || f == null || s.Time - _lastRow < RowInterval) return;
+        // Toleranz für den Messtakt: kommt er ein paar Millisekunden zu früh, fehlte sonst eine ganze Sekunde
+        if (_writer == null || f == null || s.Time - _lastRow < RowInterval - RowTolerance) return;
         _lastRow = s.Time;
 
         // Ruckler über ihren Zeitstempel zählen: Ein Frame wird erst bewertet, wenn seine Nachfolger da sind,
