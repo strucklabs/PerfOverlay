@@ -23,7 +23,8 @@ public sealed class Settings
     public string? Monitor { get; set; }
 
     /// <summary>Ansicht: Kompakt, Standard oder Analyse (Strg+Umschalt+F8).</summary>
-    public OverlayView View { get; set; } = OverlayView.Standard;
+    /// <summary>Beim ersten Start die ausführlichste Ansicht – nur sie zeigt auch die Hotkeys an.</summary>
+    public OverlayView View { get; set; } = OverlayView.Analysis;
 
     public bool RecordSessions { get; set; } = true;
 
@@ -51,7 +52,7 @@ public sealed class Settings
             if (!File.Exists(path)) return new Settings();
             var settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(path), Json) ?? new Settings();
             if (settings.Corner is < 0 or > 3) settings.Corner = 1;
-            if (!Enum.IsDefined(settings.View)) settings.View = OverlayView.Standard;
+            if (!Enum.IsDefined(settings.View)) settings.View = OverlayView.Analysis;
             return settings;
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)

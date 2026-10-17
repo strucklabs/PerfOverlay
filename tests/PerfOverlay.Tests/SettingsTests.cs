@@ -36,7 +36,7 @@ public sealed class SettingsTests : IDisposable
         File.WriteAllText(_path, "{ \"Corner\": 2, \"Details\": false, \"RecordSessions\": true }");
         var loaded = Settings.Load(_path);
         Assert.Equal(2, loaded.Corner);
-        Assert.Equal(OverlayView.Standard, loaded.View);
+        Assert.Equal(OverlayView.Analysis, loaded.View);
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public sealed class SettingsTests : IDisposable
         var loaded = Settings.Load(_path);
         Assert.Equal(1, loaded.Corner);
         Assert.Null(loaded.OffsetX);
-        Assert.Equal(OverlayView.Standard, loaded.View);
+        Assert.Equal(OverlayView.Analysis, loaded.View);
         Assert.True(loaded.RecordSessions);
     }
 
