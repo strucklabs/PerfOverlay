@@ -39,6 +39,7 @@ internal sealed class HwInfoSensor : IDisposable
     private readonly List<(long Offset, string Reason)> _flags = new();    // Intel/AMD: Ja/Nein-Flags
     private readonly List<(long Offset, string Reason)> _limits = new();   // AMD: Auslastung eines Limits in %
     private long _gpuVoltage = -1, _gpuHotspot = -1, _gpuMemJunction = -1, _gpuFan = -1, _cpuFan = -1;
+    private const uint SensorTypeTemp = 1;
     private const uint SensorTypeFan = 3;   // HWiNFO SENSOR_READING_TYPE: 1 Temp, 2 Volt, 3 Fan, 5 Power, 6 Clock, 7 Usage, 8 Other
 
     /// <summary>GPU-Werte vom letzten <see cref="Read"/>; null ohne HWiNFO oder ohne passende Sensoren.</summary>
@@ -278,12 +279,34 @@ internal sealed class HwInfoSensor : IDisposable
                 if (IsDumped(sensors[i]) || sensors[i].StartsWith("System:", StringComparison.Ordinal))
                     sb.AppendLine($"Sensor {i}: {sensors[i]}");
             }
+            var board = new StringBuilder();
+            bool cpuFanMarked = false;
+            uint lastBoardSensor = uint.MaxValue;
             for (long i = 0; i < numR; i++)
             {
                 long o = offR + i * sizeR;
                 uint si = v.ReadUInt32(o + 4);
-                if (si >= numS || !IsDumped(sensors[si])) continue;
-                sb.AppendLine($"  [{si}] {ReadString(v, o + 12, 128)} | {v.ReadDouble(o + 284):0.##} {ReadString(v, o + 268, 16)}");
+                if (si >= numS) continue;
+                string line = $"  [{si}] {ReadString(v, o + 12, 128)} | {v.ReadDouble(o + 284):0.##} {ReadString(v, o + 268, 16)}";
+                if (IsDumped(sensors[si])) { sb.AppendLine(line); continue; }
+
+                // Mainboard-Lüfter und -Temperaturen: zeigen, an welchem Anschluss welcher Lüfter hängt und wie schnell
+                // er dreht. Laufwerke bleiben außen vor (Seriennummern im Sensornamen).
+                uint type = v.ReadUInt32(o);
+                if ((type != SensorTypeFan && type != SensorTypeTemp) || IsDrive(sensors[si])) continue;
+                // Markiert den Lüfter, den PerfOverlay als CPU-Lüfter nimmt – dieselbe Regel wie in Read()
+                bool usedAsCpuFan = !cpuFanMarked && type == SensorTypeFan && !sensors[si].StartsWith("CPU [#", StringComparison.Ordinal)
+                    && ReadString(v, o + 12, 128).Contains("CPU", StringComparison.OrdinalIgnoreCase);
+                cpuFanMarked |= usedAsCpuFan;
+                if (si != lastBoardSensor) board.AppendLine($"Sensor {si}: {sensors[si]}");
+                lastBoardSensor = si;
+                board.AppendLine(line + (usedAsCpuFan ? "   <- als CPU-Lüfter verwendet" : ""));
+            }
+            if (board.Length > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("=== HWiNFO: Mainboard-Lüfter und -Temperaturen ===");
+                sb.Append(board);
             }
             return sb.ToString();
         }
@@ -292,6 +315,11 @@ internal sealed class HwInfoSensor : IDisposable
             return "HWiNFO Shared Memory nicht verfügbar: " + ex.Message;
         }
     }
+
+    private static bool IsDrive(string sensor) =>
+        sensor.Contains("S.M.A.R.T", StringComparison.OrdinalIgnoreCase) ||
+        sensor.StartsWith("Drive", StringComparison.OrdinalIgnoreCase) ||
+        sensor.Contains("NVMe", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsDumped(string sensor) =>
         sensor.StartsWith("CPU [#", StringComparison.Ordinal) ||
