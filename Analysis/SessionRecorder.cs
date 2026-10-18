@@ -173,6 +173,15 @@ public sealed class SessionRecorder : IDisposable
         // Electron-/Desktop-Apps, Medien, System
         "claude", "Code", "Spotify", "explorer", "dwm", "ApplicationFrameHost", "SearchHost", "StartMenuExperienceHost",
         "TextInputHost", "ShellExperienceHost", "vlc", "mpc-hc64", "obs64", "PerfOverlay", "PresentMon",
+        "SystemSettings", "Taskmgr", "mmc",
+        // Hardware- und Tuning-Tools: zeichnen ihre Oberfläche oft über die GPU und laufen beim Einstellen
+        // minutenlang im Vordergrund. Benchmarks (3DMark, FurMark …) bleiben bewusst aufzeichenbar.
+        "EasyTune", "GCC", "GigabyteControlCenter", "AppCenter", "RGBFusion",
+        "MSIAfterburner", "RTSS", "MSI Center", "MSI.Center",
+        "ArmouryCrate", "AISuite3", "GPUTweakIII", "GPU Tweak III",
+        "iCUE", "NZXT CAM", "SignalRgb", "L-Connect 3", "FanControl",
+        "HWiNFO64", "HWiNFO32", "aida64", "cpuz", "cpuz_x64", "GPU-Z", "OCCT", "ThrottleStop",
+        "RadeonSoftware", "NVIDIA App", "NVIDIA Overlay", "NVIDIA GeForce Experience", "nvcplui",
     };
 
     private static bool IsNonGame(string app) => NonGames.Contains(Path.GetFileNameWithoutExtension(app));

@@ -54,6 +54,19 @@ public sealed class SessionRecorderTests : IDisposable
         Assert.True(rows.Max(l => int.Parse(l.Split(';')[secondCol])) >= 95);
     }
 
+    [Theory]
+    [InlineData("EasyTune.exe")]
+    [InlineData("MSIAfterburner.exe")]
+    [InlineData("HWiNFO64.exe")]
+    public void Hardware_Tools_im_Vordergrund_werden_nicht_als_Spiel_aufgezeichnet(string app)
+    {
+        // Tuning-Programme zeichnen ihre Oberfläche über die GPU und bleiben beim Einstellen lange im Vordergrund
+        using var recorder = new SessionRecorder(_folder);
+        for (double t = 0; t < 120; t += 0.5) recorder.Record(Snap(t, Frames(GamePid, app), GamePid), Verdict);
+        recorder.Stop();
+        Assert.Empty(Files());
+    }
+
     [Fact]
     public void Leicht_schwankender_Messtakt_ergibt_trotzdem_eine_Zeile_pro_Sekunde()
     {
