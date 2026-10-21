@@ -10,7 +10,8 @@ internal static class ErrorLog
 {
     private static readonly object Lock = new();
 
-    public static string FilePath { get; } = Path.Combine(
+    /// <summary>Setzbar nur für die Tests – sie prüfen absichtlich kaputte Dateien und sollen das echte Protokoll nicht füllen.</summary>
+    public static string FilePath { get; internal set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "PerfOverlay", "fehler.log");
 
     public static void Write(Exception ex) => Write(ex.ToString());
