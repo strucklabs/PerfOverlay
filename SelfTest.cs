@@ -64,64 +64,83 @@ internal static class SelfTest
     }
 
     /// <summary>
-    /// "PerfOverlay.exe --preview": rendert das Overlay mit KÜNSTLICHEN Frame-Daten (CPU-limitierte Szene
-    /// mit Rucklern) in allen drei Ansichten nach preview-*.png – nur zur Kontrolle der Darstellung ohne laufendes Spiel.
-    /// Echte Hardwarewerte (CPU, GPU, RAM) stammen weiterhin von diesem PC.
+    /// "PerfOverlay.exe --preview": rendert das Overlay mit KÜNSTLICHEN Frame-Daten in allen drei Ansichten – je eine
+    /// CPU-limitierte Szene mit Rucklern und Hintergrundlast (preview-*-cpu.png), eine GPU-limitierte (preview-*-gpu.png)
+    /// und eine ohne Spiel, mit einer KI-App im Vordergrund (preview-*-leer.png). preview-groessen.txt hält die Maße fest: Je Ansicht müssen
+    /// alle drei Szenen gleich groß sein. Echte Hardwarewerte (CPU, GPU, RAM) stammen weiterhin von diesem PC.
     /// </summary>
     public static async Task PreviewAsync()
     {
         using var hub = new SensorHub();
-        var analyzer = new BottleneckAnalyzer();
-        var window = new OverlayWindow();
-        var rnd = new Random(42);
-        IReadOnlyList<LoggedNote> notes = [];
-        Snapshot? snapshot = null;
-        Verdict? verdict = null;
+        var dir = AppContext.BaseDirectory;
+        var sizes = new StringBuilder();
+        var views = new[] { (OverlayView.Compact, "kompakt"), (OverlayView.Standard, "standard"), (OverlayView.Analysis, "analyse") };
 
-        for (int tick = 0; tick < 24; tick++)
+        foreach (var scene in new[] { "cpu", "gpu", "leer" })
         {
-            await Task.Delay(100);
-            var real = hub.Sample();
-            bool cpuPhase = tick % 6 != 0;   // überwiegend CPU-, gelegentlich GPU-limitiert
-            double ms = cpuPhase ? 8.3 : 7.0;
-            var times = Enumerable.Range(0, 600)
-                .Select(i => (Age: 5.0 - i * (5.0 / 600), Ms: ms + rnd.NextDouble() * 1.2 + (i is 180 or 420 ? 30 : 0)))
-                .ToArray();
-            var frames = new FrameStats(4711, "DemoSpiel.exe", 1000 / ms, 1000 / 14.0, ms, ms + 0.5, 14,
-                cpuPhase ? ms * 0.95 : ms * 0.5, 0.2, cpuPhase ? ms * 0.62 : ms * 0.97, cpuPhase ? ms * 0.33 : 0.1)
-            {
-                AppFps = 1000 / ms,
-                PresentMode = "Hardware: Independent Flip",
-                SyncInterval = 0,
-                Frametimes = times,
-                SpikeAges = [5.0 - 180 * (5.0 / 600), 5.0 - 420 * (5.0 / 600)],
-                PacingMs = 0.6,
-            };
-            snapshot = real with
-            {
-                Time = real.Time.AddSeconds(tick * 1.25),
-                Frames = frames,
-                FrameSourceRunning = true,
-                FrameSourceStatus = "aktiv",
-                MainThread = new ThreadLoad(cpuPhase ? 97 : 71, "RenderThread"),
-                Network = new NetworkData(new PingStats(1, 0.3, 0), new PingStats(14, 2.1, 0), true, 0.4, 0.1),
-                BackgroundCpu = [new ProcessLoad(1, "chrome", 9), new ProcessLoad(2, "Discord", 6)],
-            };
-            verdict = analyzer.Analyze(snapshot);
-            notes = window.LogNotes(verdict, snapshot.Time);
-        }
+            var analyzer = new BottleneckAnalyzer();
+            var window = new OverlayWindow();
+            var rnd = new Random(42);
+            IReadOnlyList<LoggedNote> notes = [];
+            Snapshot? snapshot = null;
+            Verdict? verdict = null;
 
-        // Alle drei Ansichten rendern: preview-kompakt.png, preview-standard.png, preview-analyse.png
-        foreach (var (view, name) in new[] { (OverlayView.Compact, "kompakt"), (OverlayView.Standard, "standard"), (OverlayView.Analysis, "analyse") })
-        {
-            window.ApplyView(view);
-            window.Render(snapshot!, verdict!, notes);
-            window.SaveImage(Path.Combine(AppContext.BaseDirectory, $"preview-{name}.png"));
+            for (int tick = 0; tick < 24; tick++)
+            {
+                await Task.Delay(100);
+                var real = hub.Sample();
+                snapshot = real with
+                {
+                    Time = real.Time.AddSeconds(tick * 1.25),
+                    Network = new NetworkData(new PingStats(1, 0.3, 0), new PingStats(14, 2.1, 0), true, 0.4, 0.1),
+                    BackgroundCpu = scene == "cpu" ? [new ProcessLoad(1, "chrome", 9), new ProcessLoad(2, "Discord", 6)] : [],
+                };
+                if (scene != "leer") snapshot = WithDemoFrames(snapshot, cpuLimited: scene == "cpu" && tick % 6 != 0, rnd);
+                // Ohne Spiel: Die Messung läuft, im Vordergrund ist aber eine KI-App – sie darf nicht bewertet werden
+                else snapshot = snapshot with { FrameSourceRunning = true, FrameSourceStatus = "aktiv", IgnoredApp = "claude" };
+                verdict = analyzer.Analyze(snapshot);
+                notes = window.LogNotes(verdict, snapshot.Time);
+            }
+
+            foreach (var (view, name) in views)
+            {
+                window.ApplyView(view);
+                window.Render(snapshot!, verdict!, notes);
+                var (w, h) = window.SaveImage(Path.Combine(dir, $"preview-{name}-{scene}.png"));
+                sizes.AppendLine($"{name,-9} {scene,-5} {w} × {h}");
+            }
         }
+        File.WriteAllText(Path.Combine(dir, "preview-groessen.txt"), sizes.ToString());
 
         var baseSnapshot = hub.Sample();
         WriteSampleSession(baseSnapshot, "preview-sitzung-vorher.csv", cpuSpeedup: 1.0, seed: 1);
         WriteSampleSession(baseSnapshot, "preview-sitzung-nachher.csv", cpuSpeedup: 1.18, seed: 2);
+    }
+
+    /// <summary>Künstliche Frame-Daten: CPU-limitiert (GPU wartet, Hauptthread voll) oder GPU-limitiert, mit zwei Rucklern.</summary>
+    private static Snapshot WithDemoFrames(Snapshot real, bool cpuLimited, Random rnd)
+    {
+        double ms = cpuLimited ? 8.3 : 7.0;
+        var times = Enumerable.Range(0, 600)
+            .Select(i => (Age: 5.0 - i * (5.0 / 600), Ms: ms + rnd.NextDouble() * 1.2 + (i is 180 or 420 ? 30 : 0)))
+            .ToArray();
+        var frames = new FrameStats(4711, "DemoSpiel.exe", 1000 / ms, 1000 / 14.0, ms, ms + 0.5, 14,
+            cpuLimited ? ms * 0.95 : ms * 0.5, 0.2, cpuLimited ? ms * 0.62 : ms * 0.97, cpuLimited ? ms * 0.33 : 0.1)
+        {
+            AppFps = 1000 / ms,
+            PresentMode = "Hardware: Independent Flip",
+            SyncInterval = 0,
+            Frametimes = times,
+            SpikeAges = [5.0 - 180 * (5.0 / 600), 5.0 - 420 * (5.0 / 600)],
+            PacingMs = 0.6,
+        };
+        return real with
+        {
+            Frames = frames,
+            FrameSourceRunning = true,
+            FrameSourceStatus = "aktiv",
+            MainThread = new ThreadLoad(cpuLimited ? 97 : 71, "RenderThread"),
+        };
     }
 
     /// <summary>

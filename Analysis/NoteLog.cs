@@ -1,7 +1,10 @@
 namespace PerfOverlay.Analysis;
 
 /// <summary>Eine Meldung, wie sie im Overlay angezeigt wird.</summary>
-public sealed record LoggedNote(string Text, Severity Severity, bool Active, TimeSpan SinceLast, int Count);
+public sealed record LoggedNote(string Text, Severity Severity, bool Active, TimeSpan SinceLast, int Count)
+{
+    public NoteCategory Category { get; init; } = NoteCategory.Hint;
+}
 
 /// <summary>
 /// Hält Meldungen fest, damit kurze Ereignisse (z. B. ein Nachlade-Spike) nicht nach 0,5 s wieder verschwinden.
@@ -26,6 +29,7 @@ public sealed class NoteLog
             e.Active = true;
             e.Text = note.Text;                 // während aktiv: aktuellen Wert zeigen, danach eingefroren
             e.Severity = note.Severity;
+            e.Category = note.Category;
             e.LastSeen = now;
         }
 
@@ -40,7 +44,7 @@ public sealed class NoteLog
             .ThenByDescending(e => e.Active ? (int)e.Severity : 0)
             .ThenByDescending(e => e.LastSeen)
             .Take(maxShown)
-            .Select(e => new LoggedNote(e.Text, e.Severity, e.Active, now - e.LastSeen, e.Count))
+            .Select(e => new LoggedNote(e.Text, e.Severity, e.Active, now - e.LastSeen, e.Count) { Category = e.Category })
             .ToList();
     }
 
@@ -48,6 +52,7 @@ public sealed class NoteLog
     {
         public string Text = "";
         public Severity Severity;
+        public NoteCategory Category;
         public DateTime LastSeen;
         public int Count;
         public bool Active;

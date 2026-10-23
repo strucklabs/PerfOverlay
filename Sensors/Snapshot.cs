@@ -175,6 +175,9 @@ public sealed record Snapshot(
     /// <summary>GPU-Spannung, Hotspot und Speichertemperatur aus HWiNFO (null ohne HWiNFO).</summary>
     public GpuThermalData? GpuThermal { get; init; }
 
+    /// <summary>Anwendung im Vordergrund, deren Frames verworfen wurden, weil sie kein Spiel ist (Browser, KI-App …).</summary>
+    public string? IgnoredApp { get; init; }
+
     public HwInfoStatus HwInfoStatus { get; init; } = HwInfoStatus.NotRunning;
 
     public NetworkData? Network { get; init; }

@@ -145,7 +145,7 @@ public sealed class SessionRecorder : IDisposable
     /// Neue Sitzung nur für ein Spiel im Vordergrund – Browser, Launcher und Apps mit DirectX-Oberfläche
     /// (Steam, Discord, Electron-Apps) liefern ebenfalls Frames.
     /// </summary>
-    private static bool IsGameInForeground(Snapshot s, FrameStats f) => f.Pid == s.ForegroundPid && !IsNonGame(f.App);
+    private static bool IsGameInForeground(Snapshot s, FrameStats f) => f.Pid == s.ForegroundPid && !GameFilter.IsNonGame(f.App);
 
     /// <summary>Kürzere Sitzungen (kurz angeklickt, Alt+Tab) werden wieder gelöscht.</summary>
     private static readonly TimeSpan MinimumSession = TimeSpan.FromSeconds(60);
@@ -162,29 +162,6 @@ public sealed class SessionRecorder : IDisposable
         }
         CurrentFile = null;
     }
-
-    private static readonly HashSet<string> NonGames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        // Browser
-        "chrome", "msedge", "firefox", "opera", "opera_gx", "brave", "vivaldi", "iexplore", "msedgewebview2",
-        // Launcher und Chat
-        "steam", "steamwebhelper", "EpicGamesLauncher", "EpicWebHelper", "Battle.net", "EADesktop", "Origin",
-        "GalaxyClient", "UbisoftConnect", "upc", "RiotClientUx", "Discord", "Teams", "ms-teams", "slack", "Telegram", "WhatsApp",
-        // Electron-/Desktop-Apps, Medien, System
-        "claude", "Code", "Spotify", "explorer", "dwm", "ApplicationFrameHost", "SearchHost", "StartMenuExperienceHost",
-        "TextInputHost", "ShellExperienceHost", "vlc", "mpc-hc64", "obs64", "PerfOverlay", "PresentMon",
-        "SystemSettings", "Taskmgr", "mmc",
-        // Hardware- und Tuning-Tools: zeichnen ihre Oberfläche oft über die GPU und laufen beim Einstellen
-        // minutenlang im Vordergrund. Benchmarks (3DMark, FurMark …) bleiben bewusst aufzeichenbar.
-        "EasyTune", "GCC", "GigabyteControlCenter", "AppCenter", "RGBFusion",
-        "MSIAfterburner", "RTSS", "MSI Center", "MSI.Center",
-        "ArmouryCrate", "AISuite3", "GPUTweakIII", "GPU Tweak III",
-        "iCUE", "NZXT CAM", "SignalRgb", "L-Connect 3", "FanControl",
-        "HWiNFO64", "HWiNFO32", "aida64", "cpuz", "cpuz_x64", "GPU-Z", "OCCT", "ThrottleStop",
-        "RadeonSoftware", "NVIDIA App", "NVIDIA Overlay", "NVIDIA GeForce Experience", "nvcplui",
-    };
-
-    private static bool IsNonGame(string app) => NonGames.Contains(Path.GetFileNameWithoutExtension(app));
 
     public void Dispose() => Stop();
 

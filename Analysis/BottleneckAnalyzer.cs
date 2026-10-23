@@ -9,7 +9,10 @@ public enum Severity { Good, Info, Warn, Bad }
 public enum BottleneckKind { None, Gpu, Cpu, Limit, Mixed }
 
 /// <param name="Key">Stabile Kennung (unabhängig von Messwerten im Text), damit das NoteLog Wiederholungen erkennt.</param>
-public sealed record Note(string Key, string Text, Severity Severity);
+public sealed record Note(string Key, string Text, Severity Severity)
+{
+    public NoteCategory Category => NoteCategories.Of(Key);
+}
 
 public sealed record Verdict(string Title, string Detail, Severity Severity, IReadOnlyList<Note> Notes)
 {
@@ -242,7 +245,7 @@ public sealed class BottleneckAnalyzer
         }
 
         // --- Speicher & Datenträger ---
-        // "Pages Input/sec" zählt auch Spieldaten, die per Memory-Mapping von der SSD gelesen werden.
+        // "Pages Input/sec" zählt auch Spieldaten, die per Memory-Mapping vom Laufwerk gelesen werden.
         // Ein hoher Wert allein ist daher normales Asset-Streaming; echte RAM-Knappheit erst bei hoher Belegung.
         var mem = s.Memory;
         bool heavyPaging = mem.PagesInPerSec > 500;
@@ -250,7 +253,7 @@ public sealed class BottleneckAnalyzer
         if (memoryPressure)
             notes.Add(new("ram", $"RAM knapp ({mem.LoadPercent:0} % belegt, {mem.PagesInPerSec:0} Seiten/s nachgeladen)", Severity.Warn));
         else if (mem.PagesInPerSec > 2000)
-            notes.Add(new("pagein", $"Starkes Nachladen von SSD ({mem.PagesInPerSec:0} Seiten/s) – meist Level-/Asset-Streaming", Severity.Info));
+            notes.Add(new("pagein", $"Starkes Nachladen vom Laufwerk ({mem.PagesInPerSec:0} Seiten/s) – meist Level-/Asset-Streaming", Severity.Info));
         if (s.Disk.ActivePercent > 80 && s.Disk.LatencyMs > 20)
             notes.Add(new("disk", $"Datenträger ausgelastet ({s.Disk.LatencyMs:0} ms Latenz)", Severity.Warn));
 
@@ -272,8 +275,14 @@ public sealed class BottleneckAnalyzer
         if (f != null && f.AvgMs > 0 && !double.IsNaN(f.GpuBusyMs) && !double.IsNaN(f.CpuBusyMs))
             return EvaluateFrames(s, f, notes, xmpOff);
 
-        // --- Fallback ohne Frame-Daten ---
-        string why = s.FrameSourceRunning ? "keine 3D-Anwendung erkannt" : s.FrameSourceStatus;
+        // --- Messung läuft, aber kein Spiel im Vordergrund: kein Engpass-Urteil, nur Hinweise ---
+        if (s.FrameSourceRunning)
+            return new("KEIN SPIEL", s.IgnoredApp != null
+                ? $"Im Vordergrund: {s.IgnoredApp} (kein Spiel, wird nicht bewertet)"
+                : "Wartet auf ein Spiel im Vordergrund", Severity.Info, notes);
+
+        // --- Fallback ohne Frame-Messung (z. B. ohne Admin-Rechte): Schätzung aus der Auslastung ---
+        string why = s.FrameSourceStatus;
         if (gpuLoad >= 95)
             return new("GPU-LIMITIERT", $"GPU {gpuLoad:0} % (geschätzt, {why})", Severity.Good, notes);
         // Bei Hybrid-CPUs zählen nur die P-Kerne: Ein voller E-Kern (z. B. Hintergrund-Update) bremst kein Spiel.
@@ -440,7 +449,7 @@ public sealed class BottleneckAnalyzer
             .Where(h => Math.Abs((h.Time - time).TotalSeconds) <= 0.75)
             .ToList();
         if (near.Any(h => h.VramSpill)) return "VRAM-Auslagerung";
-        if (near.Any(h => h.PagesIn > 500 || h.DiskActive > 50)) return "Nachladen von SSD";
+        if (near.Any(h => h.PagesIn > 500 || h.DiskActive > 50)) return "Nachladen vom Laufwerk";
         if (near.Any(h => h.CpuTotal >= 90 || h.MaxPerfCore >= 98)) return "CPU-Spitze";
         return "unklar (z. B. Shader-Kompilierung)";
     }

@@ -24,14 +24,28 @@ Das Overlay ist nur über **randlosen Fenstermodus / Fenstermodus** sichtbar, ni
 
 Beenden über das Tray-Icon (Rechtsklick → Beenden).
 
-**Ansichten** – jede mit fester Größe, das Overlay ändert seine Größe nur beim Umschalten:
-- **Kompakt** (260 px): Urteil, FPS, kleiner Frametime-Graph, je eine Zeile CPU/GPU, wichtigste Meldung
-- **Standard** (340 px, Voreinstellung): Urteil mit Anteilen und Tipp, zwei Meldungen, FPS mit Graph und Pacing,
-  CPU und GPU nebeneinander, RAM-Bestückung
-- **Analyse** (460 px): alle Werte, gegliedert in Bild, Prozessor, Grafikkarte, System – inkl. CPU-/GPU-Arbeitszeit
-  pro Frame, Kernbalken, GPU-Speicher/Hotspot und GPU-Nutzern
+**Ansichten** – alle stellen den Engpass in den Vordergrund, sind 400 px breit und haben eine feste Höhe (das Overlay
+ändert seine Größe nur beim Umschalten), und überall steht unten die Hotkey-Zeile:
+- **Kompakt** (Voreinstellung beim ersten Start): Urteil mit gemessener Anwendung, FPS und 1%-Low, Tipp, bis zu drei
+  Engpass-Meldungen
+- **Standard**: Urteil mit Anteilen der letzten 30 s, Beleg (z. B. „GPU wartet 2,7 ms · Hauptthread 97 %“) und Tipp,
+  zwei Engpass-Meldungen, FPS mit Anwendung und Pacing, Belege als Balken (CPU-/GPU-Arbeitszeit pro Bild), eine
+  Zeile „Spiel-Thread“ (Hauptthread des Spiels mit Namen, stärkster P-Kern) und eine Zeile Takt/Temperatur/Leistung
+  beider Bauteile
+- **Analyse**: oben identisch mit Standard, darunter abgesetzt die **Details**: Bild (Frametime-Verlauf der letzten
+  5 s), Prozessor (Last, Takt, Kernbalken), Grafikkarte (VRAM, Speicher/Hotspot, Lüfter, PCIe, P-Status,
+  GPU-Nutzer), System (RAM und Bestückung, Laufwerk, Datenquellen), Verbindung und weitere Hinweise
 
-`PerfOverlay.exe --preview` rendert alle drei Ansichten mit künstlichen Daten nach `preview-*.png`.
+Gemessen wird die Anwendung im Vordergrund. Browser, KI-Apps (Claude, ChatGPT, Copilot …), Terminals, Launcher und
+Hardware-Tools geben zwar auch Bilder aus, werden aber nicht bewertet – dann steht „KEIN SPIEL“ mit ihrem Namen da
+(Liste in `Analysis\GameFilter.cs`, dieselbe gilt für die Aufzeichnung).
+
+Meldungen sind in zwei Gruppen eingeteilt (`Analysis\NoteCategories.cs`): **Engpass** (Drosselung, Ruckler, VRAM/RAM
+voll, Pacing, Fremdlast auf der GPU …) steht in allen Ansichten oben, **Hinweise** (HWiNFO, Hintergrundlast,
+RAM-Konfiguration, PCIe, Verbindung …) nur in der Analyse unter „Weitere Hinweise“.
+
+`PerfOverlay.exe --preview` rendert alle drei Ansichten mit künstlichen Daten – je eine CPU- und eine GPU-limitierte
+Szene und eine ohne Spiel mit einer KI-App im Vordergrund – nach `preview-<ansicht>-<szene>.png`; `preview-groessen.txt` hält die Maße fest.
 
 Ecke bzw. gezogene Position, Monitor, Ansicht und „Sitzungen aufzeichnen“ werden in
 `%APPDATA%\PerfOverlay\einstellungen.json` gespeichert. Ist der gespeicherte Monitor nicht angeschlossen,
@@ -47,19 +61,26 @@ Frames oder beim Spielwechsel beginnt eine neue Datei. Abschaltbar im Tray-Menü
 
 `Auswertung\PerfOverlay-Auswertung.html` (Tray-Menü → „Auswertung öffnen“) wertet die Dateien per Drag & Drop
 im Browser aus – ohne Internet, ohne Upload:
-- **Auf einen Blick**: 3–6 Kernaussagen nach festen Schwellen (Gleichmäßigkeit, Ruckler, Engpass, Drosselung,
-  Speichertemperatur, Verbindung) – als Hinweis formuliert, nicht als Diagnose
+- **Ergebnis: Was hat gebremst?** ganz oben: Hauptengpass mit Anteil, Belege (wie viel der Bildzeit die GPU arbeitet,
+  wie lange sie auf die CPU wartet, Hauptthread), „Was bringt mehr FPS?“ passend zum Engpass, bei Drosselung zuerst
+  der Hinweis auf die Kühlung; darunter Arbeitszeit pro Bild mit Engpass-Streifen und Auslastung
+- **Auf einen Blick**: Kernaussagen nach festen Schwellen – Engpass zuerst, dann Drosselung, Gleichmäßigkeit und
+  Ruckler; Temperaturen ohne Drosselung und die Verbindung als „Nebenbefunde“. Als Hinweis formuliert, nicht als Diagnose
 - Aufklappbare Abschnitte (Zustand wird im Browser gemerkt), jeder mit einer Lesehilfe „So liest du das“
 - Fehlende Werte werden je Abschnitt mit Grund genannt: ältere Aufzeichnung, HWiNFO nicht aktiv,
   nur bei NVIDIA verfügbar, Spiel nicht auslesbar (Anti-Cheat), Ping-Messung aus
-- Zusammenfassung: Ø FPS, Ø 1%-Low, Ruckler pro Minute, Hauptengpass, **Ø FPS im CPU-Limit**, Temperaturen
-- Engpass-Anteile, Verlaufsdiagramme (FPS mit Engpass-Streifen und Rucklern, CPU-/GPU-Arbeitszeit,
-  Auslastung, Temperaturen) mit synchronem Fadenkreuz. Bei langen Sitzungen je Pixelspalte zusammengefasst
+- Reihenfolge: Ergebnis, Auf einen Blick, Meldungen, Zusammenfassung, Bild und Ruckler, Prozessor, Grafikkarte,
+  Verbindung (zugeklappt – sie betrifft den Lag, nicht die FPS)
+- Zusammenfassung: Ø FPS, Ø 1%-Low, Hauptengpass, **Ø FPS im CPU-Limit**, Ruckler pro Minute, Drosselung;
+  Temperaturen, Takt und Ping stehen in ihren Abschnitten
+- Verlaufsdiagramme (FPS mit Engpass-Streifen und Rucklern, CPU-/GPU-Arbeitszeit, Auslastung, Temperaturen)
+  mit synchronem Fadenkreuz. Bei langen Sitzungen je Pixelspalte zusammengefasst
   (Mittelwert als Linie, Minimum bis Maximum als Band); Zeitbereich mit der Maus aufziehen zoomt alle
   Diagramme synchron, Doppelklick zeigt wieder die ganze Sitzung
 - Mehrere Dateien: Vergleichstabelle mit Abweichung zur ersten Sitzung, z. B. vor/nach XMP.
   „Ø FPS im CPU-Limit“ zeigt den Effekt von schnellerem RAM am deutlichsten. Darüber eine Einordnung je
-  Sitzung (besser/schlechter/gemischt) und ein Hinweis, wenn die Sitzungen aus verschiedenen Spielen stammen.
+  Sitzung: zuerst die Verschiebung des Engpasses (z. B. „CPU-Limit 70 % → 20 %“, Anteile in Prozentpunkten),
+  dann besser/schlechter/gemischt, und ein Hinweis, wenn die Sitzungen aus verschiedenen Spielen stammen.
 
 `PerfOverlay.exe --preview` erzeugt neben der EXE zusätzlich zwei **künstliche** Beispielsitzungen
 (`preview-sitzung-vorher.csv` / `-nachher.csv`) zum Ausprobieren der Auswertung.
@@ -109,8 +130,8 @@ Verbindung (bremst keine FPS, verursacht aber Lag in Online-Spielen): Schwankt s
 (Verlust ≥ 3 %, Jitter ≥ 8 ms oder Ø ≥ 20 ms), liegt es am eigenen Netz – oft WLAN. Ist der Router stabil, das
 Internet-Ziel aber nicht (Verlust ≥ 3 %, Jitter ≥ 15 ms oder Ø ≥ 100 ms), liegt es dahinter. Router, die Ping
 grundsätzlich nicht beantworten, lösen keinen Hinweis aus. Zusätzlich ein Hinweis bei großem Down-/Upload
-während des Spielens, mit dem vermutlichen Verursacher. In Kompakt/Standard nur als Hinweis, in der Analyse-Ansicht
-als Abschnitt „Verbindung“.
+während des Spielens, mit dem vermutlichen Verursacher. Diese Meldungen sind Hinweise und erscheinen nur in der
+Analyse-Ansicht – unter „Weitere Hinweise“ und im Abschnitt „Verbindung“.
 
 Tests: `dotnet test tests\PerfOverlay.Tests` (Ruckler/Pacing, Engpass-Analyse mit echten Warframe-Fällen,
 Sitzungsaufzeichnung inkl. Alt+Tab, RAM-Teilenummern).

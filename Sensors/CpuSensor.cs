@@ -35,9 +35,15 @@ internal sealed class CpuSensor
         var freq = PerCore(_pdh.GetArray(_coreFreq));
 
         var mhz = new List<double>();
+        var busyMhz = new List<double>();
         foreach (var (key, f) in freq)
             if (perf.TryGetValue(key, out double p) && f > 0)
+            {
                 mhz.Add(f * p / 100.0);
+                // "% Processor Performance" springt bei fast ruhenden Kernen (kaum Arbeit im Messfenster) auf
+                // unrealistische Werte – für den Höchsttakt zählen deshalb nur Kerne, die wirklich arbeiten
+                if (loads.TryGetValue(key, out double load) && load >= 20) busyMhz.Add(f * p / 100.0);
+            }
 
         double total = _pdh.Get(_totalUtility) ?? _pdh.Get(_totalTime) ?? loads.Values.DefaultIfEmpty(0).Average();
 
@@ -45,7 +51,7 @@ internal sealed class CpuSensor
             Math.Clamp(total, 0, 100),
             loads.Values.Select(v => Math.Clamp(v, 0, 100)).ToArray(),
             mhz.Count > 0 ? mhz.Average() : 0,
-            mhz.Count > 0 ? mhz.Max() : 0)
+            busyMhz.Count > 0 ? busyMhz.Max() : mhz.Count > 0 ? mhz.Average() : 0)
         {
             PerfLimitPercent = _pdh.Get(_perfLimit),
             CoreClasses = loads.Keys.Select(k => Native.CpuTopology.Get(k.Group, k.Index)?.EfficiencyClass ?? 0).ToArray(),

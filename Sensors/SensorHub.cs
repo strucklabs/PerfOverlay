@@ -64,6 +64,13 @@ internal sealed class SensorHub : IDisposable
 
         int foregroundPid = Win32.GetForegroundProcessId();
         var frames = _presentMon.GetStats(foregroundPid);
+        // Browser, KI-Apps, Terminals, Tools: messen, aber nicht als Spiel bewerten
+        string? ignoredApp = null;
+        if (frames != null && Analysis.GameFilter.IsNonGame(frames.App))
+        {
+            ignoredApp = System.IO.Path.GetFileNameWithoutExtension(frames.App);
+            frames = null;
+        }
         int gamePid = frames?.Pid ?? 0;
 
         return new Snapshot(
@@ -87,6 +94,7 @@ internal sealed class SensorHub : IDisposable
             ForegroundPid = foregroundPid,
             GpuThermal = MergeThermal(_hwInfo.Gpu, adlxThermal),   // _hwInfo.Gpu wird beim _hwInfo.Read() oben mitgelesen
             HwInfoStatus = _hwInfo.Status,
+            IgnoredApp = ignoredApp,
         };
     }
 

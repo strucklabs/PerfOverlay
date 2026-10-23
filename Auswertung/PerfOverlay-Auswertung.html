@@ -19,7 +19,7 @@
     }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.55 "Segoe UI", system-ui, sans-serif; }
   header { display: flex; align-items: center; gap: 12px; padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--panel); }
   header svg { flex: none; }
   header h1 { font-size: 18px; margin: 0; font-weight: 600; }
@@ -39,32 +39,32 @@
   .compact #drop p { margin: 0; flex: 1; }
   .compact #drop button { margin: 0; }
 
-  #tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0; }
+  #tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 20px; }
   .tab { padding: 6px 12px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 6px; }
   .tab.active { border-color: var(--accent); background: var(--panel2); }
   .tab .dot { width: 8px; height: 8px; border-radius: 50%; }
   .tab .x { color: var(--muted); margin-left: 4px; }
   .tab .x:hover { color: var(--bad); }
 
-  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin-bottom: 16px; }
-  section h2 { font-size: 15px; margin: 0 0 12px; font-weight: 600; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px 24px; margin-bottom: 22px; }
+  section h2 { font-size: 15px; margin: 0 0 14px; font-weight: 600; }
   section h2 small { color: var(--muted); font-weight: 400; margin-left: 6px; }
-  .meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+  .meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 22px; }
   .meta b { color: var(--text); font-weight: 500; }
 
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-  .card { background: var(--panel2); border-radius: 8px; padding: 10px 12px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin: 4px 0 8px; }
+  .card { background: var(--panel2); border-radius: 8px; padding: 12px 16px; }
   .card .k { color: var(--muted); font-size: 12px; }
   .card .v { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .card .v small { font-size: 13px; color: var(--muted); font-weight: 400; }
 
-  .sharebar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--panel2); margin: 6px 0 8px; }
-  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--muted); }
+  .sharebar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--panel2); margin: 10px 0 10px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 13px; color: var(--muted); }
   .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; background: var(--c); vertical-align: -1px; }
 
-  .chart { position: relative; margin-top: 4px; }
+  .chart { position: relative; margin-top: 10px; }
   .chart svg.plot { display: block; width: 100%; overflow: visible; }
-  .chart .title { font-size: 13px; color: var(--muted); margin: 10px 0 2px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .chart .title { font-size: 13px; color: var(--muted); margin: 18px 0 6px; display: flex; gap: 16px; flex-wrap: wrap; }
   .chart .title b { color: var(--text); font-weight: 500; }
   .chart .title .zoom { margin-left: auto; color: var(--limit); cursor: pointer; }
   .chart svg.plot { cursor: crosshair; }
@@ -76,7 +76,7 @@
   #tip b { font-weight: 600; }
 
   table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
-  th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--line); }
   th:first-child, td:first-child { text-align: left; }
   th { color: var(--muted); font-weight: 500; }
   td .d { font-size: 12px; margin-left: 6px; }
@@ -91,24 +91,39 @@
   details.fold > summary::before { content: "▸"; color: var(--muted); display: inline-block; transition: transform .15s; }
   details.fold[open] > summary::before { transform: rotate(90deg); }
   details.fold > summary h2 { margin: 0; }
-  details.fold[open] > summary { margin-bottom: 12px; }
+  details.fold[open] > summary { margin-bottom: 16px; }
   /* Lesehilfe je Abschnitt */
-  .help { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+  .help { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
   .help > summary { cursor: pointer; color: var(--limit); width: fit-content; }
-  .help > div { margin-top: 6px; line-height: 1.6; border-left: 2px solid var(--line); padding-left: 10px; }
-  .help ul { margin: 4px 0; padding-left: 18px; }
+  .help > div { margin-top: 8px; line-height: 1.65; border-left: 2px solid var(--line); padding-left: 12px; }
+  .help ul { margin: 6px 0; padding-left: 18px; }
+  .help li { margin: 4px 0; }
   .help p { margin: 4px 0; }
-  .gaps { margin: 0 0 12px; padding: 8px 12px; border-radius: 8px; background: var(--bg); border: 1px dashed var(--line); font-size: 13px; color: var(--muted); }
+  .gaps { margin: 0 0 16px; padding: 10px 14px; border-radius: 8px; background: var(--bg); border: 1px dashed var(--line); font-size: 13px; color: var(--muted); }
   .gaps p { margin: 2px 0; }
   .gaps b { color: var(--text); font-weight: 500; }
   .help b { color: var(--text); font-weight: 500; }
   /* Einordnung "Auf einen Blick" */
-  .insights { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
-  .insights li { display: flex; gap: 10px; align-items: baseline; }
-  .insights .i { flex: none; width: 16px; text-align: center; font-weight: 600; }
-  .lv-good .i { color: var(--gpu); } .lv-info .i { color: var(--limit); }
-  .lv-warn .i { color: var(--cpu); } .lv-bad .i { color: var(--bad); }
-  .insights-hint { color: var(--muted); font-size: 13px; margin-top: 10px; }
+  .insights { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+  .insights li { display: flex; gap: 12px; align-items: flex-start; line-height: 1.5; }
+  .ico { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px;
+         border-radius: 50%; border: 1.5px solid currentColor; font-size: 12px; font-weight: 700; line-height: 1;
+         font-family: "Segoe UI", system-ui, sans-serif; margin-top: 1px; }
+  .lv-good .ico { color: var(--gpu); } .lv-info .ico { color: var(--limit); }
+  .lv-warn .ico { color: var(--cpu); } .lv-bad .ico { color: var(--bg); background: var(--bad); border-color: var(--bad); }
+  .legend-ico { display: inline-flex; align-items: center; gap: 6px; margin-right: 14px; }
+  .legend-ico .ico { width: 17px; height: 17px; font-size: 10.5px; margin: 0; }
+  .result-section { border-color: color-mix(in srgb, var(--limit) 35%, var(--line)); }
+  .result { border-left: 4px solid var(--c); padding: 6px 0 6px 14px; margin: 6px 0 16px; }
+  .result .r-title { font-size: 22px; font-weight: 600; color: var(--c); }
+  .result .r-sub { color: var(--muted); margin-top: 4px; }
+  .evidence { font-size: 13px; color: var(--muted); margin: 16px 0; line-height: 1.7; }
+  .evidence b { color: var(--text); font-weight: 500; }
+  .tips { background: var(--panel2); border-radius: 8px; padding: 14px 18px; margin: 16px 0 8px; font-size: 14px; }
+  .tips ul { margin: 8px 0 0; padding-left: 20px; }
+  .tips li { margin: 6px 0; }
+  .side-head { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 22px 0 12px; }
+  .insights-hint { color: var(--muted); font-size: 13px; margin-top: 18px; }
   @media (max-width: 640px) { header, main { padding-left: 16px; padding-right: 16px; } .card .v { font-size: 18px; } }
 </style>
 </head>
@@ -264,7 +279,7 @@ function computeStats(d) {
     spikesPerMin: duration ? spikes / (duration / 60) : 0,
     fps: avg(d.fps), fpsApp: avg(d.fpsApp), low1: avg(d.low1), worstLow1: min(d.low1), ft: avg(d.ft),
     fpsCpu: cpuIdx.length ? avg(cpuIdx.map(i => d.fps[i])) : null,
-    cpuBusy: avg(d.cpuBusy), gpuBusy: avg(d.gpuBusy), thread: avg(d.thread),
+    cpuBusy: avg(d.cpuBusy), gpuBusy: avg(d.gpuBusy), gpuWait: avg(d.gpuWait), thread: avg(d.thread),
     cpu: avg(d.cpu), gpu: avg(d.gpu), cpuTempMax: max(d.cpuTemp), gpuTempMax: max(d.gpuTemp),
     cpuW: avg(d.cpuW), gpuW: avg(d.gpuW), vramMax: max(d.vram), spillMax: max(d.spill),
     gpuMhzLoad: loadIdx.length ? avg(loadIdx.map(i => d.gpuMhz[i])) : null,
@@ -330,6 +345,8 @@ function section(parent, title, sub, opt = {}) {
   parent.append(s);
   if (!opt.id) {
     s.innerHTML = heading;
+    if (opt.help) s.insertAdjacentHTML("beforeend", `<details class="help"><summary>So liest du das</summary><div>${opt.help}</div></details>`);
+    if (opt.fixed) s.classList.add("result-section");
     return s;
   }
 
@@ -365,65 +382,58 @@ function renderSession(view, s) {
       ${m["Windows"] ? `<span>Windows <b>${esc(m["Windows"])}</b></span>` : ""}
     </div>`);
 
+  const has = key => d[key].some(v => v !== null);
+  /** Diagramm nur mit Linien, für die es Werte gibt – ganz ohne Werte entfällt es (der Grund steht im Hinweis darüber) */
+  const plot = (parent, title, series, opt) => { const x = series.filter(x => has(x.key)); if (x.length) chart(parent, s, title, x, opt); };
+
+  // Ergebnis zuerst: Dafür ist PerfOverlay da – was hat gebremst, woran sieht man das, was hilft
+  const res = section(view, "Ergebnis: Was hat gebremst?", "", { fixed: true, help: HELP.result });
+  res.insertAdjacentHTML("beforeend", resultBlock(s));
+  gapNote(res, s, ["cpuBusy", "gpuBusy", "thread"]);
+  plot(res, "Arbeitszeit pro Bild (ms) – der höhere Wert bremst", [
+    { key: "cpuBusy", label: "CPU", color: "var(--cpu)" },
+    { key: "gpuBusy", label: "GPU", color: "var(--gpu)" },
+    { key: "ft", label: "Bildzeit", color: "var(--muted)", dash: "3 3" },
+  ], { min: 0, unit: " ms", strip: true });
+  plot(res, "Auslastung (%)", [
+    { key: "gpu", label: "GPU", color: "var(--gpu)" },
+    { key: "thread", label: "Hauptthread", color: "var(--cpu)" },
+    { key: "cpu", label: "CPU gesamt", color: "var(--limit)" },
+  ], { min: 0, max: 100, unit: " %" });
+
   const glance = section(view, "Auf einen Blick", "automatische Einordnung", { id: "glance", open: true, help: HELP.glance });
-  glance.insertAdjacentHTML("beforeend", insightList(insightsFor(s), "Regelbasierte Einordnung nach festen Schwellen – ein Hinweis, keine Diagnose."));
+  const ins = insightsFor(s);
+  glance.insertAdjacentHTML("beforeend", insightList(ins.main) + (ins.side.length ? `<div class="side-head">Nebenbefunde</div>${insightList(ins.side)}` : "")
+    + `<p class="insights-hint">Regelbasierte Einordnung nach festen Schwellen – ein Hinweis, keine Diagnose.</p>`);
 
   const nt = section(view, "Meldungen", "wie lange sie aktiv waren", { id: "notes", open: true, help: HELP.notes });
   nt.insertAdjacentHTML("beforeend", st.notes.length
     ? `<table class="notes"><tbody>${st.notes.slice(0, 15).map(n => `<tr><td>${esc(n.text)}</td><td class="n">${clock(n.seconds)}</td><td class="n">ab ${clock(n.first - d.t[0])}</td></tr>`).join("")}</tbody></table>`
     : `<p class="empty">Keine Meldungen in dieser Sitzung.</p>`);
 
+  // Zusammenfassung: nur, was zum Engpass und zum Spielgefühl gehört – Temperaturen & Co. stehen in ihren Abschnitten
   const fg = st.fpsApp && st.fps && st.fpsApp < st.fps * 0.8;
+  const thr = throttleShares(st);
+  const throttleText = thr.cpu < 0.01 && thr.gpu < 0.01 ? "keine"
+    : [thr.cpu >= 0.01 ? `CPU ${pct(thr.cpu)}` : "", thr.gpu >= 0.01 ? `GPU ${pct(thr.gpu)}` : ""].filter(Boolean).join(" · ");
   const sum = section(view, "Zusammenfassung", "", { id: "summary", open: true, help: HELP.summary });
   sum.insertAdjacentHTML("beforeend", `
     <div class="cards">
       ${card("Ø FPS", fmt(st.fps, 0), fg ? `${fmt(st.fpsApp, 0)} vom Spiel` : "")}
       ${card("Ø 1%-Low", fmt(st.low1, 0), `schlechteste Sekunde ${fmt(st.worstLow1, 0)}`)}
-      ${card("Ø Frametime", fmt(st.ft, 1), "ms")}
-      ${card("Ruckler", fmt(st.spikes, 0), `${fmt(st.spikesPerMin, 1)} pro Minute`)}
-      ${card("Frame-Pacing", st.pacing === null ? "–" : "±" + fmt(st.pacing, 1) + " <small>ms</small>",
-          st.pacing === null ? "nicht aufgezeichnet" : pacingRating(st.pacing, st.ft))}
       ${card("Hauptengpass", st.top ? KINDS[st.top[0]]?.short ?? st.top[0] : "–", st.top ? pct(st.top[1]) + " der Zeit" : "")}
       ${card("Ø FPS im CPU-Limit", fmt(st.fpsCpu, 0), st.fpsCpu === null ? "kein CPU-Limit" : "hier wirken RAM/CPU")}
-      ${card("CPU max", fmt(st.cpuTempMax, 0, " °C"), [
-          st.cpuW !== null ? `Ø ${fmt(st.cpuW, 0)} W` : "",
-          st.cpuFan !== null ? `Lüfter Ø ${fmt(st.cpuFan, 0)} U/min` : "",
-        ].filter(Boolean).join(" · "))}
-      ${card("GPU max", fmt(st.gpuTempMax, 0, " °C"), [
-          st.hotspotMax !== null ? `Hotspot ${fmt(st.hotspotMax, 0)}` : "",
-          st.memTempMax !== null ? `Speicher ${fmt(st.memTempMax, 0)} °C` : "",
-        ].filter(Boolean).join(" · ") || (st.gpuW !== null ? `Ø ${fmt(st.gpuW, 0)} W` : ""))}
-      ${card("Verbindung", st.pingNet === null ? "–" : fmt(st.pingNet, 0) + " <small>ms</small>", st.pingNet === null
-          ? "nicht aufgezeichnet"
-          : `±${fmt(st.jitterNet, 0)} ms · Verlust max ${fmt(st.lossNetMax, 0, " %")}`)}
-      ${card("GPU unter Last", fmt(st.gpuMhzLoad, 0, " MHz"), [
-          st.gpuVLoad !== null ? `${fmt(st.gpuVLoad, 3)} V` : "",
-          st.gpuWLoad !== null ? `${fmt(st.gpuWLoad, 0)} W` : "",
-          st.gpuFanLoad !== null ? `Lüfter ${fmt(st.gpuFanLoad, 0)} %` : "",
-        ].filter(Boolean).join(" · ") || "GPU ≥ 90 % ausgelastet")}
+      ${card("Ruckler", fmt(st.spikesPerMin, 1), `pro Minute · ${fmt(st.spikes, 0)} gesamt`)}
+      ${card("Drosselung", throttleText, throttleText === "keine" ? "weder CPU noch GPU" : "Anteil der Spielzeit")}
     </div>`);
-  if ([st.cpuTempMax, st.gpuTempMax, st.pacing, st.pingNet, st.gpuMhzLoad].includes(null))
-    sum.insertAdjacentHTML("beforeend", `<p class="empty">„–“ heißt: nicht aufgezeichnet. Warum, steht im jeweiligen Abschnitt weiter unten.</p>`);
-
-  const has = key => d[key].some(v => v !== null);
-  /** Diagramm nur mit Linien, für die es Werte gibt – ganz ohne Werte entfällt es (der Grund steht im Hinweis darüber) */
-  const plot = (parent, title, series, opt) => { const x = series.filter(x => has(x.key)); if (x.length) chart(parent, s, title, x, opt); };
-
-  const bn = section(view, "Engpass", "was die Bildrate begrenzt", { id: "bottleneck", help: HELP.bottleneck });
-  gapNote(bn, s, ["cpuBusy", "gpuBusy", "thread"]);
-  bn.insertAdjacentHTML("beforeend", shareBar(st.shares));
-  plot(bn, "Arbeitszeit pro Frame (ms) – der höhere Wert bremst", [
-    { key: "cpuBusy", label: "CPU", color: "var(--cpu)" },
-    { key: "gpuBusy", label: "GPU", color: "var(--gpu)" },
-    { key: "ft", label: "Frametime", color: "var(--muted)", dash: "3 3" },
-  ], { min: 0, unit: " ms" });
-  plot(bn, "Auslastung (%)", [
-    { key: "gpu", label: "GPU", color: "var(--gpu)" },
-    { key: "thread", label: "Hauptthread", color: "var(--cpu)" },
-    { key: "cpu", label: "CPU gesamt", color: "var(--limit)" },
-  ], { min: 0, max: 100, unit: " %" });
 
   const img = section(view, "Bild und Ruckler", "Mauszeiger für Einzelwerte, Bereich ziehen zum Vergrößern", { id: "frames", help: HELP.frames });
+  img.insertAdjacentHTML("beforeend", `
+    <div class="cards">
+      ${card("Ø Bildzeit", fmt(st.ft, 1), "ms")}
+      ${card("Frame-Pacing", st.pacing === null ? "–" : "±" + fmt(st.pacing, 1) + " <small>ms</small>",
+          st.pacing === null ? "nicht aufgezeichnet" : pacingRating(st.pacing, st.ft))}
+    </div>`);
   gapNote(img, s, ["pacing"]);
   plot(img, "Bilder pro Sekunde", [
     { key: "fps", label: "FPS", color: s.color },
@@ -431,11 +441,29 @@ function renderSession(view, s) {
   ], { min: 0, markers: true, strip: true });
 
   const cpu = section(view, "Prozessor", "", { id: "cpu", help: HELP.cpu });
+  if (st.cpuTempMax !== null || st.cpuW !== null || st.cpuFan !== null)
+    cpu.insertAdjacentHTML("beforeend", `<div class="cards">
+      ${card("CPU max", fmt(st.cpuTempMax, 0, " °C"), "")}
+      ${card("Ø Leistung", fmt(st.cpuW, 0, " W"), "")}
+      ${card("Ø Lüfter", fmt(st.cpuFan, 0), st.cpuFan === null ? "" : `U/min · max ${fmt(st.cpuFanMax, 0)}`)}
+    </div>`);
   gapNote(cpu, s, ["cpuTemp", "cpuW", "cpuFanRpm"]);
   plot(cpu, "CPU-Temperatur (°C)", [{ key: "cpuTemp", label: "CPU", color: "var(--cpu)" }], { unit: " °C" });
   plot(cpu, "CPU-Lüfter (U/min)", [{ key: "cpuFanRpm", label: "CPU-Lüfter", color: "var(--cpu)" }], { min: 0, unit: " U/min" });
 
   const gpu = section(view, "Grafikkarte", "", { id: "gpu", help: HELP.gpu });
+  if (st.gpuTempMax !== null || st.gpuMhzLoad !== null)
+    gpu.insertAdjacentHTML("beforeend", `<div class="cards">
+      ${card("GPU max", fmt(st.gpuTempMax, 0, " °C"), [
+          st.hotspotMax !== null ? `Hotspot ${fmt(st.hotspotMax, 0)}` : "",
+          st.memTempMax !== null ? `Speicher ${fmt(st.memTempMax, 0)} °C` : "",
+        ].filter(Boolean).join(" · "))}
+      ${card("GPU unter Last", fmt(st.gpuMhzLoad, 0, " MHz"), [
+          st.gpuVLoad !== null ? `${fmt(st.gpuVLoad, 3)} V` : "",
+          st.gpuWLoad !== null ? `${fmt(st.gpuWLoad, 0)} W` : "",
+          st.gpuFanLoad !== null ? `Lüfter ${fmt(st.gpuFanLoad, 0)} %` : "",
+        ].filter(Boolean).join(" · ") || "GPU ≥ 90 % ausgelastet")}
+    </div>`);
   gapNote(gpu, s, ["gpuTemp", "gpuMhz", "gpuW", "gpuV", "hotspot", "memTemp", "gpuFanRpm"]);
   plot(gpu, "GPU-Temperaturen (°C)", [
     { key: "gpuTemp", label: "GPU", color: "var(--gpu)" },
@@ -446,13 +474,91 @@ function renderSession(view, s) {
   plot(gpu, "GPU-Spannung (V)", [{ key: "gpuV", label: "Spannung", color: "var(--limit)" }], { unit: " V" });
   plot(gpu, "GPU-Lüfter (U/min)", [{ key: "gpuFanRpm", label: "GPU-Lüfter", color: "var(--gpu)" }], { min: 0, unit: " U/min" });
 
+  // Verbindung zuletzt und zugeklappt: beeinflusst den Lag in Online-Spielen, nicht die FPS
   const net = section(view, "Verbindung", "Ping zu Router und Internet", { id: "network", help: HELP.network });
+  if (st.pingNet !== null)
+    net.insertAdjacentHTML("beforeend", `<div class="cards">
+      ${card("Ø Ping Internet", fmt(st.pingNet, 0) + " <small>ms</small>", `±${fmt(st.jitterNet, 0)} ms Schwankung`)}
+      ${card("Verlust max", fmt(st.lossNetMax, 0, " %"), "")}
+    </div>`);
   gapNote(net, s, ["pingNet"]);
   plot(net, "Ping (ms)", [
     { key: "pingNet", label: "Internet", color: "var(--limit)" },
     { key: "pingRouter", label: "Router", color: "var(--muted)", dash: "3 3" },
   ], { min: 0, unit: " ms" });
+}
 
+// ---------------------------------------------------------------- Ergebnis: Engpass
+
+/** Anteil der Spielzeit, in der CPU bzw. GPU gedrosselt haben (aus den Meldungen des Overlays) */
+function throttleShares(st) {
+  return { cpu: noteShare(st, /CPU drosselt/), cpuTemp: noteShare(st, /CPU drosselt: Temperatur/), gpu: noteShare(st, /GPU drosselt/) };
+}
+
+const RESULT = {
+  Gpu: {
+    title: "Die Grafikkarte hat gebremst",
+    meaning: "Die Grafikkarte war voll ausgelastet, der Prozessor hätte schneller liefern können. Das ist der Normalfall.",
+    tips: ["Auflösung senken oder Upscaling nutzen (DLSS, FSR, XeSS) – das bringt meist am meisten",
+      "Aufwendige Effekte reduzieren: Schatten, Raytracing, Volumetrik, Kantenglättung",
+      "Ein schnellerer Prozessor oder Arbeitsspeicher bringt hier kaum etwas"],
+  },
+  Cpu: {
+    title: "Der Prozessor hat gebremst",
+    meaning: "Die Grafikkarte musste auf den Prozessor warten. Oft bremst ein einzelner Kern, der Hauptthread, auch wenn die CPU insgesamt wenig ausgelastet wirkt.",
+    tips: ["Sichtweite, Figuren- und Objektdichte sowie Physik-Details senken",
+      "Programme im Hintergrund schließen (Browser, Launcher, Aufnahme-Software)",
+      "Arbeitsspeicher im BIOS mit XMP bzw. EXPO auf vollen Takt stellen",
+      "Grafikdetails senken bringt hier kaum etwas – eine höhere Auflösung kostet dafür fast keine FPS"],
+  },
+  Limit: {
+    title: "Ein FPS-Limit hat die Bildrate begrenzt",
+    meaning: "Die Bildrate wurde absichtlich festgehalten (FPS-Limit oder VSync). Prozessor und Grafikkarte hatten noch Reserven.",
+    tips: ["Für mehr FPS das Limit anheben, z. B. auf die Bildwiederholrate des Monitors",
+      "Alternativ die Grafik höher stellen – das kostet bis zum Limit keine FPS"],
+  },
+  Mixed: {
+    title: "Kein eindeutiger Engpass",
+    meaning: "Prozessor und Grafikkarte waren ungefähr gleich schnell.",
+    tips: ["Änderungen wirken auf beiden Seiten nur begrenzt – erst Grafikeinstellungen, dann Sichtweite probieren"],
+  },
+};
+
+/** Großer Ergebnis-Block: Hauptengpass, Anteile, Belege und was mehr FPS bringt */
+function resultBlock(s) {
+  const st = s.stats, sh = st.shares;
+  const withFrames = 1 - (sh.None || 0);
+  if (withFrames < 0.05) return `<p class="empty">Diese Sitzung enthält kaum Bilddaten – ein Engpass lässt sich nicht bestimmen.</p>`;
+
+  const ranked = ["Gpu", "Cpu", "Limit", "Mixed"].map(k => [k, (sh[k] || 0) / withFrames]).sort((a, b) => b[1] - a[1]);
+  const [top, topShare] = ranked[0];
+  const clear = topShare >= 0.6;
+  const r = RESULT[top];
+  const title = clear ? r.title : `Wechselnder Engpass: ${KINDS[top].short} ${pct(topShare)}, ${KINDS[ranked[1][0]].short} ${pct(ranked[1][1])}`;
+  const sub = clear ? `${pct(topShare)} der Spielzeit ${KINDS[top].label}` : "kein Teil bremste mehr als 60 % der Zeit";
+
+  // Belege: Wie viel der Bildzeit arbeitet die GPU, wie lange wartet sie auf die CPU? (Die CPU-Arbeitszeit von
+  // PresentMon enthält auch das Warten auf die GPU – als Beleg taugt sie deshalb nicht.)
+  const ev = [];
+  if (st.gpuBusy !== null && st.ft)
+    ev.push(`Die GPU arbeitet <b>${fmt(st.gpuBusy, 1)} von ${fmt(st.ft, 1)} ms</b> pro Bild (${pct(Math.min(1, st.gpuBusy / st.ft))})`
+      + (st.gpuWait !== null ? ` und wartet im Schnitt <b>${fmt(st.gpuWait, 1)} ms</b> pro Bild auf die CPU` : ""));
+  const load = [st.gpu !== null ? `GPU-Last Ø ${fmt(st.gpu, 0)} %` : "", st.thread !== null ? `Hauptthread Ø ${fmt(st.thread, 0)} %` : ""].filter(Boolean);
+  if (load.length) ev.push(load.join(" · "));
+
+  let tips = [...r.tips];
+  if (!clear) tips = [...RESULT[ranked[0][0]].tips.slice(0, 2), ...RESULT[ranked[1][0]].tips.slice(0, 2)];
+  const thr = throttleShares(st);
+  if (thr.cpuTemp >= 0.05) tips.unshift(`Zuerst die Kühlung: Die CPU drosselte ${pct(thr.cpuTemp)} der Zeit wegen Temperatur – das kostet FPS, egal wo der Engpass liegt`);
+  if (thr.gpu >= 0.05) tips.unshift(`Zuerst die Kühlung: Die Grafikkarte drosselte ${pct(thr.gpu)} der Zeit – Staub, Lüfterkurve und Luftstrom prüfen`);
+
+  return `<div class="result" style="--c:${KINDS[clear ? top : "Mixed"].color}">
+      <div class="r-title">${esc(title)}</div>
+      <div class="r-sub">${esc(sub)}${clear ? ` – ${esc(r.meaning)}` : ""}</div>
+    </div>
+    ${shareBar(sh)}
+    ${ev.length ? `<div class="evidence">${ev.map(x => `<div>${x}</div>`).join("")}</div>` : ""}
+    <div class="tips"><b>Was bringt mehr FPS?</b><ul>${tips.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>`;
 }
 
 // ---------------------------------------------------------------- Fehlende Daten
@@ -508,7 +614,7 @@ function gapNote(parent, s, keys) {
 
 // ---------------------------------------------------------------- Einordnung
 
-const LEVEL_ICON = { bad: "!", warn: "▲", info: "i", good: "✓" };
+const LEVEL_ICON = { bad: "!", warn: "!", info: "i", good: "✓" };
 const LEVEL_ORDER = { bad: 0, warn: 1, info: 2, good: 3 };
 
 /** Anteil der Sitzung (0–1), in der eine Meldung aktiv war, deren Text auf das Muster passt */
@@ -519,59 +625,70 @@ function noteShare(st, pattern) {
 
 /**
  * Kernaussagen zu einer Sitzung – feste Regeln mit denselben Schwellen wie im Overlay, keine Statistik-Magie.
+ * "main": was Bildrate und Spielgefühl betrifft, mit dem Engpass zuerst. "side": Nebenbefunde zur Gesundheit
+ * der Hardware (Temperaturen, Verbindung). "!" ist echter Drosselung vorbehalten, sie kostet FPS.
  * Formulierungen bewusst vorsichtig ("deutet auf"), denn Messwerte allein kennen die Ursache nicht immer.
  */
 function insightsFor(s) {
-  const st = s.stats, out = [];
-  const add = (level, text) => out.push({ level, text });
+  const st = s.stats, main = [], side = [];
+  const add = (list, level, text) => list.push({ level, text });
+
+  // Engpass – immer die erste Aussage
+  const sh = st.shares, withFrames = 1 - (sh.None || 0);
+  if (withFrames >= 0.05) {
+    const [top, share] = ["Gpu", "Cpu", "Limit", "Mixed"].map(k => [k, (sh[k] || 0) / withFrames]).sort((a, b) => b[1] - a[1])[0];
+    if ((sh.Cpu || 0) / withFrames >= 0.3) add(main, "warn", `Häufig CPU-limitiert (${pct((sh.Cpu || 0) / withFrames)} der Zeit): Grafikeinstellungen senken bringt hier wenig – Details unter „Ergebnis“.`);
+    else if (top === "Gpu" && share >= 0.6) add(main, "info", `Überwiegend GPU-limitiert (${pct(share)} der Zeit) – der Normalfall; mehr FPS gibt es über die Grafikeinstellungen.`);
+    else if (top === "Limit" && share >= 0.5) add(main, "good", `Überwiegend im FPS-Limit (${pct(share)} der Zeit) – das System hat Reserven.`);
+    else add(main, "info", `Wechselnder Engpass: ${KINDS[top].short} ${pct(share)} der Zeit – Details unter „Ergebnis“.`);
+  }
+
+  // Drosselung kostet FPS – deshalb gehört sie zu den Hauptaussagen
+  const thr = throttleShares(st);
+  if (thr.cpuTemp >= 0.05) add(main, "bad", `Die CPU drosselte ${pct(thr.cpuTemp)} der Zeit wegen Temperatur – Kühler, Lüfterkurve und Wärmeleitpaste prüfen.`);
+  else if (thr.cpu >= 0.05) add(main, "warn", `Die CPU wurde ${pct(thr.cpu)} der Zeit gedrosselt (Strom- oder Leistungslimit) – der Grund steht in den Meldungen.`);
+  if (thr.gpu >= 0.1) add(main, "bad", `Die Grafikkarte drosselte ${pct(thr.gpu)} der Zeit wegen Temperatur – Kühlung, Staub und Lüfterkurve prüfen.`);
 
   // Gleichmäßigkeit: 1%-Low im Verhältnis zur Ø-FPS – wichtiger fürs Spielgefühl als die Ø-FPS selbst
   if (st.fps && st.low1) {
     const r = st.low1 / st.fps;
-    if (r >= 0.8) add("good", `Gleichmäßige Bildausgabe: das 1%-Low liegt bei ${pct(r)} der Ø-FPS.`);
-    else if (r >= 0.65) add("info", `Leichte Schwankungen: das 1%-Low liegt bei ${pct(r)} der Ø-FPS.`);
-    else add("warn", `Ungleichmäßige Bildausgabe: das 1%-Low liegt nur bei ${pct(r)} der Ø-FPS – Details unter „Bild und Ruckler“.`);
+    if (r >= 0.8) add(main, "good", `Gleichmäßige Bildausgabe: das 1%-Low liegt bei ${pct(r)} der Ø-FPS.`);
+    else if (r >= 0.65) add(main, "info", `Leichte Schwankungen: das 1%-Low liegt bei ${pct(r)} der Ø-FPS.`);
+    else add(main, "warn", `Ungleichmäßige Bildausgabe: das 1%-Low liegt nur bei ${pct(r)} der Ø-FPS – Details unter „Bild und Ruckler“.`);
   }
 
-  if (st.spikesPerMin > 10) add("warn", `Häufige Ruckler: ${fmt(st.spikesPerMin, 1)} pro Minute – die Meldungen nennen die vermutete Ursache.`);
-  else if (st.spikesPerMin > 2) add("info", `Gelegentliche Ruckler: ${fmt(st.spikesPerMin, 1)} pro Minute.`);
-  else if (st.duration) add("good", `Kaum Ruckler: ${fmt(st.spikesPerMin, 1)} pro Minute.`);
+  if (st.spikesPerMin > 10) add(main, "warn", `Häufige Ruckler: ${fmt(st.spikesPerMin, 1)} pro Minute – die Meldungen nennen die vermutete Ursache.`);
+  else if (st.spikesPerMin > 2) add(main, "info", `Gelegentliche Ruckler: ${fmt(st.spikesPerMin, 1)} pro Minute.`);
+  else if (st.duration) add(main, "good", `Kaum Ruckler: ${fmt(st.spikesPerMin, 1)} pro Minute.`);
 
   if (st.pacing !== null && pacingRating(st.pacing, st.ft) === "unruhig")
-    add("warn", `Unruhiges Frame-Pacing (±${fmt(st.pacing, 1)} ms von Bild zu Bild) – FPS-Limit, VSync und G-Sync/FreeSync prüfen.`);
+    add(main, "warn", `Unruhiges Frame-Pacing (±${fmt(st.pacing, 1)} ms von Bild zu Bild) – FPS-Limit, VSync und G-Sync/FreeSync prüfen.`);
+  if (noteShare(st, /VRAM voll/) > 0) add(main, "warn", "Der Grafikspeicher lief voll – Texturdetails oder Auflösung senken.");
+  if (st.fpsApp && st.fps && st.fpsApp < st.fps * 0.8) add(main, "info", `Frame Generation war aktiv: ${fmt(st.fps, 0)} FPS angezeigt, ${fmt(st.fpsApp, 0)} vom Spiel gerendert.`);
 
-  // Engpass
-  const sh = st.shares;
-  if ((sh.Cpu || 0) >= 0.3) add("warn", `Häufig CPU-limitiert (${pct(sh.Cpu)} der Zeit): Grafikeinstellungen senken bringt hier wenig, CPU, RAM und Hintergrundprogramme bremsen.`);
-  else if ((sh.Gpu || 0) >= 0.6) add("info", `Überwiegend GPU-limitiert (${pct(sh.Gpu)} der Zeit) – der Normalfall; mehr FPS gibt es über die Grafikeinstellungen.`);
-  else if ((sh.Limit || 0) >= 0.5) add("good", `Überwiegend im FPS-Limit (${pct(sh.Limit)} der Zeit) – das System hat Reserven.`);
-
-  // Kühlung
-  const gpuThrottle = noteShare(st, /GPU drosselt wegen Temperatur/);
-  if (gpuThrottle >= 0.1) add("warn", `Die Grafikkarte drosselt wegen Temperatur (${pct(gpuThrottle)} der Zeit) – Kühlung, Staub und Lüfterkurve prüfen.`);
-  else if (st.gpuTempMax !== null && st.gpuTempMax >= 83) add("info", `Die Grafikkarte wird bis ${fmt(st.gpuTempMax, 0)} °C warm – nahe an der üblichen Drosselgrenze.`);
-
-  const cpuThrottle = noteShare(st, /CPU drosselt/);
-  if (st.cpuTempMax !== null && st.cpuTempMax >= 95) add("bad", `Die CPU erreicht ${fmt(st.cpuTempMax, 0)} °C – nahe an ihrer Maximaltemperatur; Kühler und Wärmeleitpaste prüfen.`);
-  else if (cpuThrottle >= 0.05) add("warn", `Die CPU wird zeitweise gedrosselt (${pct(cpuThrottle)} der Zeit) – Grund steht in den Meldungen.`);
-
-  if (st.memTempMax !== null && st.memTempMax >= 100) add("warn", `Der Grafikspeicher erreicht ${fmt(st.memTempMax, 0)} °C – deutet auf gealterte Wärmeleitpads oder wenig Luftstrom hin.`);
-  if (noteShare(st, /VRAM voll/) > 0) add("warn", "Der Grafikspeicher lief voll – Texturdetails oder Auflösung senken.");
-  if (st.fpsApp && st.fps && st.fpsApp < st.fps * 0.8) add("info", `Frame Generation war aktiv: ${fmt(st.fps, 0)} FPS angezeigt, ${fmt(st.fpsApp, 0)} vom Spiel gerendert.`);
-
-  // Verbindung
+  // Nebenbefunde: Temperaturen ohne Drosselung und die Verbindung
+  if (thr.cpuTemp < 0.05 && st.cpuTempMax !== null && st.cpuTempMax >= 95)
+    add(side, "warn", `Die CPU erreicht ${fmt(st.cpuTempMax, 0)} °C – nahe an der Maximaltemperatur vieler Prozessoren; Kühlung im Blick behalten.`);
+  if (thr.gpu < 0.1 && st.gpuTempMax !== null && st.gpuTempMax >= 83)
+    add(side, "info", `Die Grafikkarte wird bis ${fmt(st.gpuTempMax, 0)} °C warm – nahe an der üblichen Drosselgrenze.`);
+  if (st.memTempMax !== null && st.memTempMax >= 100)
+    add(side, "warn", `Der Grafikspeicher erreicht ${fmt(st.memTempMax, 0)} °C – deutet auf gealterte Wärmeleitpads oder wenig Luftstrom hin.`);
   if (st.pingNet !== null) {
     if ((st.lossNetMax || 0) >= 3 || (st.jitterNet || 0) >= 15)
-      add("warn", `Die Verbindung schwankte (Ping ${fmt(st.pingNet, 0)} ms ±${fmt(st.jitterNet, 0)}, Verlust bis ${fmt(st.lossNetMax, 0)} %) – Details unter „Verbindung“.`);
-    else add("good", `Stabile Verbindung: ${fmt(st.pingNet, 0)} ms ±${fmt(st.jitterNet, 0)}, kein nennenswerter Verlust.`);
+      add(side, "warn", `Die Verbindung schwankte (Ping ${fmt(st.pingNet, 0)} ms ±${fmt(st.jitterNet, 0)}, Verlust bis ${fmt(st.lossNetMax, 0)} %) – Details unter „Verbindung“.`);
+    else add(side, "good", `Stabile Verbindung: ${fmt(st.pingNet, 0)} ms ±${fmt(st.jitterNet, 0)}, kein nennenswerter Verlust.`);
   }
+  if ((st.cpuTempMax !== null || st.gpuTempMax !== null) && thr.cpu < 0.05 && thr.gpu < 0.1 && !side.some(x => x.level === "warn" || x.level === "info"))
+    side.unshift({ level: "good", text: "Temperaturen unauffällig." });
 
-  if (!out.some(x => x.level === "warn" || x.level === "bad")) add("good", "Keine Auffälligkeiten bei Kühlung und Engpässen.");
-  return out.sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level]);
+  // Engpass bleibt vorn, der Rest nach Dringlichkeit
+  const [first, ...rest] = main;
+  const byLevel = (a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level];
+  return { main: first ? [first, ...rest.sort(byLevel)] : [], side: side.sort(byLevel) };
 }
 
 function insightList(items, hint) {
-  return `<ul class="insights">${items.map(x => `<li class="lv-${x.level}"><span class="i">${LEVEL_ICON[x.level]}</span><span>${esc(x.text)}</span></li>`).join("")}</ul>`
+  return `<ul class="insights">${items.map(x => `<li class="lv-${x.level}"><span class="ico">${LEVEL_ICON[x.level]}</span><span>${esc(x.text)}</span></li>`).join("")}</ul>`
     + (hint ? `<p class="insights-hint">${esc(hint)}</p>` : "");
 }
 
@@ -579,17 +696,17 @@ function insightList(items, hint) {
 const HELP = {
   glance: `Diese Liste fasst die Sitzung in wenigen Sätzen zusammen. Sie entsteht nach festen Regeln und zeigt,
     <b>wo es sich lohnt, genauer hinzusehen</b>. Die Abschnitte darunter zeigen die Messwerte dazu.
-    <br>✓ in Ordnung · i zur Information · ▲ auffällig · ! dringend prüfen`,
+    <br><span class="legend-ico lv-good"><span class="ico">✓</span>in Ordnung</span><span class="legend-ico lv-info"><span class="ico">i</span>zur Information</span><span class="legend-ico lv-warn"><span class="ico">!</span>auffällig</span><span class="legend-ico lv-bad"><span class="ico">!</span>dringend prüfen</span>`,
   summary: `<ul>
     <li><b>FPS</b> (Bilder pro Sekunde): Je mehr, desto flüssiger. Der Durchschnitt allein sagt aber wenig darüber, wie sich das Spiel anfühlt.</li>
     <li><b>1%-Low</b>: die Bildrate in den langsamsten Momenten. Liegt sie nah am Durchschnitt (ab etwa 80 % davon), läuft das Spiel gleichmäßig.
       Liegt sie weit darunter, spürst du Hänger, obwohl der Durchschnitt gut aussieht.</li>
-    <li><b>Frametime</b>: wie lange ein einzelnes Bild dauert, in Millisekunden. Das ist dieselbe Information wie FPS, nur andersherum (60 FPS = 16,7 ms).</li>
+    <li><b>Hauptengpass</b>: welches Bauteil die meiste Zeit gebremst hat – Einzelheiten stehen ganz oben unter „Ergebnis“.</li>
     <li><b>Ruckler</b>: einzelne Bilder, die deutlich länger dauern als die davor und danach. Bis etwa 2 pro Minute fällt das kaum auf.</li>
-    <li><b>Frame-Pacing</b>: wie gleichmäßig die Bilder aufeinander folgen. „ruhig“ ist gut, „unruhig“ fühlt sich trotz hoher FPS hakelig an.</li>
+    <li><b>Drosselung</b>: wie lange CPU oder Grafikkarte sich wegen Temperatur oder Stromgrenze selbst verlangsamt haben. Ideal ist „keine“.</li>
     <li><b>Ø FPS im CPU-Limit</b>: die Bildrate in den Momenten, in denen der Prozessor bremst. An diesem Wert siehst du, ob schnellerer Arbeitsspeicher
       oder ein anderer Prozessor etwas gebracht hat.</li></ul>`,
-  bottleneck: `<p>Ein Bild entsteht in zwei Schritten: Zuerst bereitet der Prozessor (<b>CPU</b>) es vor, dann zeichnet die Grafikkarte (<b>GPU</b>) es.
+  result: `<p>Ein Bild entsteht in zwei Schritten: Zuerst bereitet der Prozessor (<b>CPU</b>) es vor, dann zeichnet die Grafikkarte (<b>GPU</b>) es.
     Der langsamere der beiden bestimmt die Bildrate. Er ist der <b>Engpass</b>.</p><ul>
     <li><b>GPU-limitiert</b>: Die Grafikkarte arbeitet voll. Das ist normal und gewollt. Mehr FPS bekommst du über niedrigere Grafikeinstellungen,
       eine geringere Auflösung oder DLSS bzw. FSR (das Spiel rechnet intern kleiner und skaliert das Bild hoch).</li>
@@ -597,14 +714,17 @@ const HELP = {
       Menge an Figuren und Objekten verringern, Programme im Hintergrund schließen, Arbeitsspeicher im BIOS mit XMP bzw. EXPO auf vollen Takt stellen.</li>
     <li><b>FPS-Limit / VSync</b>: Eine Begrenzung hält die Bildrate absichtlich fest, etwa auf die Bildwiederholrate des Monitors.
       Beide Bauteile haben dann noch Luft.</li>
-    <li>Diagramm <b>Arbeitszeit pro Frame</b>: Die höhere der beiden Linien (CPU oder GPU) bremst. Die gestrichelte Linie ist die tatsächliche Dauer pro Bild.</li>
+    <li><b>Belege</b>: Pro Bild braucht entweder die CPU oder die GPU länger – das ist der Engpass. Im Diagramm <b>Arbeitszeit pro Bild</b> bremst
+      die höhere der beiden Linien, die gestrichelte Linie ist die tatsächliche Dauer pro Bild. Die Farbleiste darunter zeigt den Engpass je Sekunde.</li>
     <li>Diagramm <b>Auslastung</b>: Viele Spiele erledigen den Großteil ihrer Arbeit auf einem einzigen Prozessorkern, dem <b>Hauptthread</b>.
       Steht er nahe 100 %, bremst der Prozessor, auch wenn „CPU gesamt“ niedrig aussieht.</li></ul>`,
   frames: `<ul>
+    <li><b>Bildzeit</b> (Frametime): wie lange ein einzelnes Bild dauert, in Millisekunden – dasselbe wie FPS, nur andersherum (60 FPS = 16,7 ms).
+      <b>Frame-Pacing</b>: wie gleichmäßig die Bilder aufeinander folgen. „ruhig“ ist gut, „unruhig“ fühlt sich trotz hoher FPS hakelig an.</li>
     <li>Ideal ist eine <b>ruhige FPS-Linie</b> mit der gestrichelten 1%-Low-Linie dicht darunter.</li>
     <li><b>Rote Striche</b> markieren Ruckler. Häufen sie sich beim Laden oder in neuen Gebieten, liegt das meist daran, dass das Spiel Daten nachlädt
       oder Grafikdaten zum ersten Mal vorbereitet. Beim zweiten Besuch derselben Stelle wird es oft besser.</li>
-    <li>Die <b>Farbleiste</b> unter dem Diagramm zeigt für jede Sekunde den Engpass, in denselben Farben wie im Abschnitt „Engpass“.</li>
+    <li>Die <b>Farbleiste</b> unter dem Diagramm zeigt für jede Sekunde den Engpass, in denselben Farben wie im Abschnitt „Ergebnis“.</li>
     <li>Bei <b>langen Sitzungen</b> zeigt die Linie den Durchschnitt, der blasse Bereich dahinter, wie stark die Werte in diesem
       Moment schwankten. <b>Mit der Maus über einen Zeitraum ziehen</b> vergrößert ihn in allen Diagrammen, ein Doppelklick
       zeigt wieder die ganze Sitzung.</li>
@@ -655,14 +775,15 @@ function card(k, v, sub) {
 
 const METRICS = [
   ["Dauer", s => s.duration, v => clock(v), 0],
+  // "pp": Abweichung in Prozentpunkten statt relativ – 30 % → 80 % ist "+50 Pkt.", nicht "+167 %"
+  ["Anteil GPU-Limit", s => s.shares.Gpu || 0, pct, 0, "pp"],
+  ["Anteil CPU-Limit", s => s.shares.Cpu || 0, pct, -1, "pp"],
   ["Ø FPS", s => s.fps, v => fmt(v, 1), 1],
   ["Ø 1%-Low", s => s.low1, v => fmt(v, 1), 1],
   ["Ø FPS im CPU-Limit", s => s.fpsCpu, v => fmt(v, 1), 1],
   ["Ø Frametime", s => s.ft, v => fmt(v, 2, " ms"), -1],
   ["Ruckler pro Minute", s => s.spikesPerMin, v => fmt(v, 1), -1],
   ["Ø Frame-Pacing", s => s.pacing, v => "±" + fmt(v, 2, " ms"), -1],
-  ["Anteil GPU-Limit", s => s.shares.Gpu || 0, pct, 0],
-  ["Anteil CPU-Limit", s => s.shares.Cpu || 0, pct, -1],
   ["Ø CPU-Arbeitszeit", s => s.cpuBusy, v => fmt(v, 2, " ms"), -1],
   ["Ø GPU-Arbeitszeit", s => s.gpuBusy, v => fmt(v, 2, " ms"), 0],
   ["Ø Hauptthread", s => s.thread, v => fmt(v, 0, " %"), 0],
@@ -690,7 +811,19 @@ function comparisonInsights() {
     out.push({ level: "warn", text: "Die Sitzungen stammen aus verschiedenen Spielen – die Zahlen lassen sich nicht direkt vergleichen." });
 
   const rel = (a, b) => (a !== null && b) ? (a - b) / Math.abs(b) * 100 : null;
+  const share = (st, k) => (st.shares[k] || 0) / Math.max(0.01, 1 - (st.shares.None || 0));
   for (const s of sessions.slice(1)) {
+    // Zuerst: Hat sich der Engpass verschoben? Ab 5 Prozentpunkten zählt das als Veränderung
+    const shifts = [["CPU-Limit", "Cpu"], ["GPU-Limit", "Gpu"], ["FPS-Limit", "Limit"]]
+      .map(([label, k]) => [label, share(r, k), share(s.stats, k)])
+      .filter(([, a, b]) => Math.abs(b - a) >= 0.05);
+    out.push({
+      level: "info",
+      text: shifts.length
+        ? `${sessionLabel(s)}: Engpass verschoben – ${shifts.map(([label, a, b]) => `${label} ${pct(a)} → ${pct(b)}`).join(", ")}.`
+        : `${sessionLabel(s)}: Engpass unverändert (überwiegend ${KINDS[s.stats.top?.[0]]?.short ?? "–"}).`,
+    });
+
     const st = s.stats, parts = [];
     let score = 0;
     const judge = (label, p, higherIsBetter, unit = " %") => {
@@ -724,16 +857,23 @@ function renderComparison(view) {
   const ref = sessions[0];
   const glance = section(view, "Auf einen Blick", `gegenüber ${sessionLabel(ref)}`, { id: "cmp-glance", open: true, help: HELP.glance });
   glance.insertAdjacentHTML("beforeend", insightList(comparisonInsights(),
-    "Verglichen werden Bildrate, Gleichmäßigkeit, Ruckler und Höchsttemperaturen; unter 2 % bzw. 3 °C gilt als gleich."));
+    "Verglichen werden Engpass, Bildrate, Gleichmäßigkeit, Ruckler und Höchsttemperaturen; unter 5 Prozentpunkten, 2 % bzw. 3 °C gilt als gleich."));
+
+  const bn = section(view, "Engpass je Sitzung", "", { id: "cmp-bottleneck", open: true, help: HELP.result });
+  sessions.forEach(s => bn.insertAdjacentHTML("beforeend", `<div style="margin-top:8px;font-size:13px"><span class="swatch" style="background:${s.color}"></span>${esc(sessionLabel(s))}</div>${shareBar(s.stats.shares)}`));
 
   const sec = section(view, "Vergleich", `Referenz: ${sessionLabel(ref)} – Abweichungen in % zur Referenz`, { id: "cmp-table", open: true, help: HELP.compare });
   const head = sessions.map(s => `<th><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${s.color};margin-right:6px"></span>${esc(sessionLabel(s))}</th>`).join("");
-  const body = METRICS.map(([label, get, show, dir]) => {
+  const body = METRICS.map(([label, get, show, dir, mode]) => {
     const base = get(ref.stats);
     return `<tr><td>${label}</td>${sessions.map((s, i) => {
       const v = get(s.stats);
       let delta = "";
-      if (i > 0 && v !== null && base) {
+      if (i > 0 && v !== null && mode === "pp" && base !== null) {
+        const p = (v - base) * 100;
+        const cls = Math.abs(p) < 5 || dir === 0 ? "same" : (p > 0) === (dir > 0) ? "better" : "worse";
+        delta = `<span class="d ${cls}">${p > 0 ? "+" : ""}${fmt(p, 0)} Pkt.</span>`;
+      } else if (i > 0 && v !== null && base) {
         const p = (v - base) / Math.abs(base) * 100;
         const cls = Math.abs(p) < 2 || dir === 0 ? "same" : (p > 0) === (dir > 0) ? "better" : "worse";
         delta = `<span class="d ${cls}">${p > 0 ? "+" : ""}${fmt(p, 1)} %</span>`;
@@ -742,9 +882,6 @@ function renderComparison(view) {
     }).join("")}</tr>`;
   }).join("");
   sec.insertAdjacentHTML("beforeend", `<table><thead><tr><th></th>${head}</tr></thead><tbody>${body}</tbody></table>`);
-
-  const bn = section(view, "Engpass je Sitzung", "", { id: "cmp-bottleneck", open: true, help: HELP.bottleneck });
-  sessions.forEach(s => bn.insertAdjacentHTML("beforeend", `<div style="margin-top:8px;font-size:13px"><span class="swatch" style="background:${s.color}"></span>${esc(sessionLabel(s))}</div>${shareBar(s.stats.shares)}`));
 
   const ch = section(view, "FPS im Vergleich", "Zeitachse ab Sitzungsbeginn", { id: "cmp-fps", open: true, help: HELP.frames });
   compareChart(ch);

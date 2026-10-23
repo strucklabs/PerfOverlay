@@ -48,15 +48,18 @@ public partial class OverlayWindow : Window
     private static readonly Brush DragBorderBrush = Frozen("#4ADE80");
     private static readonly Brush NormalBorderBrush = Frozen("#33FFFFFF");
 
-    /// <summary>Maximale Meldungszeilen (Analyse); kleinere Ansichten zeigen davon nur die ersten.</summary>
-    public const int NoteSlots = 4;
+    /// <summary>Höchstzahl der Zeilen für Engpass-Meldungen (Kompakt) und für weitere Hinweise (Analyse).</summary>
+    public const int NoteSlots = 3, HintSlots = 3;
 
-    /// <summary>Feste Maße je Ansicht – das Overlay ändert seine Größe nur, wenn der Nutzer die Ansicht wechselt.</summary>
-    private static (double Width, int Notes, double GraphHeight) Layout(OverlayView view) => view switch
+    /// <summary>
+    /// Feste Maße je Ansicht – das Overlay ändert seine Größe nur, wenn der Nutzer die Ansicht wechselt.
+    /// Alle Ansichten sind gleich breit und unterscheiden sich nur in der Höhe; der obere Teil der Analyse ist
+    /// die Standard-Ansicht.
+    /// </summary>
+    private static (double Width, int Notes) Layout(OverlayView view) => view switch
     {
-        OverlayView.Compact => (260, 1, 22),
-        OverlayView.Standard => (340, 2, 26),
-        _ => (460, NoteSlots, 40),
+        OverlayView.Compact => (400, NoteSlots),
+        _ => (400, 2),
     };
 
     /// <summary>Innenbreite des Inhalts: Overlay-Breite minus Innenabstand (2 × 10) und Rahmen (2 × 1).</summary>
@@ -66,32 +69,24 @@ public partial class OverlayWindow : Window
     public void ApplyView(OverlayView view)
     {
         _view = view;
-        var (width, notes, graphHeight) = Layout(view);
-        bool compact = view == OverlayView.Compact, standard = view == OverlayView.Standard, analysis = view == OverlayView.Analysis;
+        var (width, notes) = Layout(view);
+        bool compact = view == OverlayView.Compact, analysis = view == OverlayView.Analysis;
         static Visibility Show(bool on) => on ? Visibility.Visible : Visibility.Collapsed;
 
         Root.Width = width;
-        ShareBar.Visibility = Show(!compact);
-        VerdictDetail.Visibility = Show(!compact);
-        VerdictDetail.Height = analysis ? 30 : 15;
+        // Urteil: Kompakt mit FPS rechts, Standard/Analyse mit Anteilen und Beleg-Zeile; der Tipp steht überall
+        ShareText.Visibility = ShareBar.Visibility = EvidenceLine.Visibility = Show(!compact);
+        CompactFps.Visibility = Show(compact);
         for (int i = 0; i < _noteRows.Count; i++) _noteRows[i].Row.Visibility = Show(i < notes);
 
-        SecImage.Visibility = SecCpu.Visibility = SecGpu.Visibility = SecSystem.Visibility = Show(analysis);
-        FpsBig.Visibility = Show(!analysis);
-        FpsBigValue.FontSize = compact ? 22 : 20;
-        FpsBigApp.Visibility = Show(standard);
-        FpsLine.Visibility = Show(analysis);
-        GraphBorder.Height = graphHeight;
-        BusyGrid.Visibility = Show(analysis);
-
-        CpuLine.Visibility = GpuLine.Visibility = Show(!standard);
-        CoreBarsRow.Visibility = GpuLine2.Visibility = Show(analysis);
-        TwoColumns.Visibility = Show(standard);
-        RamLine.Visibility = Show(!compact);
-        DiskLine.Visibility = GpuUsersLine.Visibility = FooterLine.Visibility = Show(analysis);
-        SecNetwork.Visibility = PingLine.Visibility = TrafficLine.Visibility = Show(analysis);
+        FpsBlock.Visibility = EvidenceBlock.Visibility = Show(!compact);
+        DetailsBlock.Visibility = Show(analysis);
+        FooterLine.Text = FooterText;
         CoreBars.Children.Clear();   // Balkenbreite neu berechnen
     }
+
+    /// <summary>Hotkeys – in jeder Ansicht sichtbar.</summary>
+    private const string FooterText = "Strg+Umschalt: F10 an/aus · F9 Ecke · F8 Ansicht";
 
     /// <summary>Kompakt → Standard → Analyse → Kompakt …</summary>
     private void CycleView()
@@ -105,6 +100,7 @@ public partial class OverlayWindow : Window
     private Verdict? _lastVerdict;
     private readonly NoteLog _noteLog = new();
     private readonly List<(Grid Row, TextBlock Text, TextBlock Age)> _noteRows = new();
+    private readonly List<(Grid Row, TextBlock Text, TextBlock Age)> _hintRows = new();
 
     public OverlayWindow()
     {
@@ -131,10 +127,8 @@ public partial class OverlayWindow : Window
         Win32.SetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE, new IntPtr(ex));
         Root.BorderBrush = on ? DragBorderBrush : NormalBorderBrush;
         Cursor = on ? Cursors.SizeAll : null;
-        FooterLine.Text = on ? "Mit der Maus ziehen zum Verschieben · Strg+Umschalt+F9: zurück in die Ecke" : _footerText;
+        FooterLine.Text = on ? "Ziehen zum Verschieben · F9: zurück in die Ecke" : FooterText;
     }
-
-    private string _footerText = "";
 
     private void OnDragStart(object sender, MouseButtonEventArgs e)
     {
@@ -156,8 +150,14 @@ public partial class OverlayWindow : Window
 
     private void CreateNoteRows()
     {
+        CreateRows(NotesPanel, NoteSlots, _noteRows);
+        CreateRows(HintsPanel, HintSlots, _hintRows);
+    }
+
+    private static void CreateRows(StackPanel panel, int count, List<(Grid Row, TextBlock Text, TextBlock Age)> rows)
+    {
         var font = new FontFamily("Segoe UI");
-        for (int i = 0; i < NoteSlots; i++)
+        for (int i = 0; i < count; i++)
         {
             var row = new Grid();
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -167,12 +167,13 @@ public partial class OverlayWindow : Window
             Grid.SetColumn(age, 1);
             row.Children.Add(text);
             row.Children.Add(age);
-            NotesPanel.Children.Add(row);
-            _noteRows.Add((row, text, age));
+            panel.Children.Add(row);
+            rows.Add((row, text, age));
         }
     }
 
-    public IReadOnlyList<LoggedNote> LogNotes(Verdict v, DateTime now) => _noteLog.Update(v.Notes, now, NoteSlots);
+    /// <summary>Alle gehaltenen Meldungen; die Anzeige verteilt sie nach Kategorie auf Engpass- und Hinweiszeilen.</summary>
+    public IReadOnlyList<LoggedNote> LogNotes(Verdict v, DateTime now) => _noteLog.Update(v.Notes, now, int.MaxValue);
 
     protected override void OnSourceInitialized(EventArgs e)
     {
@@ -244,19 +245,17 @@ public partial class OverlayWindow : Window
         Brush sevBrush = SeverityBrush(v.Severity);
         VerdictTitle.Text = v.Title;
         VerdictTitle.Foreground = sevBrush;
-        VerdictDetail.Inlines.Clear();
-        if (_view == OverlayView.Analysis || v.Tip == null) VerdictDetail.Inlines.Add(new Run(v.Detail));
-        if (v.Tip != null)
-        {
-            // Standard zeigt nur den Tipp (eine Zeile), Analyse Messwerte und Tipp
-            if (_view == OverlayView.Analysis) VerdictDetail.Inlines.Add(new LineBreak());
-            VerdictDetail.Inlines.Add(new Run("→ " + v.Tip) { Foreground = sevBrush });
-        }
+        // Beleg: Der Analyzer liefert "Frame … · CPU … · GPU … – <Beleg>"; die Millisekunden stehen in den Balken darunter
+        int dash = v.Detail.IndexOf(" – ", StringComparison.Ordinal);
+        EvidenceLine.Text = dash >= 0 ? v.Detail[(dash + 3)..] : v.Detail;
+        TipLine.Text = v.Tip != null ? "→ " + v.Tip : " ";
+        TipLine.Foreground = sevBrush;
         var tint = ((SolidColorBrush)sevBrush).Color;
         VerdictBar.Background = new SolidColorBrush(Color.FromArgb(0x30, tint.R, tint.G, tint.B));
         RenderShares(v);
 
-        RenderNotes(notes);
+        RenderNotes(_noteRows, notes.Where(n => n.Category == NoteCategory.Bottleneck).ToList(), "keine Meldungen");
+        RenderNotes(_hintRows, notes.Where(n => n.Category == NoteCategory.Hint).ToList(), "keine");
 
         // FPS (mit Frame Generation zusätzlich die vom Spiel gerenderten)
         var f = s.Frames;
@@ -264,28 +263,33 @@ public partial class OverlayWindow : Window
         Brush noFramesBrush = s.FrameSourceRunning ? MutedBrush : WarnBrush;
         if (f != null)
         {
-            var fps = new List<(string, Brush?)> { L("FPS   "), V($"{f.Fps,4:0}") };
-            if (f.GeneratedShare > 0.3) fps.Add(($" ({f.AppFps:0} echt)", MutedBrush));
-            fps.AddRange([L("  1%↓ "), V($"{f.Low1Fps:0}"), L("  "), V($"{f.AvgMs:0.0}"), L(" ms  "), (Shorten(f.App, 20), MutedBrush)]);
-            Line(FpsLine, fps.ToArray());
-
+            string app = Shorten(System.IO.Path.GetFileNameWithoutExtension(f.App), 18);
             FpsBigValue.Text = $"{f.Fps:0}";
             var rest = new List<(string, Brush?)> { L("FPS") };
             if (f.GeneratedShare > 0.3) rest.Add(($" ({f.AppFps:0} echt)", MutedBrush));
             rest.AddRange([L("  1%↓ "), V($"{f.Low1Fps:0}"), L("  "), V($"{f.AvgMs:0.0}"), L(" ms")]);
+            // Pacing statt Verlauf: ob die Bilder gleichmäßig kommen, in einem Wort
+            string rating = FrameMetrics.PacingRating(f.PacingMs, f.MedianMs);
+            if (rating != "") { rest.Add(L("  Pacing ")); rest.Add((rating, rating == "unruhig" ? WarnBrush : null)); }
             Line(FpsBigRest, rest.ToArray());
-            FpsBigApp.Text = Shorten(System.IO.Path.GetFileNameWithoutExtension(f.App), 14);
+            FpsBigApp.Text = app;
+            CompactFps.Text = $"{app} · {f.Fps:0} FPS · 1%↓ {f.Low1Fps:0}";
         }
         else
         {
-            Line(FpsLine, L("FPS   "), V("   –  "), (noFrames, noFramesBrush));
+            // Ohne Spiel: zeigen, was im Vordergrund ist, damit klar ist, warum nichts bewertet wird
+            string fg = s.IgnoredApp != null ? $"{Shorten(s.IgnoredApp, 18)} (kein Spiel)" : "";
             FpsBigValue.Text = "–";
-            Line(FpsBigRest, (noFrames, noFramesBrush));
-            FpsBigApp.Text = "";
+            Line(FpsBigRest, (s.IgnoredApp != null ? "kein Spiel im Vordergrund" : noFrames, noFramesBrush));
+            FpsBigApp.Text = fg;
+            CompactFps.Text = fg != "" ? fg : "– FPS";
         }
         RenderFrameGraph(f);
+        RenderBusyBars(s, v);
+        RenderHardwareLine(s);
 
-        RenderColumns(s);
+        // ---- ab hier nur die Details der Analyse-Ansicht ----
+        if (_view != OverlayView.Analysis) return;
 
         // CPU
         var c = s.Cpu;
@@ -305,15 +309,8 @@ public partial class OverlayWindow : Window
             }
             if (th.FanRpm is double rpm && rpm > 0) { cpuParts.Add(L("  ")); cpuParts.Add(V($"{rpm:0}")); cpuParts.Add(L(" U/min")); }
         }
-        if (_view == OverlayView.Compact)
-        {
-            // Kompakt: nur Last, Temperatur, Leistung
-            cpuParts = [L("CPU "), V($"{c.TotalLoad,3:0} %")];
-            if (s.CpuThermal?.TempC is double kt) { cpuParts.Add(L("  ")); cpuParts.Add(($"{kt:0} °C", CpuTempBrush(s.CpuThermal))); }
-            if (s.CpuThermal?.PowerW is double kw) { cpuParts.Add(L("  ")); cpuParts.Add(V($"{kw:0}")); cpuParts.Add(L(" W")); }
-        }
         Line(CpuLine, cpuParts.ToArray());
-        if (_view == OverlayView.Analysis) RenderCoreBars(c);
+        RenderCoreBars(c);
         if (c.IsHybrid)
             Line(CoreMaxLine, L("P max "), (Pct(c.MaxPerfCoreLoad), LoadBrush(c.MaxPerfCoreLoad)),
                 L("  E max "), (Pct(c.MaxEffCoreLoad), MutedBrush));
@@ -326,6 +323,7 @@ public partial class OverlayWindow : Window
         {
             Line(GpuLine, L("GPU   "), ("nicht gefunden", MutedBrush));
             Line(GpuLine2, ("–", MutedBrush));
+            Line(GpuLine3, ("", null));
         }
         else
         {
@@ -339,74 +337,73 @@ public partial class OverlayWindow : Window
                 parts.Add(L("  ")); parts.Add(V($"{w:0}"));
                 parts.Add(L(g.PowerLimitW is double lim ? $"/{lim:0} W" : " W"));
             }
-            if (_view == OverlayView.Compact)
-            {
-                // Kompakt: Last, Takt, Temperatur, Leistung
-                parts = [L("GPU "), V($"{g.Load ?? 0,3:0} %")];
-                if (g.CoreMhz is double km) { parts.Add(L("  ")); parts.Add(V($"{km:0}")); parts.Add(L(" MHz")); }
-                if (g.TempC is double kt) { parts.Add(L("  ")); parts.Add(($"{kt:0} °C", TempBrush(kt))); }
-                if (g.PowerW is double kw) { parts.Add(L("  ")); parts.Add(V($"{kw:0}")); parts.Add(L(" W")); }
-            }
             Line(GpuLine, parts.ToArray());
 
+            // Speicher und Temperaturen; Lüfter, PCIe und P-Status in einer eigenen Zeile – zusammen passt es nicht in die Breite
             var p2 = new List<(string, Brush?)> { L("VRAM  ") };
             p2.Add(V(g.VramTotalGB is double tot ? $"{g.VramUsedGB:0.0}/{tot:0.0}" : $"{g.VramUsedGB:0.0}"));
             p2.Add(L(" GB"));
             var gt = s.GpuThermal;
-            bool hasTemps = gt?.MemoryJunctionC != null || gt?.HotspotC != null;
-            if (hasTemps)
-            {
-                // Mit HWiNFO: Speicher- und Hotspot-Temperatur statt PCIe (ein reduzierter Link wird ohnehin gemeldet)
-                if (gt!.MemoryJunctionC is double mem) { p2.Add(L("  ")); p2.Add(($"{mem:0} °C", MemTempBrush(mem))); }
-                if (gt.HotspotC is double hot) { p2.Add(L("  Hotspot ")); p2.Add(($"{hot:0} °C", HotspotBrush(hot))); }
-            }
-            else if (g.PcieGen is int gen && g.PcieWidth is int width) { p2.Add(L("  PCIe ")); p2.Add(V($"{gen}.0 x{width}")); }
-            if (g.FanPercent is double fan) { p2.Add(L("  Lüfter ")); p2.Add(V($"{fan:0} %")); }
-            if (g.PState is int ps)
-            {
-                p2.Add(L("  ")); p2.Add(V($"P{ps}"));
-                p2.Add(L(" " + PStateLabel(ps)));
-            }
+            if (gt?.MemoryJunctionC is double mem) { p2.Add(L("  Speicher ")); p2.Add(($"{mem:0} °C", MemTempBrush(mem))); }
+            if (gt?.HotspotC is double hot) { p2.Add(L("  Hotspot ")); p2.Add(($"{hot:0} °C", HotspotBrush(hot))); }
             Line(GpuLine2, p2.ToArray());
-        }
 
-        RenderBusyBars(s, v);
+            var p3 = new List<(string, Brush?)> { L("      ") };
+            if (g.FanPercent is double fan) { p3.Add(L("Lüfter ")); p3.Add(V($"{fan:0} %")); p3.Add(L("  ")); }
+            else if (gt?.FanRpm is double fanRpm) { p3.Add(L("Lüfter ")); p3.Add(V($"{fanRpm:0}")); p3.Add(L(" U/min  ")); }
+            if (g.PcieGen is int gen && g.PcieWidth is int width) { p3.Add(L("PCIe ")); p3.Add(V($"{gen}.0 x{width}")); p3.Add(L("  ")); }
+            if (g.PState is int ps) { p3.Add(V($"P{ps}")); p3.Add(L(" " + PStateLabel(ps))); }
+            Line(GpuLine3, p3.ToArray());
+        }
 
         // RAM & Datenträger
         var m = s.Memory;
-        var ramParts = new List<(string, Brush?)>
-        {
-            L("RAM   "), ($"{m.UsedGB:0.0}/{m.TotalGB:0.0}", LoadBrush(m.LoadPercent)), L(" GB  "),
-        };
+        Line(RamLine, L("RAM   "), ($"{m.UsedGB:0.0}/{m.TotalGB:0.0}", LoadBrush(m.LoadPercent)), L(" GB  vom Laufwerk nachgeladen "),
+            ($"{m.PagesInPerSec:0}/s", m.PagesInPerSec > 500 ? WarnBrush : null));
         if (s.MemoryConfig is { } rc)
         {
-            // Bestückung statt Commit-Wert; gelb, wenn Takt oder Kanäle nicht optimal sind
+            // Bestückung; gelb, wenn Takt oder Kanäle nicht optimal sind
             bool suboptimal = rc.RatedMTs > rc.ConfiguredMTs + 100 || rc.Channels == ChannelMode.Single && rc.SlotCount > 1 || rc.SameChannelPair;
-            ramParts.Add((rc.Summary, suboptimal ? WarnBrush : null));
+            Line(RamConfigLine, L("      "), (rc.Summary, suboptimal ? WarnBrush : null));
         }
-        else
-        {
-            ramParts.Add(L("Commit ")); ramParts.Add(V($"{m.CommitGB:0}/{m.CommitLimitGB:0}")); ramParts.Add(L(" GB"));
-        }
-        if (_view == OverlayView.Analysis)
-        {
-            ramParts.Add(L("  Nachl. "));
-            ramParts.Add(($"{m.PagesInPerSec:0}/s", m.PagesInPerSec > 500 ? WarnBrush : null));
-        }
-        Line(RamLine, ramParts.ToArray());
+        else Line(RamConfigLine, L("      Commit "), V($"{m.CommitGB:0}/{m.CommitLimitGB:0}"), L(" GB"));
         var d = s.Disk;
         Line(DiskLine, L("Disk  "), V($"{d.ActivePercent,4:0} %"), L(" aktiv  "),
             ($"{d.LatencyMs:0.0}", d.LatencyMs > 20 ? WarnBrush : null), L(" ms  "), V($"{d.MBps:0}"), L(" MB/s"));
 
-        RenderNetwork(s.Network);
-
         // Wer nutzt die Grafikkarte? Besonders im Leerlauf aufschlussreich (taktet die GPU nicht herunter?)
         var users = s.GpuTopProcesses.Take(3).Select(p => $"{p.Name} {p.Load:0} %").ToList();
         GpuUsersLine.Text = "GPU-Nutzer: " + (users.Count > 0 ? string.Join(", ", users) : "–");
+        string source = g?.Source is "NVML" or "ADLX" ? g.Source : g != null ? "Windows-Zähler" : "–";
+        SourceLine.Text = $"Quellen: GPU {source} · CPU-Temperatur {s.CpuThermal?.Source ?? "–"}";
 
-        string source = g?.Source is "NVML" or "ADLX" ? g.Source : g != null ? "Win-Zähler" : "–";
-        _footerText = $"Strg+Umschalt: F10 an/aus · F9 Ecke · F8 Ansicht  |  GPU: {source} · CPU: {s.CpuThermal?.Source ?? "–"}";
-        if (!_dragMode) FooterLine.Text = _footerText;
+        RenderNetwork(s.Network);
+    }
+
+    /// <summary>
+    /// Standard/Analyse: beide Bauteile nach demselben Schema – Takt, Temperatur, Leistung. Beim Prozessor der
+    /// höchste Kerntakt: Er zeigt, ob der Boost hält (ruhende E-Kerne würden einen Durchschnitt drücken).
+    /// Fehlt ein Wert (z. B. ohne HWiNFO), entfällt er, statt als "–" Platz zu belegen.
+    /// </summary>
+    private void RenderHardwareLine(Snapshot s)
+    {
+        var parts = new List<(string, Brush?)> { L("CPU "), V($"{s.Cpu.MaxMhz / 1000:0.0}"), L(" GHz") };
+        if (s.CpuThermal is { } th)
+        {
+            if (th.TempC is double ct) { parts.Add(L(" ")); parts.Add(($"{ct:0} °C", CpuTempBrush(th))); }
+            if (th.PowerW is double cw) { parts.Add(L(" ")); parts.Add(V($"{cw:0}")); parts.Add(L(" W")); }
+        }
+
+        parts.Add(L("  │  GPU"));
+        if (s.Gpu is { } g)
+        {
+            if (g.CoreMhz is double mhz) { parts.Add(L(" ")); parts.Add(V($"{mhz / 1000:0.0}")); parts.Add(L(" GHz")); }
+            if (g.TempC is double t) { parts.Add(L(" ")); parts.Add(($"{t:0} °C", TempBrush(t))); }
+            if (g.PowerW is double w) { parts.Add(L(" ")); parts.Add(V($"{w:0}")); parts.Add(L(" W")); }
+            if (g.CoreMhz == null && g.TempC == null && g.PowerW == null) { parts.Add(L(" ")); parts.Add(V($"{g.Load ?? 0:0} %")); }
+        }
+        else parts.Add((" –", MutedBrush));
+        Line(HardwareLine, parts.ToArray());
     }
 
     /// <summary>Analyse-Ansicht, Abschnitt Verbindung: Ping/Jitter/Verlust zu Router und Internet, Datenrate.</summary>
@@ -446,45 +443,6 @@ public partial class OverlayWindow : Window
         Line(TrafficLine, traffic.ToArray());
     }
 
-    /// <summary>Standard-Ansicht: CPU und GPU nebeneinander, je vier Zeilen (fehlende Werte als "–").</summary>
-    private void RenderColumns(Snapshot s)
-    {
-        if (_view != OverlayView.Standard) return;
-        var c = s.Cpu;
-        var th = s.CpuThermal;
-        var cpu = new List<(string, Brush?)[]>
-        {
-            new[] { L("CPU") },
-            new[] { V($"{c.TotalLoad:0} %"), L(" · "), V($"{c.AvgMhz / 1000:0.0}"), L(" GHz") },
-            th?.TempC is double ct
-                ? new[] { ($"{ct:0} °C", CpuTempBrush(th)), L(" · "), V(th.PowerW is double cw ? $"{cw:0}" : "–"), L(" W") }
-                : new (string, Brush?)[] { ("– °C", MutedBrush) },
-            s.MainThread is { } mt ? new[] { L("Thread "), ($"{mt.Percent:0} %", LoadBrush(mt.Percent)) } : new[] { L("Thread –") },
-        };
-        Lines(CpuColumn, cpu);
-
-        var g = s.Gpu;
-        var gt = s.GpuThermal;
-        var gpu = new List<(string, Brush?)[]> { new[] { L("GPU") } };
-        if (g == null)
-        {
-            gpu.Add(new (string, Brush?)[] { ("nicht gefunden", MutedBrush) });
-        }
-        else
-        {
-            gpu.Add(new[] { V($"{g.Load ?? 0:0} %"), L(" · "), V(g.CoreMhz is double mhz ? $"{mhz:0}" : "–"), L(" MHz") });
-            gpu.Add(g.TempC is double t
-                ? new[] { ($"{t:0} °C", TempBrush(t)), L(" · "), V(g.PowerW is double w ? $"{w:0}" : "–"), L(" W") }
-                : new (string, Brush?)[] { ("– °C", MutedBrush) });
-            var last = new List<(string, Brush?)>();
-            if (gt?.CoreVoltage is double volt && volt > 0) { last.Add(V($"{volt:0.000}")); last.Add(L(" V · ")); }
-            last.Add(L("Lüfter "));
-            last.Add(V(g.FanPercent is double fan ? $"{fan:0} %" : "–"));
-            gpu.Add(last.ToArray());
-        }
-        Lines(GpuColumn, gpu);
-    }
-
     /// <summary>Mehrere Zeilen in einen TextBlock, getrennt durch Zeilenumbrüche.</summary>
     private static void Lines(TextBlock target, IEnumerable<(string Text, Brush? Brush)[]> lines)
     {
@@ -521,7 +479,7 @@ public partial class OverlayWindow : Window
             ? ""
             : "30 s: " + string.Join(" · ", parts
                 .OrderByDescending(k => v.Shares[k.Kind])
-                .Take(_view switch { OverlayView.Compact => 1, OverlayView.Standard => 2, _ => 4 })   // was in die Breite passt
+                .Take(3)   // was in die Breite passt
                 .Select(k => $"{k.Label} {v.Shares[k.Kind] * 100:0} %"));
 
         for (int i = 0; i < parts.Count; i++)
@@ -581,11 +539,12 @@ public partial class OverlayWindow : Window
             });
     }
 
-    private const double BusyBarWidth = 140;
+    private const double BusyBarWidth = 110;
 
     /// <summary>CPU- und GPU-Arbeitszeit pro Frame relativ zur Frametime – der längere Balken ist der Engpass.</summary>
     private void RenderBusyBars(Snapshot s, Verdict v)
     {
+        RenderGameThread(s);
         var f = s.Frames;
         if (f == null || double.IsNaN(f.GpuBusyMs) || f.AvgMs <= 0)
         {
@@ -599,22 +558,37 @@ public partial class OverlayWindow : Window
         CpuBusyBar.Fill = v.Kind == BottleneckKind.Cpu ? WarnBrush : InfoBrush;
         GpuBusyBar.Fill = v.Kind == BottleneckKind.Gpu ? GoodBrush : InfoBrush;
 
-        var cpu = new List<(string, Brush?)> { V($"{f.CpuBusyMs,4:0.0}"), L(" ms") };
-        if (s.MainThread is { } mt)
-        {
-            cpu.Add(L("  Thread "));
-            cpu.Add(($"{mt.Percent:0} %", LoadBrush(mt.Percent)));
-            if (mt.Name != null) cpu.Add(($" {Shorten(mt.Name, 16)}", MutedBrush));
-        }
-        Line(CpuBusyText, cpu.ToArray());
+        Line(CpuBusyText, V($"{f.CpuBusyMs,4:0.0}"), L(" ms"));
         Line(GpuBusyText, V($"{f.GpuBusyMs,4:0.0}"), L(" ms  wartet "), V($"{f.GpuWaitMs:0.0}"), L(" ms"));
     }
 
-    private void RenderNotes(IReadOnlyList<LoggedNote> notes)
+    /// <summary>
+    /// Hauptthread des Spiels mit Namen und dem stärksten P-Kern. Gemessen wird nur im Spielprozess – ohne Spiel
+    /// steht deshalb "–", auch wenn andere Programme einzelne Kerne auslasten.
+    /// </summary>
+    private void RenderGameThread(Snapshot s)
     {
-        for (int i = 0; i < _noteRows.Count; i++)
+        var c = s.Cpu;
+        double coreMax = c.IsHybrid ? c.MaxPerfCoreLoad : c.MaxCoreLoad;
+        var parts = new List<(string, Brush?)> { L("Spiel-Thread ") };
+        if (s.Frames == null) parts.Add(("– (kein Spiel)", MutedBrush));
+        else if (s.MainThread is not { } mt) parts.Add(("nicht lesbar (z. B. Anti-Cheat)", MutedBrush));
+        else
         {
-            var (row, text, age) = _noteRows[i];
+            parts.Add(($"{mt.Percent:0} %", LoadBrush(mt.Percent)));
+            if (mt.Name != null) parts.Add(($"  {Shorten(mt.Name, 18)}", MutedBrush));
+        }
+        // Spiele hängen meist an den P-Kernen – ist einer voll, bremst die CPU auch bei niedriger Gesamtlast
+        parts.Add(L(c.IsHybrid ? "  · P-Kern max " : "  · Kern max "));
+        parts.Add((Pct(coreMax), LoadBrush(coreMax)));
+        Line(GameThreadLine, parts.ToArray());
+    }
+
+    private static void RenderNotes(List<(Grid Row, TextBlock Text, TextBlock Age)> rows, IReadOnlyList<LoggedNote> notes, string empty)
+    {
+        for (int i = 0; i < rows.Count; i++)
+        {
+            var (row, text, age) = rows[i];
             if (i < notes.Count)
             {
                 var n = notes[i];
@@ -626,7 +600,7 @@ public partial class OverlayWindow : Window
             else
             {
                 // Leere Zeilen behalten ihre Höhe
-                text.Text = i == 0 ? "keine Meldungen" : " ";
+                text.Text = i == 0 ? empty : " ";
                 text.Foreground = MutedBrush;
                 age.Text = "";
                 row.Opacity = 1.0;
@@ -639,8 +613,8 @@ public partial class OverlayWindow : Window
         : t.TotalHours < 1 ? $"{(int)t.TotalMinutes}:{t.Seconds:00}"
         : $"{(int)t.TotalHours}:{t.Minutes:00} h";
 
-    /// <summary>Platz für die Balken neben dem Max-Label (Overlay-Breite 460 minus Einzug und Label).</summary>
-    private const double CoreBarsWidth = 230;
+    /// <summary>Platz für die Balken neben dem Max-Label (Overlay-Breite 400 minus Einzug und Label).</summary>
+    private const double CoreBarsWidth = 180;
 
     private int[] _coreOrder = [];
 
@@ -955,7 +929,8 @@ public partial class OverlayWindow : Window
     // ------------------------------------------------------------------ Selbsttest
 
     /// <summary>Rendert das Overlay ohne Fenster in eine PNG (über dunklem Hintergrund).</summary>
-    public void SaveImage(string path)
+    /// <returns>Größe des Overlays ohne den Rand des Vorschaubilds – für den Größenvergleich der Ansichten.</returns>
+    public (int Width, int Height) SaveImage(string path)
     {
         Root.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         Root.Arrange(new Rect(Root.DesiredSize));
@@ -978,5 +953,6 @@ public partial class OverlayWindow : Window
         encoder.Frames.Add(BitmapFrame.Create(final));
         using var stream = File.Create(path);
         encoder.Save(stream);
+        return (w - 24, h - 24);
     }
 }
