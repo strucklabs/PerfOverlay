@@ -270,6 +270,9 @@ public sealed class BottleneckAnalyzer
             var other = s.GpuTopProcesses.FirstOrDefault(p => p.Pid != f.Pid && p.Load >= 15);
             if (other != null)
                 notes.Add(new("gpu-foreign", $"Fremdlast auf GPU: {other.Name} {other.Load:0} %", Severity.Warn));
+
+            if (s.Timer is { IsSlow: true } timer)
+                notes.Add(new("timer", TimerNote(timer), Severity.Warn));
         }
 
         if (f != null && f.AvgMs > 0 && !double.IsNaN(f.GpuBusyMs) && !double.IsNaN(f.CpuBusyMs))
@@ -292,6 +295,18 @@ public sealed class BottleneckAnalyzer
         if (s.Cpu.TotalLoad >= 85)
             return new("CPU AUSGELASTET", $"CPU gesamt {s.Cpu.TotalLoad:0} % ({why})", Severity.Warn, notes);
         return new("KEIN ENGPASS", $"System hat Reserven ({why})", Severity.Good, notes);
+    }
+
+    /// <summary>Meldung zum langsamen Zeitgeber – mit Ursache, sofern sie (mit Admin-Rechten) bekannt ist.</summary>
+    internal static string TimerNote(TimerInfo t)
+    {
+        string cost = $"Langsamer Zeitgeber {t.Name} aktiv ({t.NsPerCall:0} ns statt etwa 30 ns pro Zeitabfrage) – kostet FPS";
+        return t.UsePlatformClock switch
+        {
+            true => cost + "; Ursache: Startoption useplatformclock – als Admin „bcdedit /deletevalue useplatformclock“ und neu starten",
+            false => cost + "; Windows hält den TSC für ungeeignet – BIOS- und Windows-Updates prüfen",
+            _ => cost + "; Ursache mit Admin-Rechten genauer bestimmbar",
+        };
     }
 
     private Verdict EvaluateFrames(Snapshot s, FrameStats f, List<Note> notes, bool xmpOff)

@@ -178,6 +178,9 @@ public sealed record Snapshot(
     /// <summary>Anwendung im Vordergrund, deren Frames verworfen wurden, weil sie kein Spiel ist (Browser, KI-App …).</summary>
     public string? IgnoredApp { get; init; }
 
+    /// <summary>Zeitgeber hinter QueryPerformanceCounter (TSC/HPET/ACPI), einmal beim Start gemessen.</summary>
+    public TimerInfo? Timer { get; init; }
+
     public HwInfoStatus HwInfoStatus { get; init; } = HwInfoStatus.NotRunning;
 
     public NetworkData? Network { get; init; }

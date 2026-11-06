@@ -380,6 +380,7 @@ function renderSession(view, s) {
       ${m["GPU"] ? `<span>GPU <b>${esc(m["GPU"])}</b></span>` : ""}
       ${m["RAM"] ? `<span>RAM <b>${esc(m["RAM"])}</b></span>` : ""}
       ${m["Windows"] ? `<span>Windows <b>${esc(m["Windows"])}</b></span>` : ""}
+      ${m["Zeitgeber"] ? `<span>Zeitgeber <b>${esc(m["Zeitgeber"].split(" ")[0])}</b></span>` : ""}
     </div>`);
 
   const has = key => d[key].some(v => v !== null);
@@ -490,6 +491,12 @@ function renderSession(view, s) {
 
 // ---------------------------------------------------------------- Ergebnis: Engpass
 
+/** Langsamer Zeitgeber (HPET/ACPI) laut Sitzungskopf, z. B. "HPET (14,318 MHz, 900 ns pro Abfrage, …)" – sonst null */
+function slowTimer(s) {
+  const t = s.meta["Zeitgeber"];
+  return t && /^(HPET|ACPI)/.test(t) ? t : null;
+}
+
 /** Anteil der Spielzeit, in der CPU bzw. GPU gedrosselt haben (aus den Meldungen des Overlays) */
 function throttleShares(st) {
   return { cpu: noteShare(st, /CPU drosselt/), cpuTemp: noteShare(st, /CPU drosselt: Temperatur/), gpu: noteShare(st, /GPU drosselt/) };
@@ -551,6 +558,8 @@ function resultBlock(s) {
   const thr = throttleShares(st);
   if (thr.cpuTemp >= 0.05) tips.unshift(`Zuerst die Kühlung: Die CPU drosselte ${pct(thr.cpuTemp)} der Zeit wegen Temperatur – das kostet FPS, egal wo der Engpass liegt`);
   if (thr.gpu >= 0.05) tips.unshift(`Zuerst die Kühlung: Die Grafikkarte drosselte ${pct(thr.gpu)} der Zeit – Staub, Lüfterkurve und Luftstrom prüfen`);
+  if (slowTimer(s)) tips.unshift("Zuerst den Zeitgeber: Windows nutzte den langsamen Zeitgeber " + slowTimer(s).split(" ")[0]
+    + " statt des TSC – jede Zeitabfrage des Spiels kostet ein Vielfaches; Ursache steht in den Meldungen");
 
   return `<div class="result" style="--c:${KINDS[clear ? top : "Mixed"].color}">
       <div class="r-title">${esc(title)}</div>
@@ -664,6 +673,7 @@ function insightsFor(s) {
   if (st.pacing !== null && pacingRating(st.pacing, st.ft) === "unruhig")
     add(main, "warn", `Unruhiges Frame-Pacing (±${fmt(st.pacing, 1)} ms von Bild zu Bild) – FPS-Limit, VSync und G-Sync/FreeSync prüfen.`);
   if (noteShare(st, /VRAM voll/) > 0) add(main, "warn", "Der Grafikspeicher lief voll – Texturdetails oder Auflösung senken.");
+  if (slowTimer(s)) add(main, "warn", `Windows nutzte einen langsamen Zeitgeber: ${slowTimer(s)}. Spiele fragen die Zeit sehr oft ab – das kostet FPS.`);
   if (st.fpsApp && st.fps && st.fpsApp < st.fps * 0.8) add(main, "info", `Frame Generation war aktiv: ${fmt(st.fps, 0)} FPS angezeigt, ${fmt(st.fpsApp, 0)} vom Spiel gerendert.`);
 
   // Nebenbefunde: Temperaturen ohne Drosselung und die Verbindung

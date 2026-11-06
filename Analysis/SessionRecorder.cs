@@ -132,6 +132,7 @@ public sealed class SessionRecorder : IDisposable
         if (s.Gpu != null) _writer.WriteLine($"# GPU: {s.Gpu.Name}");
         if (s.MemoryConfig != null) _writer.WriteLine($"# RAM: {s.MemoryConfig.Summary}");
         _writer.WriteLine($"# Windows: {Environment.OSVersion.Version}");
+        if (s.Timer != null) _writer.WriteLine($"# Zeitgeber: {s.Timer.Summary}");
         _writer.WriteLine(string.Join(';', Columns));
 
         _sessionStart = s.Time;

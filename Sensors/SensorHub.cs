@@ -18,6 +18,8 @@ internal sealed class SensorHub : IDisposable
 
     // WMI-Abfrage dauert einige 100 ms – im Hintergrund, damit das Overlay sofort startet
     private readonly Task<MemoryConfig?> _memoryConfig = Task.Run(MemoryConfig.Read);
+    // Zeitgeber ändert sich nur mit einem Neustart von Windows – eine Messung genügt
+    private readonly Task<TimerInfo> _timer = Task.Run(TimerSource.Detect);
 
     private readonly NetworkSensor _network;
 
@@ -95,6 +97,7 @@ internal sealed class SensorHub : IDisposable
             GpuThermal = MergeThermal(_hwInfo.Gpu, adlxThermal),   // _hwInfo.Gpu wird beim _hwInfo.Read() oben mitgelesen
             HwInfoStatus = _hwInfo.Status,
             IgnoredApp = ignoredApp,
+            Timer = _timer.IsCompletedSuccessfully ? _timer.Result : null,
         };
     }
 

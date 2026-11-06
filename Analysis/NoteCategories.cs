@@ -30,6 +30,7 @@ public static class NoteCategories
         ["vram"] = NoteCategory.Bottleneck,
         ["ram"] = NoteCategory.Bottleneck,
         ["gpu-foreign"] = NoteCategory.Bottleneck,
+        ["timer"] = NoteCategory.Bottleneck,
 
         // Hinweise
         ["cpu-foreign"] = NoteCategory.Hint,
