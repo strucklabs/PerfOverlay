@@ -178,3 +178,9 @@ Frames kennzeichnen – bei DLSS 3 ist das nicht garantiert (ungetestet).
 - SSD-Temperatur über WMI `MSFT_StorageReliabilityCounter`
 - Hauptfenster in der EXE mit Live-Auswertung (gleiche Datenbasis wie die CSV-Sitzungen)
 - Download-Link im Kopf der Auswertung, sobald es einen Release Candidate gibt
+
+## Lizenz
+
+PerfOverlay steht unter der MIT-Lizenz, siehe [`LICENSE`](LICENSE).
+Die mitgelieferte `tools\PresentMon.exe` stammt unverändert von Intel und steht unter deren MIT-Lizenz,
+siehe [`tools\PresentMon-LICENSE.txt`](tools/PresentMon-LICENSE.txt).
