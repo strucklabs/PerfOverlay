@@ -29,6 +29,7 @@ internal static class SelfTest
         var analyzer = new BottleneckAnalyzer();
         log.AppendLine($"Admin: {Win32.IsElevated()}   NVML: {hub.HasNvml}   PresentMon: {PresentMonSource.ExePath}");
         log.AppendLine($"Zeitgeber: {TimerSource.Detect().Summary}");
+        log.AppendLine($"Tote Verbindungen (CLOSE_WAIT, alle Programme): {ConnectionSensor.CloseWaitSummary()}");
         if (!hub.HasNvml) log.AppendLine(AdlxGpuSensor.Dump(hub.Adlx));
         using (var icon = OverlayWindow.LoadTrayIcon())
             log.AppendLine($"Tray-Icon: {(icon == System.Drawing.SystemIcons.Application ? "Standard (eigenes fehlt!)" : $"eigenes, {icon.Width}×{icon.Height}")}");
@@ -96,7 +97,8 @@ internal static class SelfTest
                     Network = new NetworkData(new PingStats(1, 0.3, 0), new PingStats(14, 2.1, 0), true, 0.4, 0.1),
                     BackgroundCpu = scene == "cpu" ? [new ProcessLoad(1, "chrome", 9), new ProcessLoad(2, "Discord", 6)] : [],
                 };
-                if (scene != "leer") snapshot = WithDemoFrames(snapshot, cpuLimited: scene == "cpu" && tick % 6 != 0, rnd);
+                if (scene != "leer")
+                    snapshot = WithDemoFrames(snapshot, cpuLimited: scene == "cpu" && tick % 6 != 0, rnd) with { GameConnections = new ConnectionData(12, 0, 0) };
                 // Ohne Spiel: Die Messung läuft, im Vordergrund ist aber eine KI-App – sie darf nicht bewertet werden
                 else snapshot = snapshot with { FrameSourceRunning = true, FrameSourceStatus = "aktiv", IgnoredApp = "claude" };
                 verdict = analyzer.Analyze(snapshot);

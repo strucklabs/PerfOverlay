@@ -273,6 +273,11 @@ public sealed class BottleneckAnalyzer
 
             if (s.Timer is { IsSlow: true } timer)
                 notes.Add(new("timer", TimerNote(timer), Severity.Warn));
+
+            if (s.GameConnections is { Stale: >= DeadConnectionThreshold } conn)
+                notes.Add(new("net-closewait",
+                    $"Spiel hält {conn.CloseWait} tote Verbindungen offen (CLOSE_WAIT) – Fehler im Spiel, kann Ruckler verursachen; "
+                    + "ein Neustart des Spiels hilft vorübergehend", Severity.Warn));
         }
 
         if (f != null && f.AvgMs > 0 && !double.IsNaN(f.GpuBusyMs) && !double.IsNaN(f.CpuBusyMs))
@@ -296,6 +301,12 @@ public sealed class BottleneckAnalyzer
             return new("CPU AUSGELASTET", $"CPU gesamt {s.Cpu.TotalLoad:0} % ({why})", Severity.Warn, notes);
         return new("KEIN ENGPASS", $"System hat Reserven ({why})", Severity.Good, notes);
     }
+
+    /// <summary>
+    /// Ab so vielen Verbindungen, die länger als 30 s in CLOSE_WAIT hängen, gilt es als Fehler im Spiel.
+    /// Bewusst niedrig: Wartet das Spiel schon auf wenige tote Verbindungen, kann es bereits ruckeln.
+    /// </summary>
+    public const int DeadConnectionThreshold = 3;
 
     /// <summary>Meldung zum langsamen Zeitgeber – mit Ursache, sofern sie (mit Admin-Rechten) bekannt ist.</summary>
     internal static string TimerNote(TimerInfo t)

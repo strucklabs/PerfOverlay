@@ -50,6 +50,8 @@ public static class NoteCategories
         ["net-router"] = NoteCategory.Hint,
         ["net-internet"] = NoteCategory.Hint,
         ["net-transfer"] = NoteCategory.Hint,
+        // Tote Verbindungen beweisen allein keinen FPS-Verlust – den Zusammenhang mit Rucklern zeigt die Auswertung
+        ["net-closewait"] = NoteCategory.Hint,
     };
 
     /// <summary>Unbekannte Kennungen gelten als Hinweis – lieber zu wenig oben als zu viel.</summary>

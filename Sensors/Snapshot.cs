@@ -184,4 +184,7 @@ public sealed record Snapshot(
     public HwInfoStatus HwInfoStatus { get; init; } = HwInfoStatus.NotRunning;
 
     public NetworkData? Network { get; init; }
+
+    /// <summary>TCP-Verbindungen des Spiels, davon tote (CLOSE_WAIT); null ohne Spiel.</summary>
+    public ConnectionData? GameConnections { get; init; }
 }

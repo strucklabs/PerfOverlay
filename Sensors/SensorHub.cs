@@ -22,6 +22,7 @@ internal sealed class SensorHub : IDisposable
     private readonly Task<TimerInfo> _timer = Task.Run(TimerSource.Detect);
 
     private readonly NetworkSensor _network;
+    private readonly ConnectionSensor _connections = new();
 
     /// <param name="pingTarget">Ping-Ziel im Internet für die Verbindungsanalyse; leer = nicht pingen.</param>
     public SensorHub(string? pingTarget = "1.1.1.1")
@@ -74,9 +75,10 @@ internal sealed class SensorHub : IDisposable
             frames = null;
         }
         int gamePid = frames?.Pid ?? 0;
+        var now = DateTime.Now;
 
         return new Snapshot(
-            DateTime.Now,
+            now,
             _cpu.Read(),
             _memory.Read(),
             _disk.Read(),
@@ -98,6 +100,7 @@ internal sealed class SensorHub : IDisposable
             HwInfoStatus = _hwInfo.Status,
             IgnoredApp = ignoredApp,
             Timer = _timer.IsCompletedSuccessfully ? _timer.Result : null,
+            GameConnections = _connections.Read(gamePid, now),
         };
     }
 

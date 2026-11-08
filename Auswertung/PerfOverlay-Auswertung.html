@@ -240,7 +240,8 @@ function parseCsv(text, name) {
     gpuFanPct: col("GPU_Luefter_Proz"), gpuFanRpm: col("GPU_Luefter_U_min"), cpuFanRpm: col("CPU_Luefter_U_min"),
     ram: col("RAM_Proz"), spikes: col("Ruckler"), pacing: col("Pacing_ms"),
     pingRouter: col("Ping_Router_ms"), pingNet: col("Ping_Internet_ms"), jitterNet: col("Jitter_Internet_ms"),
-    lossNet: col("Verlust_Internet_Proz"), netDown: col("Netz_Down_MBs"), netUp: col("Netz_Up_MBs"), notes: rows.map(r => r.Meldungen || ""), time: rows.map(r => r.Zeit),
+    lossNet: col("Verlust_Internet_Proz"), netDown: col("Netz_Down_MBs"), netUp: col("Netz_Up_MBs"),
+    conns: col("Verbindungen"), dead: col("Tote_Verbindungen"), notes: rows.map(r => r.Meldungen || ""), time: rows.map(r => r.Zeit),
   };
   return { name, meta, rows: rows.length, cols: new Set(header), d, stats: computeStats(d) };
 }
@@ -289,11 +290,43 @@ function computeStats(d) {
     cpuFan: avg(d.cpuFanRpm), cpuFanMax: max(d.cpuFanRpm),
     pingNet: avg(d.pingNet), pingNetMax: max(d.pingNet), jitterNet: avg(d.jitterNet),
     lossNet: avg(d.lossNet), lossNetMax: max(d.lossNet), pingRouter: avg(d.pingRouter), netDownMax: max(d.netDown),
+    deadMax: max(d.dead), deadEffect: deadConnectionEffect(d),
     gpuFanLoad: loadIdx.length ? avg(loadIdx.map(i => d.gpuFanPct[i])) : null,
     // Pacing nur im Spielgeschehen (ab 40 FPS), Ladebildschirme verzerren sonst den Mittelwert
     pacing: avg(d.pacing.map((p, i) => d.fps[i] !== null && d.fps[i] >= 40 ? p : null)),
     notes: [...notes.values()].sort((a, b) => b.seconds - a.seconds),
   };
+}
+
+/**
+ * Tote Verbindungen (vom Server geschlossen, vom Spiel nicht – CLOSE_WAIT): Ruckler und FPS in Phasen mit
+ * mindestens 3 toten Verbindungen, die schon 30 s bestehen (wie im Overlay), gegenüber dem Rest der Sitzung.
+ * Nur Sekunden mit Bilddaten; beide Phasen brauchen mindestens 30 s, sonst ist der Vergleich nicht belastbar.
+ */
+const DEAD_THRESHOLD = 3, DEAD_SECONDS = 30;
+function deadConnectionEffect(d) {
+  if (!d.dead.some(v => v !== null)) return null;
+  const high = { sec: 0, spikes: 0, fps: [] }, low = { sec: 0, spikes: 0, fps: [] };
+  let run = 0;
+  d.dead.forEach((v, i) => {
+    run = v !== null && v >= DEAD_THRESHOLD ? run + 1 : 0;
+    if (d.fps[i] === null) return;
+    const g = run >= DEAD_SECONDS ? high : low;
+    g.sec++; g.spikes += d.spikes[i] || 0; g.fps.push(d.fps[i]);
+  });
+  if (high.sec < 30 || low.sec < 30) return { highSec: high.sec, lowSec: low.sec, comparable: false };
+  return {
+    highSec: high.sec, lowSec: low.sec, comparable: true,
+    spikesHigh: high.spikes / (high.sec / 60), spikesLow: low.spikes / (low.sec / 60),
+    fpsHigh: avg(high.fps), fpsLow: avg(low.fps),
+  };
+}
+
+/** Bremsten die toten Verbindungen messbar? Mehr als doppelt so viele Ruckler (und spürbar viele) oder 10 % weniger FPS. */
+function deadConnectionsHurt(st) {
+  const e = st.deadEffect;
+  if (!e || !e.comparable) return false;
+  return (e.spikesHigh > 2 && e.spikesHigh >= 2 * e.spikesLow) || (e.fpsHigh && e.fpsLow && e.fpsHigh < 0.9 * e.fpsLow);
 }
 
 // ---------------------------------------------------------------- Darstellung
@@ -476,17 +509,29 @@ function renderSession(view, s) {
   plot(gpu, "GPU-Lüfter (U/min)", [{ key: "gpuFanRpm", label: "GPU-Lüfter", color: "var(--gpu)" }], { min: 0, unit: " U/min" });
 
   // Verbindung zuletzt und zugeklappt: beeinflusst den Lag in Online-Spielen, nicht die FPS
-  const net = section(view, "Verbindung", "Ping zu Router und Internet", { id: "network", help: HELP.network });
+  const net = section(view, "Verbindung", "Ping zu Router und Internet, Verbindungen des Spiels", { id: "network", help: HELP.network });
   if (st.pingNet !== null)
     net.insertAdjacentHTML("beforeend", `<div class="cards">
       ${card("Ø Ping Internet", fmt(st.pingNet, 0) + " <small>ms</small>", `±${fmt(st.jitterNet, 0)} ms Schwankung`)}
       ${card("Verlust max", fmt(st.lossNetMax, 0, " %"), "")}
     </div>`);
-  gapNote(net, s, ["pingNet"]);
+  gapNote(net, s, ["pingNet", "dead"]);
   plot(net, "Ping (ms)", [
     { key: "pingNet", label: "Internet", color: "var(--limit)" },
     { key: "pingRouter", label: "Router", color: "var(--muted)", dash: "3 3" },
   ], { min: 0, unit: " ms" });
+  if (st.deadMax !== null) {
+    const e = st.deadEffect;
+    if (e && e.comparable)
+      net.insertAdjacentHTML("beforeend", `<div class="cards">
+        ${card("Mit toten Verbindungen", fmt(e.spikesHigh, 1) + " <small>Ruckler/min</small>", `Ø ${fmt(e.fpsHigh, 0)} FPS · ${fmt(e.highSec / 60, 0)} Min.`)}
+        ${card("Ohne tote Verbindungen", fmt(e.spikesLow, 1) + " <small>Ruckler/min</small>", `Ø ${fmt(e.fpsLow, 0)} FPS · ${fmt(e.lowSec / 60, 0)} Min.`)}
+      </div>`);
+    plot(net, "Verbindungen des Spiels", [
+      { key: "dead", label: "tot (CLOSE_WAIT)", color: "var(--bad)" },
+      { key: "conns", label: "alle", color: "var(--muted)", dash: "3 3" },
+    ], { min: 0, unit: "" });
+  }
 }
 
 // ---------------------------------------------------------------- Ergebnis: Engpass
@@ -558,6 +603,8 @@ function resultBlock(s) {
   const thr = throttleShares(st);
   if (thr.cpuTemp >= 0.05) tips.unshift(`Zuerst die Kühlung: Die CPU drosselte ${pct(thr.cpuTemp)} der Zeit wegen Temperatur – das kostet FPS, egal wo der Engpass liegt`);
   if (thr.gpu >= 0.05) tips.unshift(`Zuerst die Kühlung: Die Grafikkarte drosselte ${pct(thr.gpu)} der Zeit – Staub, Lüfterkurve und Luftstrom prüfen`);
+  if (deadConnectionsHurt(st)) tips.unshift("Zuerst das Spiel neu starten: Es hielt tote Verbindungen offen und ruckelte damit deutlich mehr – "
+    + "ein Fehler im Spiel, den ein Neustart vorübergehend behebt; dem Hersteller melden hilft dauerhaft");
   if (slowTimer(s)) tips.unshift("Zuerst den Zeitgeber: Windows nutzte den langsamen Zeitgeber " + slowTimer(s).split(" ")[0]
     + " statt des TSC – jede Zeitabfrage des Spiels kostet ein Vielfaches; Ursache steht in den Meldungen");
 
@@ -589,6 +636,7 @@ const FIELDS = {
   thread: ["Hauptthread", "Hauptthread_Proz", "process"],
   pacing: ["Frame-Pacing", "Pacing_ms", "frames"],
   pingNet: ["Ping", "Ping_Internet_ms", "ping"],
+  dead: ["Verbindungen des Spiels", "Tote_Verbindungen", "old"],
 };
 
 const GAP_REASONS = {
@@ -674,6 +722,11 @@ function insightsFor(s) {
     add(main, "warn", `Unruhiges Frame-Pacing (±${fmt(st.pacing, 1)} ms von Bild zu Bild) – FPS-Limit, VSync und G-Sync/FreeSync prüfen.`);
   if (noteShare(st, /VRAM voll/) > 0) add(main, "warn", "Der Grafikspeicher lief voll – Texturdetails oder Auflösung senken.");
   if (slowTimer(s)) add(main, "warn", `Windows nutzte einen langsamen Zeitgeber: ${slowTimer(s)}. Spiele fragen die Zeit sehr oft ab – das kostet FPS.`);
+  const dead = st.deadEffect;
+  if (deadConnectionsHurt(st))
+    add(main, "warn", `Tote Verbindungen bremsten das Spiel: Mit ${DEAD_THRESHOLD} oder mehr toten Verbindungen gab es ${fmt(dead.spikesHigh, 1)} Ruckler pro Minute bei Ø ${fmt(dead.fpsHigh, 0)} FPS, `
+      + `ohne sie ${fmt(dead.spikesLow, 1)} pro Minute bei Ø ${fmt(dead.fpsLow, 0)} FPS. Das Spiel schließt vom Server beendete Verbindungen nicht – `
+      + "ein Fehler im Spiel; ein Neustart hilft vorübergehend. Details unter „Verbindung“.");
   if (st.fpsApp && st.fps && st.fpsApp < st.fps * 0.8) add(main, "info", `Frame Generation war aktiv: ${fmt(st.fps, 0)} FPS angezeigt, ${fmt(st.fpsApp, 0)} vom Spiel gerendert.`);
 
   // Nebenbefunde: Temperaturen ohne Drosselung und die Verbindung
@@ -688,6 +741,9 @@ function insightsFor(s) {
       add(side, "warn", `Die Verbindung schwankte (Ping ${fmt(st.pingNet, 0)} ms ±${fmt(st.jitterNet, 0)}, Verlust bis ${fmt(st.lossNetMax, 0)} %) – Details unter „Verbindung“.`);
     else add(side, "good", `Stabile Verbindung: ${fmt(st.pingNet, 0)} ms ±${fmt(st.jitterNet, 0)}, kein nennenswerter Verlust.`);
   }
+  if (!deadConnectionsHurt(st) && dead && dead.highSec > 0)
+    add(side, "info", `Das Spiel hielt zeitweise bis zu ${fmt(st.deadMax, 0)} tote Verbindungen offen (vom Server geschlossen, vom Spiel nicht) – `
+      + (dead.comparable ? "ohne messbaren Einfluss auf Ruckler und FPS." : "für einen Vergleich mit den Rucklern war die Sitzung zu kurz."));
   if ((st.cpuTempMax !== null || st.gpuTempMax !== null) && thr.cpu < 0.05 && thr.gpu < 0.1 && !side.some(x => x.level === "warn" || x.level === "info"))
     side.unshift({ level: "good", text: "Temperaturen unauffällig." });
 
@@ -755,13 +811,17 @@ const HELP = {
     <li><b>Takt</b>: Gleichmäßig ist gut. <b>Spannung</b>: Wer die Spannung absichtlich begrenzt hat (Undervolting, für weniger Wärme und Strom),
       sieht hier unter Last eine flache Linie.</li></ul>`,
   network: `<ul>
-    <li>Die Verbindung ändert nichts an den FPS. Sie entscheidet darüber, wie schnell deine Eingaben in Online-Spielen beim Server ankommen.
+    <li>Ping und Verlust ändern nichts an den FPS. Sie entscheiden darüber, wie schnell deine Eingaben in Online-Spielen beim Server ankommen.
       Eine schlechte Verbindung spürst du als Verzögerung oder springende Figuren („Lag“).</li>
     <li><b>Ping</b>: wie lange ein kleines Datenpaket hin und zurück braucht, in Millisekunden. Weniger ist besser.</li>
     <li><b>Router</b> (gestrichelt): die Strecke vom PC zu deinem Router. Per Kabel meist unter 2 ms, per WLAN unter 5 ms.
       Schwankt schon dieser Wert, liegt das Problem in deinem eigenen Netz, oft beim WLAN.</li>
     <li><b>Internet</b>: die Strecke bis ins Internet. Wichtiger als ein niedriger Wert sind gleichmäßige Werte. <b>Schwankung</b> (Jitter) und
-      <b>Verlust</b> (Pakete, die nie ankommen) stören mehr als ein gleichbleibend etwas höherer Ping.</li></ul>`,
+      <b>Verlust</b> (Pakete, die nie ankommen) stören mehr als ein gleichbleibend etwas höherer Ping.</li>
+    <li><b>Tote Verbindungen</b>: Verbindungen, die der Server (z. B. ein Cloud-Dienst des Spiels) schon beendet hat, das Spiel aber nicht.
+      Kurzzeitig ist das normal. Bleiben 3 oder mehr länger als 30 Sekunden offen, ist das ein Fehler im Spiel. Greift das Spiel weiter auf sie zu,
+      wartet es jedes Mal vergeblich – das kann Ruckler und FPS-Einbrüche verursachen. Die beiden Kacheln vergleichen die Phasen mit und ohne
+      tote Verbindungen. Ein Neustart des Spiels hilft vorübergehend.</li></ul>`,
   notes: `Hier stehen alle Hinweise, die das Overlay während der Sitzung angezeigt hat. Daneben siehst du, wie lange sie insgesamt aktiv waren
     und wann sie zum ersten Mal auftauchten. Hinweise, die lange aktiv waren, sind die besten Ansatzpunkte zur Verbesserung.`,
   compare: `Ein Vergleich ist nur aussagekräftig bei <b>gleichem Spiel, gleicher Stelle im Spiel und gleichen Einstellungen</b>. Am besten spielst du dieselbe

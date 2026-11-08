@@ -377,7 +377,7 @@ public partial class OverlayWindow : Window
         string source = g?.Source is "NVML" or "ADLX" ? g.Source : g != null ? "Windows-Zähler" : "–";
         SourceLine.Text = $"Quellen: GPU {source} · CPU-Temperatur {s.CpuThermal?.Source ?? "–"}";
 
-        RenderNetwork(s.Network);
+        RenderNetwork(s.Network, s.GameConnections);
     }
 
     /// <summary>
@@ -406,10 +406,17 @@ public partial class OverlayWindow : Window
         Line(HardwareLine, parts.ToArray());
     }
 
-    /// <summary>Analyse-Ansicht, Abschnitt Verbindung: Ping/Jitter/Verlust zu Router und Internet, Datenrate.</summary>
-    private void RenderNetwork(NetworkData? net)
+    /// <summary>
+    /// Analyse-Ansicht, Abschnitt Verbindung: Ping/Jitter/Verlust zu Router und Internet, Datenrate und die
+    /// Verbindungen des Spiels samt toten (von der Gegenseite geschlossen, vom Spiel nicht – CLOSE_WAIT).
+    /// </summary>
+    private void RenderNetwork(NetworkData? net, ConnectionData? conn)
     {
         if (_view != OverlayView.Analysis) return;
+        if (conn == null) Line(ConnectionLine, L("Spiel  "), ("–", MutedBrush));
+        else Line(ConnectionLine, L("Spiel  "), V($"{conn.Total}"), L(" Verbindungen, davon "),
+            ($"{conn.CloseWait}", conn.Stale >= BottleneckAnalyzer.DeadConnectionThreshold ? WarnBrush : conn.CloseWait > 0 ? null : MutedBrush),
+            L(" tot"));
         if (net == null)
         {
             Line(PingLine, L("Ping  "), ("–", MutedBrush));

@@ -153,6 +153,7 @@
                 </Border>
                 <TextBlock x:Name="PingLine" />
                 <TextBlock x:Name="TrafficLine" />
+                <TextBlock x:Name="ConnectionLine" />
 
                 <Border Style="{StaticResource Section}">
                     <TextBlock Text="WEITERE HINWEISE" Style="{StaticResource SectionText}" />

@@ -52,7 +52,7 @@ Ecke bzw. gezogene Position, Monitor, Ansicht und „Sitzungen aufzeichnen“ we
 erscheint das Overlay auf dem Hauptmonitor; eine beschädigte Datei führt zu den Standardwerten.
 
 Selbsttest ohne Fenster: `PerfOverlay.exe --selftest 6` schreibt `selftest.txt` und `selftest.png` neben die EXE. Die zweite Zeile nennt den Zeitgeber, z. B. „TSC (10 MHz, 12 ns pro Abfrage)“; als Administrator gestartet
-zusätzlich, ob `useplatformclock` gesetzt ist. Sitzungsdateien enthalten dieselbe Angabe als Kopfzeile `# Zeitgeber:`.
+zusätzlich, ob `useplatformclock` gesetzt ist. Die dritte Zeile zählt tote Verbindungen (CLOSE_WAIT) aller Programme, z. B. „3 (SearchApp 2, nvcontainer 1)“. Sitzungsdateien enthalten dieselbe Angabe als Kopfzeile `# Zeitgeber:`.
 
 ## Sitzungen aufzeichnen und auswerten
 
@@ -103,6 +103,7 @@ Das Icon (`Assets\PerfOverlay.ico`) wird mit `Assets\make-icon.ps1` erzeugt.
 | CPU-Drosselung (immer) | PDH `Processor Information(_Total)\% Performance Limit` |
 | Zeitgeber | Einmal beim Start: Frequenz von `QueryPerformanceCounter` (TSC meist 10 MHz, HPET 14,318 MHz, ACPI-Timer 3,58 MHz) und Kosten von 20.000 Abfragen (TSC etwa 10–50 ns, HPET mehrere hundert ns). Mit Admin-Rechten zusätzlich `bcdedit /enum {current}` → Startoption `useplatformclock`. Läuft ein Spiel mit langsamem Zeitgeber, meldet das Overlay einen Engpass mit Ursache (gesetzte Startoption bzw. Windows hält den TSC für ungeeignet). PerfOverlay ändert die Einstellung nie selbst. |
 | Verbindung | Ping je Sekunde zum Router (Standard-Gateway) und zu `PingTarget` (Standard `1.1.1.1`, leer = aus) → Ø-Ping, Jitter, Verlust über 30 s; PDH `Network Interface(*)\Bytes Received/Sent`; Datendurchsatz je Prozess über `GetProcessIoCounters` (Datei + Netzwerk, daher „vermutlich“) |
+| Tote Verbindungen | Je Sekunde die TCP-Tabelle über `GetExtendedTcpTable` (IPv4/IPv6, ohne Admin, wie `netstat -ano`), nur Verbindungen des Spielprozesses. Tot = CLOSE_WAIT: Die Gegenseite hat geschlossen, das Spiel nicht. Ab 3 Verbindungen, die länger als 30 s in CLOSE_WAIT hängen, Hinweis im Overlay (Fehler im Spiel, Neustart hilft vorübergehend). Spalten `Verbindungen` und `Tote_Verbindungen`; die Auswertung vergleicht Ruckler und FPS mit und ohne tote Verbindungen und stellt einen deutlichen Unterschied (doppelt so viele Ruckler oder 10 % weniger FPS) als Hauptaussage heraus. |
 | HWiNFO-Zustand | Beim Start und bei jedem Wechsel ein Hinweis, was fehlt: HWiNFO läuft nicht / läuft, aber Sensorfenster bzw. „Shared Memory Support“ fehlt / lieferte, hat aber aufgehört (beendet oder 12-h-Grenze der Gratisversion). |
 | GPU-Spannung, Hotspot, Speicher-Junction (optional) | HWiNFO (`GPU Core Voltage`, `… Hot Spot …`, `… Memory Junction …`). Hinweise ab 100 °C Speichertemperatur (GDDR6X drosselt um 110 °C) und bei Hotspot ≥ 20 °C über GPU-Temperatur. |
 | CPU-Temperatur, Package-Leistung, PL1, Drosselungsgründe (optional) | Shared Memory von **HWiNFO** (`Global\HWiNFO_SENS_SM2`), wird automatisch erkannt. In HWiNFO muss „Shared Memory Support“ aktiv sein (Gratisversion: 12 Stunden, danach neu aktivieren). |
