@@ -56,6 +56,8 @@ internal static class SelfTest
         log.AppendLine();
         log.AppendLine("=== System ===");
         log.AppendLine($"Windows: {Environment.OSVersion.VersionString}   Kerne (logisch): {Environment.ProcessorCount}");
+        foreach (var (label, value) in snapshot!.System?.Entries() ?? [])
+            log.AppendLine($"{label}: {value}");
         log.AppendLine();
         log.AppendLine("=== HWiNFO: CPU- und GPU-Sensoren (Rohdaten) ===");
         log.AppendLine(HwInfoSensor.DumpReadings());

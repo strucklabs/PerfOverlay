@@ -52,6 +52,11 @@ public static class NoteCategories
         ["net-transfer"] = NoteCategory.Hint,
         // Tote Verbindungen beweisen allein keinen FPS-Verlust – den Zusammenhang mit Rucklern zeigt die Auswertung
         ["net-closewait"] = NoteCategory.Hint,
+        // Systemeinstellungen
+        ["monitor-hz"] = NoteCategory.Hint,
+        ["power-battery"] = NoteCategory.Hint,
+        ["power-saving"] = NoteCategory.Hint,
+        ["rebar"] = NoteCategory.Hint,
     };
 
     /// <summary>Unbekannte Kennungen gelten als Hinweis – lieber zu wenig oben als zu viel.</summary>

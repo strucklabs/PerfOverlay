@@ -19,7 +19,17 @@ internal sealed class NvmlGpuSensor : IDisposable
         _maxCoreMhz = Nvml.nvmlDeviceGetMaxClockInfo(device, Nvml.NVML_CLOCK_GRAPHICS, out uint mc) == 0 ? mc : null;
         _maxGen = Nvml.nvmlDeviceGetMaxPcieLinkGeneration(device, out uint g) == 0 ? (int)g : null;
         _maxWidth = Nvml.nvmlDeviceGetMaxPcieLinkWidth(device, out uint w) == 0 ? (int)w : null;
+        try
+        {
+            if (Nvml.nvmlDeviceGetBAR1MemoryInfo(device, out var bar1) == 0) Bar1TotalMB = bar1.Total / (1024.0 * 1024);
+            if (Nvml.nvmlDeviceGetMemoryInfo(device, out var mem) == 0) VramTotalMB = mem.Total / (1024.0 * 1024);
+        }
+        catch (EntryPointNotFoundException) { /* sehr alter Treiber */ }
     }
+
+    /// <summary>Größe des BAR1-Fensters (für die Erkennung von Resizable BAR).</summary>
+    public double? Bar1TotalMB { get; }
+    public double? VramTotalMB { get; }
 
     public static NvmlGpuSensor? TryCreate()
     {

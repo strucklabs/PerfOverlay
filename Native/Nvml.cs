@@ -46,7 +46,17 @@ public static class Nvml
         public ulong Used;
     }
 
+    /// <summary>BAR1: Fenster, über das die CPU den Grafikspeicher sieht – 256 MB ohne, bis VRAM-Größe mit Resizable BAR.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Bar1Memory
+    {
+        public ulong Total;
+        public ulong Free;
+        public ulong Used;
+    }
+
     [DllImport(Dll)] public static extern int nvmlInit_v2();
+    [DllImport(Dll)] public static extern int nvmlDeviceGetBAR1MemoryInfo(IntPtr device, out Bar1Memory bar1);
     [DllImport(Dll)] public static extern int nvmlShutdown();
     [DllImport(Dll)] public static extern int nvmlDeviceGetCount_v2(out uint count);
     [DllImport(Dll)] public static extern int nvmlDeviceGetHandleByIndex_v2(uint index, out IntPtr device);

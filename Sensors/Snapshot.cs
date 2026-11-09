@@ -187,4 +187,7 @@ public sealed record Snapshot(
 
     /// <summary>TCP-Verbindungen des Spiels, davon tote (CLOSE_WAIT); null ohne Spiel.</summary>
     public ConnectionData? GameConnections { get; init; }
+
+    /// <summary>Monitor, Energieplan, Speicher-Integrität, HAGS, Resizable BAR.</summary>
+    public SystemInfo? System { get; init; }
 }

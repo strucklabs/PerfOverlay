@@ -264,6 +264,9 @@ public sealed class BottleneckAnalyzer
         // --- Verbindung: bremst keine FPS, verursacht aber Lag in Online-Spielen ---
         AddNetworkNotes(s, notes);
 
+        // --- Systemeinstellungen: Monitor, Energie, Resizable BAR ---
+        if (s.System is { } sys) AddSystemNotes(sys, notes);
+
         // --- Andere Prozesse auf der GPU ---
         if (f != null)
         {
@@ -300,6 +303,33 @@ public sealed class BottleneckAnalyzer
         if (s.Cpu.TotalLoad >= 85)
             return new("CPU AUSGELASTET", $"CPU gesamt {s.Cpu.TotalLoad:0} % ({why})", Severity.Warn, notes);
         return new("KEIN ENGPASS", $"System hat Reserven ({why})", Severity.Good, notes);
+    }
+
+    /// <summary>
+    /// Einstellungen, die Leistung kosten können. Alle als Hinweis: Sie erklären nicht den Engpass des Moments,
+    /// lassen sich aber leicht beheben. Speicher-Integrität und HAGS sind reine Info (Selbsttest, Sitzungskopf).
+    /// </summary>
+    internal static void AddSystemNotes(SystemInfo sys, List<Note> notes)
+    {
+        if (sys.Display is { BelowMax: true } d)
+            notes.Add(new("monitor-hz",
+                $"Monitor auf {d.CurrentHz} statt {d.MaxHz} Hz – in Windows umstellen",
+                Severity.Warn));
+
+        if (sys.Power is { } p)
+        {
+            if (p.OnBattery == true)
+                notes.Add(new("power-battery", "Akkubetrieb begrenzt die Leistung – Netzteil anschließen",
+                    Severity.Warn));
+            if (p.BatterySaver)
+                notes.Add(new("power-saving", "Stromsparmodus von Windows drosselt CPU und GPU", Severity.Warn));
+            else if (p.Plan == PowerPlanKind.PowerSaver)
+                notes.Add(new("power-saving", $"Energieplan „{p.PlanName}“ drosselt CPU und GPU – „Ausbalanciert“ wählen", Severity.Warn));
+        }
+
+        if (sys.ReBar == false)
+            notes.Add(new("rebar", "Resizable BAR aus – im BIOS aktivieren",
+                Severity.Info));
     }
 
     /// <summary>

@@ -23,6 +23,7 @@ internal sealed class SensorHub : IDisposable
 
     private readonly NetworkSensor _network;
     private readonly ConnectionSensor _connections = new();
+    private readonly SystemInfoSensor _system;
 
     /// <param name="pingTarget">Ping-Ziel im Internet für die Verbindungsanalyse; leer = nicht pingen.</param>
     public SensorHub(string? pingTarget = "1.1.1.1")
@@ -34,6 +35,7 @@ internal sealed class SensorHub : IDisposable
         _network = new NetworkSensor(_pdh, pingTarget);
         _nvml = NvmlGpuSensor.TryCreate();
         if (_nvml == null) _adlx = AdlxGpuSensor.TryCreate(probeFirst: true);
+        _system = new SystemInfoSensor(_nvml?.Bar1TotalMB, _nvml?.VramTotalMB);
         _pdh.Collect();   // Ratenzähler brauchen zwei Messpunkte
     }
 
@@ -101,6 +103,7 @@ internal sealed class SensorHub : IDisposable
             IgnoredApp = ignoredApp,
             Timer = _timer.IsCompletedSuccessfully ? _timer.Result : null,
             GameConnections = _connections.Read(gamePid, now),
+            System = _system.Read(now),
         };
     }
 

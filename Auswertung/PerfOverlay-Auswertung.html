@@ -414,6 +414,11 @@ function renderSession(view, s) {
       ${m["RAM"] ? `<span>RAM <b>${esc(m["RAM"])}</b></span>` : ""}
       ${m["Windows"] ? `<span>Windows <b>${esc(m["Windows"])}</b></span>` : ""}
       ${m["Zeitgeber"] ? `<span>Zeitgeber <b>${esc(m["Zeitgeber"].split(" ")[0])}</b></span>` : ""}
+      ${m["Monitor"] ? `<span>Monitor <b>${esc(monitorHz(m["Monitor"]))}</b></span>` : ""}
+      ${m["Energieplan"] ? `<span>Energie <b>${esc(m["Energieplan"])}</b></span>` : ""}
+      ${m["HAGS"] ? `<span>HAGS <b>${esc(m["HAGS"])}</b></span>` : ""}
+      ${m["Speicher-Integrität"] ? `<span>Speicher-Integrität <b>${esc(m["Speicher-Integrität"])}</b></span>` : ""}
+      ${m["Resizable BAR"] ? `<span>Resizable BAR <b>${esc(m["Resizable BAR"])}</b></span>` : ""}
     </div>`);
 
   const has = key => d[key].some(v => v !== null);
@@ -535,6 +540,13 @@ function renderSession(view, s) {
 }
 
 // ---------------------------------------------------------------- Ergebnis: Engpass
+
+/** "3440×1440, 120 Hz (möglich 144 Hz)" → "120 von 144 Hz"; ohne höhere Möglichkeit nur "144 Hz" */
+function monitorHz(text) {
+  const cur = text.match(/(\d+) Hz/), max = text.match(/möglich (\d+) Hz/);
+  if (!cur) return text;
+  return max ? `${cur[1]} von ${max[1]} Hz` : `${cur[1]} Hz`;
+}
 
 /** Langsamer Zeitgeber (HPET/ACPI) laut Sitzungskopf, z. B. "HPET (14,318 MHz, 900 ns pro Abfrage, …)" – sonst null */
 function slowTimer(s) {
