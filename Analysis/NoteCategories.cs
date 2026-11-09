@@ -63,6 +63,9 @@ public static class NoteCategories
         ["sync-above"] = NoteCategory.Hint,
         ["sync-halving"] = NoteCategory.Hint,
         ["net-bufferbloat"] = NoteCategory.Hint,
+        // Block C: Spielprozess
+        ["gpu-integrated"] = NoteCategory.Bottleneck,
+        ["game-memleak"] = NoteCategory.Hint,
     };
 
     /// <summary>Unbekannte Kennungen gelten als Hinweis – lieber zu wenig oben als zu viel.</summary>

@@ -299,6 +299,12 @@ public sealed class BottleneckAnalyzer
             if (s.Timer is { IsSlow: true } timer)
                 notes.Add(new("timer", TimerNote(timer), Severity.Warn));
 
+            if (Sustained("gpu-integrated", s.GameGpuMismatch != null, s.Time, TimeSpan.FromSeconds(5)))
+                notes.Add(new("gpu-integrated", "Spiel nutzt die Prozessorgrafik statt der Grafikkarte", Severity.Bad));
+
+            if (s.GameMemoryLeak is { } leak)
+                notes.Add(new("game-memleak", $"Spiel-Speicher wächst: {leak.FromGB:0.0} → {leak.ToGB:0.0} GB in {leak.Minutes:0} min", Severity.Warn));
+
             if (s.GameConnections is { Stale: >= DeadConnectionThreshold } conn)
                 notes.Add(new("net-closewait",
                     $"Spiel hält {conn.CloseWait} tote Verbindungen offen (CLOSE_WAIT) – Fehler im Spiel, kann Ruckler verursachen; "

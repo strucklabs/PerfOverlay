@@ -24,6 +24,7 @@ internal sealed class SensorHub : IDisposable
     private readonly NetworkSensor _network;
     private readonly ConnectionSensor _connections = new();
     private readonly SystemInfoSensor _system;
+    private readonly GameMemorySensor _gameMemory = new();
 
     /// <param name="pingTarget">Ping-Ziel im Internet für die Verbindungsanalyse; leer = nicht pingen.</param>
     public SensorHub(string? pingTarget = "1.1.1.1")
@@ -78,6 +79,10 @@ internal sealed class SensorHub : IDisposable
         }
         int gamePid = frames?.Pid ?? 0;
         var now = DateTime.Now;
+        var (gameMemory, leak) = _gameMemory.Read(gamePid, now);
+        // Adapterliste über DXGI erst, wenn das Spiel GPU-Last zeigt (einmalig, danach zwischengespeichert)
+        var gameGpu = _windowsGpu.LoadByAdapter(gamePid);
+        var mismatch = gameGpu.Count > 0 ? GpuAdapters.Check(gameGpu, GpuAdapters.All) : null;
 
         return new Snapshot(
             now,
@@ -104,6 +109,9 @@ internal sealed class SensorHub : IDisposable
             Timer = _timer.IsCompletedSuccessfully ? _timer.Result : null,
             GameConnections = _connections.Read(gamePid, now),
             System = _system.Read(now),
+            GameMemoryGB = gameMemory,
+            GameMemoryLeak = leak,
+            GameGpuMismatch = mismatch,
         };
     }
 

@@ -133,6 +133,23 @@ internal sealed class WindowsGpuSensor
 
     public bool Available => _engine3D != IntPtr.Zero;
 
+    /// <summary>3D-Last eines Prozesses je Grafikadapter (Schlüssel: LUID wie "0x00000000_0x0000C2B1").</summary>
+    public Dictionary<string, double> LoadByAdapter(int pid)
+    {
+        var result = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        if (pid <= 0 || !Available) return result;
+        string prefix = $"pid_{pid}_";
+        foreach (var (name, value) in _pdh.GetArray(_engine3D))
+        {
+            if (!name.StartsWith(prefix, StringComparison.Ordinal)) continue;
+            var parts = name.Split('_');
+            if (parts.Length < 5) continue;
+            string luid = parts[3] + "_" + parts[4];
+            result[luid] = result.GetValueOrDefault(luid) + value;
+        }
+        return result;
+    }
+
     /// <summary>Instanzname z. B. "pid_1234_luid_0x00000000_0x0000C2B1_phys_0_eng_0_engtype_3D".</summary>
     public (double AdapterLoad, double VramUsedGB, List<GpuProcessLoad> TopProcesses) Read()
     {

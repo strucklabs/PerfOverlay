@@ -203,4 +203,13 @@ public sealed record Snapshot(
 
     /// <summary>Monitor, Energieplan, Speicher-Integrität, HAGS, Resizable BAR.</summary>
     public SystemInfo? System { get; init; }
+
+    /// <summary>Privater Speicher des Spielprozesses (GB); null ohne Spiel oder ohne Zugriff.</summary>
+    public double? GameMemoryGB { get; init; }
+
+    /// <summary>Speicher des Spiels wächst seit mindestens 20 min ohne Plateau.</summary>
+    public MemoryLeak? GameMemoryLeak { get; init; }
+
+    /// <summary>Spiel rendert auf der Prozessorgrafik statt auf der Grafikkarte.</summary>
+    public GpuMismatch? GameGpuMismatch { get; init; }
 }
