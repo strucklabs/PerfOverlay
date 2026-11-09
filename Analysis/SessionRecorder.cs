@@ -54,7 +54,7 @@ public sealed class SessionRecorder : IDisposable
         "GPU_V", "GPU_Hotspot", "GPU_Speicher_Temp", "GPU_Luefter_Proz", "GPU_Luefter_U_min", "CPU_Luefter_U_min",
         "RAM_GB", "RAM_Proz", "Nachladen_s", "Disk_Proz", "Ruckler", "Pacing_ms",
         "Ping_Router_ms", "Ping_Internet_ms", "Jitter_Internet_ms", "Verlust_Internet_Proz", "Netz_Down_MBs", "Netz_Up_MBs",
-        "Verbindungen", "Tote_Verbindungen",
+        "Verbindungen", "Tote_Verbindungen", "DPC_max_Proz", "Commit_Proz",
         "Meldungen",
     ];
 
@@ -114,7 +114,7 @@ public sealed class SessionRecorder : IDisposable
             N(f.PacingMs, 2),
             N(s.Network?.Router?.AvgMs, 1), N(s.Network?.Internet?.AvgMs, 1), N(s.Network?.Internet?.JitterMs, 1),
             N(s.Network?.Internet?.LossPercent, 0), N(s.Network?.DownMBps, 2), N(s.Network?.UpMBps, 2),
-            N(s.GameConnections?.Total, 0), N(s.GameConnections?.CloseWait, 0),
+            N(s.GameConnections?.Total, 0), N(s.GameConnections?.CloseWait, 0), N(cpu.DpcMaxPercent, 1), N(s.Memory.CommitPercent, 0),
             Text(string.Join(" | ", v.Notes.Select(n => n.Text)))));
     }
 

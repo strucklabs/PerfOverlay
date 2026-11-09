@@ -55,7 +55,19 @@ public sealed class BottleneckAnalyzer
     private DateTime _hwInfoStatusSince;
 
     /// <summary>Kennzahlen je Messtakt – um Ruckler im Nachhinein einer Ursache zuzuordnen.</summary>
-    private readonly record struct Sample(DateTime Time, double PagesIn, double DiskActive, double CpuTotal, double MaxPerfCore, bool VramSpill);
+    private readonly record struct Sample(DateTime Time, double PagesIn, double DiskActive, double CpuTotal, double MaxPerfCore, bool VramSpill,
+        double Dpc, double CommitPercent);
+
+    private readonly BufferbloatTracker _bloat = new();
+
+    /// <summary>
+    /// Ab diesem DPC-/Interrupt-Anteil eines Kerns gilt ein Ruckler als von Treibern verursacht. Windows misst
+    /// in Schritten eines Zeittakts (≈ 1,6 % je Sekunde); im Leerlauf kommen einzelne Sekunden mit 12 % vor –
+    /// daher deutlich darüber.
+    /// </summary>
+    public const double DpcStutterPercent = 20;
+    /// <summary>So viel DPC-/Interrupt-Last auf einem Kern, 5 s am Stück, ergibt einen Hinweis.</summary>
+    public const double DpcHintPercent = 20;
 
     public Verdict Analyze(Snapshot s)
     {
@@ -257,8 +269,18 @@ public sealed class BottleneckAnalyzer
         if (s.Disk.ActivePercent > 80 && s.Disk.LatencyMs > 20)
             notes.Add(new("disk", $"Datenträger ausgelastet ({s.Disk.LatencyMs:0} ms Latenz)", Severity.Warn));
 
+        // Zugesicherter Speicher: Ist die Auslagerungsdatei zu klein, kann Windows keinen Speicher mehr zusagen.
+        // Wird sie von Windows verwaltet, wächst sie mit – deshalb erst nach einigen Sekunden.
+        if (Sustained("commit", mem.CommitPercent >= 90, s.Time, TimeSpan.FromSeconds(5)))
+            notes.Add(new("commit", $"Auslagerungsdatei zu klein ({mem.CommitGB:0.0}/{mem.CommitLimitGB:0.0} GB zugesagt)", Severity.Warn));
+
+        // Treiber, die einen Kern dauerhaft mit DPCs/Interrupts belegen
+        if (s.Cpu.DpcMaxPercent is double dpc && Sustained("dpc", dpc >= DpcHintPercent, s.Time, TimeSpan.FromSeconds(5)))
+            notes.Add(new("dpc", $"Treiber blockieren einen Kern ({dpc:0} % DPC)", Severity.Warn));
+
         // Verlauf für die Ruckler-Zuordnung
-        _history.Enqueue(new Sample(s.Time, mem.PagesInPerSec, s.Disk.ActivePercent, s.Cpu.TotalLoad, s.Cpu.MaxPerfCoreLoad, vramSpill));
+        _history.Enqueue(new Sample(s.Time, mem.PagesInPerSec, s.Disk.ActivePercent, s.Cpu.TotalLoad, s.Cpu.MaxPerfCoreLoad, vramSpill,
+            s.Cpu.DpcMaxPercent ?? 0, mem.CommitPercent));
         while (_history.Count > 0 && s.Time - _history.Peek().Time > HistoryWindow) _history.Dequeue();
 
         // --- Verbindung: bremst keine FPS, verursacht aber Lag in Online-Spielen ---
@@ -368,6 +390,14 @@ public sealed class BottleneckAnalyzer
                 $"Unruhiges Frame-Pacing (±{f.PacingMs:0.0} ms von Bild zu Bild) – FPS-Limit, VSync und G-Sync/FreeSync prüfen",
                 Severity.Info));
 
+        // --- G-Sync/FreeSync/VSync: passt die Bildrate zur Bildwiederholrate? ---
+        int hz = s.System?.Display?.CurrentHz ?? 0;
+        var sync = SyncProblemOf(f, hz);
+        if (Sustained("sync-above", sync == SyncProblem.AboveRefresh, s.Time, TimeSpan.FromSeconds(5)))
+            notes.Add(new("sync-above", $"FPS über {hz} Hz – G-Sync/FreeSync: Limit {hz - 3} FPS", Severity.Info));
+        if (Sustained("sync-halving", sync == SyncProblem.Halving, s.Time, TimeSpan.FromSeconds(3)))
+            notes.Add(new("sync-halving", $"VSync springt {hz} ↔ {hz / 2} FPS – G-Sync/FreeSync nutzen", Severity.Warn));
+
         // --- Ruckler mit Ursache: was passierte im selben Moment? ---
         var spikes = f.SpikeAges.Where(age => age <= 10).ToList();
         if (spikes.Count > 0)
@@ -475,14 +505,44 @@ public sealed class BottleneckAnalyzer
                     : $"Internet-Ziel antwortet nicht (Verlust {internet.LossPercent:0} %)",
                 Severity.Warn));
 
+        // Bufferbloat: Steigt der Ping, sobald viel übertragen wird, puffert der Router zu viel
+        bool loaded = net.DownMBps >= 3 || net.UpMBps >= 1;
+        if (net.InternetLastMs is double last) _bloat.Add(s.Time, last, loaded);
+        if (_bloat.Increase(s.Time) is double rise)
+            notes.Add(new("net-bufferbloat", $"Bufferbloat: Ping +{rise:0} ms bei Downloads – QoS im Router", Severity.Warn));
+
         // Großer Transfer nebenbei während des Spielens (z. B. Spiele-Update, Cloud-Sync)
-        bool busy = s.Frames != null && (net.DownMBps >= 3 || net.UpMBps >= 1);
+        bool busy = s.Frames != null && loaded;
         if (Sustained("net-transfer", busy, s.Time, TimeSpan.FromSeconds(5)))
         {
             string who = net.TopTransfer is { } p ? $" (vermutlich {p.Name})" : "";
             string rate = net.DownMBps >= 3 ? $"Download {net.DownMBps:0.0} MB/s" : $"Upload {net.UpMBps:0.0} MB/s";
             notes.Add(new("net-transfer", $"{rate} nebenbei{who} – kann den Ping erhöhen", Severity.Info));
         }
+    }
+
+    public enum SyncProblem { None, AboveRefresh, Halving }
+
+    /// <summary>
+    /// Typische Fehleinstellungen rund um VSync und G-Sync/FreeSync:
+    /// AboveRefresh – ohne VSync deutlich mehr FPS als Hz: mit G-Sync/FreeSync verlässt das Spiel dann den
+    /// VRR-Bereich (Bildrisse); ein FPS-Limit knapp unter der Bildwiederholrate hält es darin.
+    /// Halving – mit VSync schafft das Spiel die Hz nicht ganz und springt zwischen voller und halber Rate
+    /// (z. B. 144 ↔ 72 FPS), was trotz hoher Durchschnitts-FPS ruckelt.
+    /// </summary>
+    public static SyncProblem SyncProblemOf(FrameStats f, int hz)
+    {
+        if (hz < 30) return SyncProblem.None;
+        if (f.SyncInterval == 0 && f.Fps > hz * 1.05) return SyncProblem.AboveRefresh;
+        if (f.SyncInterval >= 1 && f.Frametimes.Length >= 60)
+        {
+            double period = 1000.0 / hz;
+            int full = f.Frametimes.Count(t => Math.Abs(t.Ms - period) <= period * 0.2);
+            int half = f.Frametimes.Count(t => Math.Abs(t.Ms - 2 * period) <= period * 0.3);
+            double n = f.Frametimes.Length;
+            if (full / n >= 0.15 && half / n >= 0.15) return SyncProblem.Halving;
+        }
+        return SyncProblem.None;
     }
 
     private static readonly double[] CommonCaps = [30, 40, 45, 48, 50, 60, 72, 75, 90, 100, 120, 144, 165, 170, 180, 200, 240, 360];
@@ -506,6 +566,8 @@ public sealed class BottleneckAnalyzer
             .ToList();
         if (near.Any(h => h.VramSpill)) return "VRAM-Auslagerung";
         if (near.Any(h => h.PagesIn > 500 || h.DiskActive > 50)) return "Nachladen vom Laufwerk";
+        if (near.Any(h => h.Dpc >= DpcStutterPercent)) return "Treiber-Unterbrechung (DPC)";
+        if (near.Any(h => h.CommitPercent >= 95)) return "Speicherzusage am Limit";
         if (near.Any(h => h.CpuTotal >= 90 || h.MaxPerfCore >= 98)) return "CPU-Spitze";
         return "unklar (z. B. Shader-Kompilierung)";
     }

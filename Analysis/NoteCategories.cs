@@ -57,6 +57,12 @@ public static class NoteCategories
         ["power-battery"] = NoteCategory.Hint,
         ["power-saving"] = NoteCategory.Hint,
         ["rebar"] = NoteCategory.Hint,
+        // Block B: Treiber, Speicherzusage, Bildwiederholrate, Router
+        ["dpc"] = NoteCategory.Hint,
+        ["commit"] = NoteCategory.Hint,
+        ["sync-above"] = NoteCategory.Hint,
+        ["sync-halving"] = NoteCategory.Hint,
+        ["net-bufferbloat"] = NoteCategory.Hint,
     };
 
     /// <summary>Unbekannte Kennungen gelten als Hinweis – lieber zu wenig oben als zu viel.</summary>

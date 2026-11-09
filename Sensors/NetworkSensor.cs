@@ -16,8 +16,12 @@ public sealed class PingSeries
 
     public PingSeries(int capacity = 30) => _capacity = capacity;
 
+    /// <summary>Letzte Antwortzeit (ms); null = zuletzt keine Antwort.</summary>
+    public double? Last { get; private set; }
+
     public void Add(double? roundTripMs)
     {
+        Last = roundTripMs;
         _samples.Enqueue(roundTripMs);
         while (_samples.Count > _capacity) _samples.Dequeue();
     }
@@ -43,6 +47,41 @@ public sealed class PingSeries
 }
 
 public sealed record PingStats(double? AvgMs, double? JitterMs, double LossPercent);
+
+/// <summary>
+/// Bufferbloat: Der Router puffert bei voller Leitung zu viele Pakete, der Ping steigt dann stark an – im Spiel
+/// als Lag, sobald nebenbei etwas herunter- oder hochgeladen wird. Vergleicht den Ping bei Datenverkehr mit dem
+/// Ping ohne (jeweils Median, robust gegen einzelne Ausreißer). Rein rechnerisch – damit testbar.
+/// </summary>
+public sealed class BufferbloatTracker
+{
+    public static readonly TimeSpan IdleWindow = TimeSpan.FromSeconds(120);
+    public static readonly TimeSpan LoadedWindow = TimeSpan.FromSeconds(30);
+    /// <summary>Ab so viel Anstieg gilt es als Bufferbloat (gute Router mit SQM bleiben unter 10–20 ms).</summary>
+    public const double RiseMs = 30;
+
+    private readonly Queue<(DateTime Time, double Ms)> _idle = new();
+    private readonly Queue<(DateTime Time, double Ms)> _loaded = new();
+
+    public void Add(DateTime time, double pingMs, bool loaded) => (loaded ? _loaded : _idle).Enqueue((time, pingMs));
+
+    /// <summary>Anstieg des Pings bei Datenverkehr in ms, sofern genug Messungen vorliegen und er die Schwelle erreicht.</summary>
+    public double? Increase(DateTime now)
+    {
+        while (_idle.Count > 0 && now - _idle.Peek().Time > IdleWindow) _idle.Dequeue();
+        while (_loaded.Count > 0 && now - _loaded.Peek().Time > LoadedWindow) _loaded.Dequeue();
+        if (_idle.Count < 10 || _loaded.Count < 5) return null;
+        double rise = Median(_loaded) - Median(_idle);
+        return rise >= RiseMs ? rise : null;
+    }
+
+    private static double Median(IEnumerable<(DateTime, double Ms)> values)
+    {
+        var sorted = values.Select(v => v.Ms).OrderBy(v => v).ToList();
+        int mid = sorted.Count / 2;
+        return sorted.Count % 2 == 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    }
+}
 
 /// <summary>
 /// Verbindungsqualität für Online-Spiele: Ping, Jitter und Verlust zum Router (eigenes Netz) und zu einem
@@ -93,7 +132,10 @@ internal sealed class NetworkSensor : IDisposable
                 PingEnabled ? _router.Stats() : null,
                 PingEnabled ? _internet.Stats() : null,
                 _router.EverAnswered,
-                down, up);
+                down, up)
+            {
+                InternetLastMs = PingEnabled ? _internet.Last : null,
+            };
         }
     }
 

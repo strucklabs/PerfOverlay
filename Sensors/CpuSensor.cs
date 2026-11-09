@@ -16,6 +16,8 @@ internal sealed class CpuSensor
     private readonly IntPtr _totalUtility;
     private readonly IntPtr _totalTime;
     private readonly IntPtr _perfLimit;
+    private readonly IntPtr _coreDpc;
+    private readonly IntPtr _coreInterrupt;
 
     public CpuSensor(PdhQuery pdh)
     {
@@ -26,6 +28,8 @@ internal sealed class CpuSensor
         _totalUtility = pdh.Add(@"\Processor Information(_Total)\% Processor Utility");
         _totalTime = pdh.Add(@"\Processor Information(_Total)\% Processor Time");
         _perfLimit = pdh.Add(@"\Processor Information(_Total)\% Performance Limit");
+        _coreDpc = pdh.Add(@"\Processor Information(*)\% DPC Time");
+        _coreInterrupt = pdh.Add(@"\Processor Information(*)\% Interrupt Time");
     }
 
     public CpuData Read()
@@ -45,6 +49,11 @@ internal sealed class CpuSensor
                 if (loads.TryGetValue(key, out double load) && load >= 20) busyMhz.Add(f * p / 100.0);
             }
 
+        var dpc = PerCore(_pdh.GetArray(_coreDpc));
+        var irq = PerCore(_pdh.GetArray(_coreInterrupt));
+        double? dpcMax = dpc.Count == 0 ? null
+            : dpc.Select(kv => kv.Value + (irq.TryGetValue(kv.Key, out double i) ? i : 0)).Max();
+
         double total = _pdh.Get(_totalUtility) ?? _pdh.Get(_totalTime) ?? loads.Values.DefaultIfEmpty(0).Average();
 
         return new CpuData(
@@ -56,6 +65,7 @@ internal sealed class CpuSensor
             PerfLimitPercent = _pdh.Get(_perfLimit),
             CoreClasses = loads.Keys.Select(k => Native.CpuTopology.Get(k.Group, k.Index)?.EfficiencyClass ?? 0).ToArray(),
             IsHybrid = Native.CpuTopology.IsHybrid,
+            DpcMaxPercent = dpcMax is double v ? Math.Clamp(v, 0, 100) : null,
         };
     }
 

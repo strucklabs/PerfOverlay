@@ -28,6 +28,12 @@ public sealed record CpuData(
         ? CoreLoads.Where((_, i) => CoreClasses[i] != TopClass).DefaultIfEmpty(0).Max()
         : 0;
 
+    /// <summary>
+    /// Höchster Anteil eines Kerns, den Treiber mit DPCs und Interrupts belegen (%). Dauerhaft hohe Werte
+    /// (Netzwerk-, Audio-, USB- oder RGB-Treiber) halten Spiel-Threads auf und verursachen Ruckler.
+    /// </summary>
+    public double? DpcMaxPercent { get; init; }
+
     public bool IsPerfCore(int i) => !IsHybrid || i >= CoreClasses.Length || CoreClasses[i] == TopClass;
 }
 
@@ -68,7 +74,11 @@ public sealed record MemoryData(
     double LoadPercent,
     double CommitGB,
     double CommitLimitGB,
-    double PagesInPerSec);   // Hard Faults: Seiten, die von der Platte nachgeladen werden
+    double PagesInPerSec)    // Hard Faults: Seiten, die von der Platte nachgeladen werden
+{
+    /// <summary>Zugesicherter Speicher im Verhältnis zur Grenze (RAM + Auslagerungsdatei), in %.</summary>
+    public double CommitPercent => CommitLimitGB > 0 ? 100 * CommitGB / CommitLimitGB : 0;
+}
 
 public sealed record DiskData(
     double ActivePercent,    // höchste Aktivität über alle physischen Laufwerke
@@ -143,6 +153,9 @@ public sealed record NetworkData(
     double DownMBps,
     double UpMBps)
 {
+    /// <summary>Letzter einzelner Ping ins Internet (ms) – für den Vergleich mit und ohne Datenverkehr (Bufferbloat).</summary>
+    public double? InternetLastMs { get; init; }
+
     /// <summary>Größter Datendurchsatz außer dem Spiel – bei hohem Download vermutlich der Verursacher.</summary>
     public ProcessLoad? TopTransfer { get; init; }
 }

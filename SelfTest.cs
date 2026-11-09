@@ -58,6 +58,7 @@ internal static class SelfTest
         log.AppendLine($"Windows: {Environment.OSVersion.VersionString}   Kerne (logisch): {Environment.ProcessorCount}");
         foreach (var (label, value) in snapshot!.System?.Entries() ?? [])
             log.AppendLine($"{label}: {value}");
+        log.AppendLine($"DPC/Interrupts (höchster Kern): {snapshot.Cpu.DpcMaxPercent:0.0} %   Speicherzusage: {snapshot.Memory.CommitGB:0.0} von {snapshot.Memory.CommitLimitGB:0.0} GB ({snapshot.Memory.CommitPercent:0} %)");
         log.AppendLine();
         log.AppendLine("=== HWiNFO: CPU- und GPU-Sensoren (Rohdaten) ===");
         log.AppendLine(HwInfoSensor.DumpReadings());
