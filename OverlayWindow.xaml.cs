@@ -809,7 +809,7 @@ public partial class OverlayWindow : Window
         _corner = _settings.Corner;
         _customOffset = _settings.OffsetX is int x && _settings.OffsetY is int y ? (x, y) : null;
         ApplyView(_settings.View);
-        _recorder.Enabled = _settings.RecordSessions;
+        _recorder.Enabled = _analyzer.RecordingEnabled = _settings.RecordSessions;
     }
 
     private void SaveSettings()
@@ -848,7 +848,7 @@ public partial class OverlayWindow : Window
         var record = new System.Windows.Forms.ToolStripMenuItem("Sitzungen aufzeichnen") { Checked = _recorder.Enabled, CheckOnClick = true };
         record.CheckedChanged += (_, _) =>
         {
-            _recorder.Enabled = record.Checked;
+            _recorder.Enabled = _analyzer.RecordingEnabled = record.Checked;
             SaveSettings();
         };
         menu.Items.Add(record);
@@ -893,6 +893,7 @@ public partial class OverlayWindow : Window
         if (_tray == null) return;
         string state = _recorder.Recording ? "● Aufzeichnung läuft"
                      : !_recorder.Enabled ? "Aufzeichnung aus"
+                     : !s.FrameSourceRunning ? "keine Aufzeichnung ohne FPS-Messung"
                      : s.Frames != null ? "Spiel erkannt" : "wartet auf Spiel";
         string text = $"PerfOverlay – {state}";
         if (_tray.Text != text) _tray.Text = text.Length > 63 ? text[..63] : text;

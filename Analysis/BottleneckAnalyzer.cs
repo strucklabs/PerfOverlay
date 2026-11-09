@@ -69,6 +69,12 @@ public sealed class BottleneckAnalyzer
     /// <summary>So viel DPC-/Interrupt-Last auf einem Kern, 5 s am Stück, ergibt einen Hinweis.</summary>
     public const double DpcHintPercent = 20;
 
+    /// <summary>
+    /// Sitzungen werden aufgezeichnet (Tray-Menü). Ohne FPS-Messung beginnt keine Sitzung – dann sagt der Tipp das,
+    /// damit niemand nach einer Aufzeichnung sucht, die es nicht gibt.
+    /// </summary>
+    public bool RecordingEnabled { get; set; } = true;
+
     public Verdict Analyze(Snapshot s)
     {
         var raw = Evaluate(s);
@@ -323,6 +329,11 @@ public sealed class BottleneckAnalyzer
                 : "Wartet auf ein Spiel im Vordergrund", Severity.Info, notes);
 
         // --- Fallback ohne Frame-Messung (z. B. ohne Admin-Rechte): Schätzung aus der Auslastung ---
+        return WithoutRecordingTip(Estimate(s, notes, gpuLoad), s);
+    }
+
+    private static Verdict Estimate(Snapshot s, List<Note> notes, double gpuLoad)
+    {
         string why = s.FrameSourceStatus;
         if (gpuLoad >= 95)
             return new("GPU-LIMITIERT", $"GPU {gpuLoad:0} % (geschätzt, {why})", Severity.Good, notes);
@@ -333,6 +344,21 @@ public sealed class BottleneckAnalyzer
         if (s.Cpu.TotalLoad >= 85)
             return new("CPU AUSGELASTET", $"CPU gesamt {s.Cpu.TotalLoad:0} % ({why})", Severity.Warn, notes);
         return new("KEIN ENGPASS", $"System hat Reserven ({why})", Severity.Good, notes);
+    }
+
+    /// <summary>
+    /// Ohne FPS-Messung erkennt PerfOverlay kein Spiel, also beginnt auch keine Aufzeichnung. Der Tipp steht in allen
+    /// Ansichten – in den ersten Sekunden ("startet …") noch nicht, da läuft die Messung gerade an.
+    /// </summary>
+    private Verdict WithoutRecordingTip(Verdict v, Snapshot s)
+    {
+        if (!RecordingEnabled || s.FrameSourceStatus.StartsWith("startet", StringComparison.Ordinal)) return v;
+        return v with
+        {
+            Tip = s.FrameSourceStatus.Contains("Admin", StringComparison.Ordinal)
+                ? "Keine Aufzeichnung – als Admin starten"
+                : $"Keine Aufzeichnung – {s.FrameSourceStatus}",
+        };
     }
 
     /// <summary>Meldung zur Speicherzusage – mit dem größten Verbraucher, sonst mit dem Rat zur Auslagerungsdatei.</summary>

@@ -66,6 +66,23 @@ public class BlockETests
         Assert.StartsWith("Energiesparmodus ausschalten", Tip(saver, BottleneckKind.Gpu).Tip);
     }
 
+    [Theory]
+    [InlineData("FPS-Messung braucht Admin-Rechte", true, "Keine Aufzeichnung – als Admin starten")]
+    [InlineData("PresentMon wurde beendet", true, "Keine Aufzeichnung – PresentMon wurde beendet")]
+    [InlineData("startet …", true, null)]                              // Messung läuft gerade an
+    [InlineData("FPS-Messung braucht Admin-Rechte", false, null)]      // Aufzeichnung ohnehin ausgeschaltet
+    public void Ohne_FPS_Messung_sagt_der_Tipp_dass_nichts_aufgezeichnet_wird(string status, bool recording, string? tip)
+    {
+        var s = new Snapshot(T0,
+            new CpuData(10, Enumerable.Repeat(10.0, 20).ToArray(), 4500, 5100),
+            new MemoryData(12, 32, 40, 18, 55, 0),
+            new DiskData(1, 0.1, 1),
+            new GpuData { Name = "Test-GPU", Source = "NVML", Load = 10, TempC = 40 }, [],
+            null, status, false, null, null) { HwInfoStatus = HwInfoStatus.Active };
+        var v = new BottleneckAnalyzer { RecordingEnabled = recording }.Analyze(s);
+        Assert.Equal(tip, v.Tip);
+    }
+
     [Fact]
     public void Ganzer_Ablauf_setzt_den_Tipp_im_Urteil()
     {
