@@ -79,6 +79,11 @@ im Browser aus – ohne Internet, ohne Upload:
   um mindestens 5 °C stiegen – sonst nur ein Nebenbefund, weil andere Spielszenen den Vergleich verfälschen können
 - **Nebenbefunde** zusätzlich: Bufferbloat (Median-Ping in Sekunden mit Datenverkehr gegenüber ohne, ab 30 ms),
   Speicherzusage ab 90 %, Treiber-Unterbrechungen (mindestens 2 % der Zeit ≥ 20 % DPC)
+- **Tipps mit Systemeinstellungen** (auch im Overlay): Akku/Stromsparmodus zuerst; beim FPS-Limit „Monitor kann
+  {max} Hz“ bzw. „Limit auf Hz − 3 FPS“ (G-Sync/FreeSync); beim CPU-Limit Energieplan „Höchstleistung“ testen, in der
+  Auswertung zusätzlich Windows 11 bei Hybrid-CPU unter Windows 10 und Speicher-Integrität (als Abwägung, keine
+  Empfehlung); beim GPU-Limit Resizable BAR; bei häufigen Rucklern ohne Ursache Overlays abschalten. Höchstens 6 Tipps,
+  die passenden System-Tipps direkt hinter dem ersten allgemeinen
 - Zusammenfassung: Ø FPS, Ø 1%-Low, Hauptengpass, **Ø FPS im CPU-Limit**, Ruckler pro Minute, Drosselung;
   Temperaturen, Takt und Ping stehen in ihren Abschnitten
 - Verlaufsdiagramme (FPS mit Engpass-Streifen und Rucklern, CPU-/GPU-Arbeitszeit, Auslastung, Temperaturen)

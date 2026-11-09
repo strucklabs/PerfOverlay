@@ -695,12 +695,42 @@ function resultBlock(s) {
   const thr = throttleShares(st);
   if (thr.cpuTemp >= 0.05) tips.unshift(`Zuerst die Kühlung: Die CPU drosselte ${pct(thr.cpuTemp)} der Zeit wegen Temperatur – das kostet FPS, egal wo der Engpass liegt`);
   if (thr.gpu >= 0.05) tips.unshift(`Zuerst die Kühlung: Die Grafikkarte drosselte ${pct(thr.gpu)} der Zeit – Staub, Lüfterkurve und Luftstrom prüfen`);
+  // Systemeinstellungen aus dem Sitzungskopf (Plan Engpass-Erweiterung, T1–T3, T5–T7)
+  const m = s.meta, extra = [];
+  const hz = (m["Monitor"] || "").match(/(\d+) Hz \(möglich (\d+) Hz\)/);
+  const balanced = /Ausbalanciert|Balanced|Energiespar|Power saver/i.test(m["Energieplan"] || "");
+  const win10 = /^10\.0\.(\d+)/.exec(m["Windows"] || "");
+  if (clear && top === "Limit" && hz)
+    tips.unshift(`Der Monitor lief mit ${hz[1]} Hz, möglich sind ${hz[2]} Hz – in den Windows-Anzeigeeinstellungen umstellen, dann sind mehr FPS möglich`);
+  if (clear && top === "Limit" && noteShare(st, /^FPS über \d+ Hz/) > 0)
+    extra.push("Mit G-Sync/FreeSync: ein FPS-Limit knapp unter der Bildwiederholrate setzen (z. B. 141 bei 144 Hz) – so bleibt das Bild ohne Risse");
+  if (top === "Cpu") {
+    if (balanced) extra.push(`Energieplan „Höchstleistung“ testen (aktiv war „${m["Energieplan"].split(",")[0]}“)`);
+    if (m["Hybrid-CPU"] && win10 && +win10[1] < 22000)
+      extra.push("Windows 11 verteilt Spiele auf Prozessoren mit P- und E-Kernen besser als Windows 10");
+    if (m["Speicher-Integrität"] === "an")
+      extra.push("Speicher-Integrität (Windows-Sicherheit → Gerätesicherheit) ist an: Ausschalten bringt in CPU-lastigen Spielen einige Prozent, "
+        + "schwächt aber den Schutz vor Schadsoftware – eine Abwägung, keine Empfehlung");
+  }
+  if (top === "Gpu" && m["Resizable BAR"] === "aus")
+    extra.push("Resizable BAR im BIOS aktivieren („Above 4G Decoding“ und „Re-Size BAR“) – bringt in manchen Spielen einige Prozent");
+  if (st.spikesPerMin > 2 && noteShare(st, /unklar/) > 0)
+    extra.push("Häufige Ruckler ohne erkennbare Ursache: Overlays und Aufnahme-Software (Discord, Steam, GeForce Experience, AMD) testweise abschalten");
+  // Passende System-Tipps direkt hinter den ersten allgemeinen Tipp – sie sind konkreter als die übrigen
+  const firstBase = tips.findIndex(t => !t.startsWith("Zuerst"));
+  tips.splice(firstBase < 0 ? tips.length : firstBase + 1, 0, ...extra);
+  if (noteShare(st, /Akkubetrieb/) > 0.1) tips.unshift("Zuerst das Netzteil anschließen: Im Akkubetrieb ist die Leistung begrenzt");
+  else if (noteShare(st, /Stromsparmodus|Energieplan .* drosselt/) > 0.1)
+    tips.unshift("Zuerst den Energiesparmodus ausschalten: Er drosselt Prozessor und Grafikkarte");
+
   if (st.trend && st.trend.decline && st.trend.leak)
     tips.unshift("Spiel zwischendurch neu starten: Sein Speicher wuchs stetig und die Leistung sank – vermutlich ein Speicherleck im Spiel");
   if (deadConnectionsHurt(st)) tips.unshift("Zuerst das Spiel neu starten: Es hielt tote Verbindungen offen und ruckelte damit deutlich mehr – "
     + "ein Fehler im Spiel, den ein Neustart vorübergehend behebt; dem Hersteller melden hilft dauerhaft");
   if (slowTimer(s)) tips.unshift("Zuerst den Zeitgeber: Windows nutzte den langsamen Zeitgeber " + slowTimer(s).split(" ")[0]
     + " statt des TSC – jede Zeitabfrage des Spiels kostet ein Vielfaches; Ursache steht in den Meldungen");
+
+  tips = tips.slice(0, 6);   // mehr liest niemand – die wichtigsten stehen vorn
 
   return `<div class="result" style="--c:${KINDS[clear ? top : "Mixed"].color}">
       <div class="r-title">${esc(title)}</div>
@@ -916,7 +946,11 @@ const HELP = {
     <li>Bei <b>langen Sitzungen</b> zeigt die Linie den Durchschnitt, der blasse Bereich dahinter, wie stark die Werte in diesem
       Moment schwankten. <b>Mit der Maus über einen Zeitraum ziehen</b> vergrößert ihn in allen Diagrammen, ein Doppelklick
       zeigt wieder die ganze Sitzung.</li>
-    <li>Sinkt die Linie nach einigen Minuten dauerhaft, wird oft etwas zu warm und drosselt sich. Das zeigen die Abschnitte „Prozessor“ und „Grafikkarte“.</li></ul>`,
+    <li>Sinkt die Linie nach einigen Minuten dauerhaft, wird oft etwas zu warm und drosselt sich. Das zeigen die Abschnitte „Prozessor“ und „Grafikkarte“.</li>
+    <li><b>Ruckler-Muster lesen</b>: Ruckeln nur beim ersten Spielen oder nach einem Treiber-Update, bereitet das Spiel Grafikdaten vor
+      (Shader-Kompilierung) – das wird mit der Zeit weniger; den Shader-Cache deshalb nicht löschen. Ruckeln beim Bewegen durch die Spielwelt,
+      lädt das Spiel Daten nach. Nimmt das Ruckeln mit der Spielzeit zu, sind Grafikspeicher, Hitze oder ein Speicherleck im Spiel die üblichen
+      Ursachen – siehe „Speicher und Treiber“.</li></ul>`,
   cpu: `<ul>
     <li><b>Temperatur</b>: Bis etwa 85 °C beim Spielen ist alles in Ordnung. Intel-Prozessoren bremsen sich bei etwa 100 °C selbst ein (<b>Drosselung</b>),
       um sich zu schützen. Aktuelle AMD-Ryzen-Modelle (7000/9000) laufen absichtlich bis 95 °C, dort ist das normal.</li>

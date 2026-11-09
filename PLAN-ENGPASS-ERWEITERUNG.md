@@ -1,6 +1,6 @@
 # Plan: weitere Engpass-Gründe (Stand 08.11.2026)
 
-Nur Planung, noch nichts umgesetzt. Grundlage ist die Zusammenstellung der im Netz genannten Engpass-Gründe
+Umgesetzt am 09.11.2026 in den Blöcken A–E (356864c, acdb5c4, 4914b82, 8a45908 und Block E). Offen ist nur der Probelauf mit einem echten Spiel (Abnahmekriterium „keine neue Meldung bei normalem Spielen“). Ursprünglich: Grundlage ist die Zusammenstellung der im Netz genannten Engpass-Gründe
 (Abgleich mit den vorhandenen Meldungen). Ausgewählt sind 12 Kandidaten: die 8 aus der Zusammenstellung
 plus HAGS, falsch eingestelltes G-Sync/FreeSync, Speicherleck im Spiel und Bufferbloat. Dazu Ergänzungen
 der Tipps (Abschnitt T).

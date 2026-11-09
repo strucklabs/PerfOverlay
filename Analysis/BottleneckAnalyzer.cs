@@ -312,7 +312,7 @@ public sealed class BottleneckAnalyzer
         }
 
         if (f != null && f.AvgMs > 0 && !double.IsNaN(f.GpuBusyMs) && !double.IsNaN(f.CpuBusyMs))
-            return EvaluateFrames(s, f, notes, xmpOff);
+            return WithSystemTip(EvaluateFrames(s, f, notes, xmpOff), s, f);
 
         // --- Messung läuft, aber kein Spiel im Vordergrund: kein Engpass-Urteil, nur Hinweise ---
         if (s.FrameSourceRunning)
@@ -331,6 +331,28 @@ public sealed class BottleneckAnalyzer
         if (s.Cpu.TotalLoad >= 85)
             return new("CPU AUSGELASTET", $"CPU gesamt {s.Cpu.TotalLoad:0} % ({why})", Severity.Warn, notes);
         return new("KEIN ENGPASS", $"System hat Reserven ({why})", Severity.Good, notes);
+    }
+
+    /// <summary>
+    /// Tipps, die Systemeinstellungen einbeziehen (Plan Engpass-Erweiterung, T1–T3 und T7). Akku und
+    /// Stromsparmodus gehen allem anderen vor, denn sie bremsen unabhängig vom Engpass.
+    /// </summary>
+    internal static Verdict WithSystemTip(Verdict v, Snapshot s, FrameStats f)
+    {
+        if (s.System is not { } sys) return v;
+        if (sys.Power is { OnBattery: true })
+            return v with { Tip = "Netzteil anschließen – im Akkubetrieb ist die Leistung begrenzt" };
+        if (sys.Power is { Saving: true })
+            return v with { Tip = "Energiesparmodus ausschalten – er drosselt CPU und GPU" };
+
+        int hz = sys.Display?.CurrentHz ?? 0;
+        if (v.Kind == BottleneckKind.Limit && sys.Display is { BelowMax: true } d && f.SyncInterval >= 1)
+            return v with { Tip = $"Monitor kann {d.MaxHz} Hz – in Windows umstellen" };
+        if (v.Kind == BottleneckKind.Limit && hz >= 30 && f.SyncInterval == 0 && f.Fps > hz * 1.05)
+            return v with { Tip = $"Mit G-Sync/FreeSync: Limit auf {hz - 3} FPS setzen" };
+        if (v.Kind == BottleneckKind.Cpu && sys.Power is { Plan: PowerPlanKind.Balanced, OverlayBestPerformance: not true })
+            return v with { Tip = "Mehr FPS: Energieplan „Höchstleistung“ testen" };
+        return v;
     }
 
     /// <summary>

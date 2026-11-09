@@ -131,6 +131,7 @@ public sealed class SessionRecorder : IDisposable
         _writer.WriteLine($"# Spiel: {f.App}");
         _writer.WriteLine($"# Start: {s.Time:yyyy-MM-dd HH:mm:ss}");
         _writer.WriteLine($"# CPU: {CpuName()}");
+        if (s.Cpu.IsHybrid) _writer.WriteLine("# Hybrid-CPU: ja (P- und E-Kerne)");
         if (s.Gpu != null) _writer.WriteLine($"# GPU: {s.Gpu.Name}");
         if (s.MemoryConfig != null) _writer.WriteLine($"# RAM: {s.MemoryConfig.Summary}");
         _writer.WriteLine($"# Windows: {Environment.OSVersion.Version}");
