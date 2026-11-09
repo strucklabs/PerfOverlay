@@ -71,7 +71,14 @@ im Browser aus – ohne Internet, ohne Upload:
 - Fehlende Werte werden je Abschnitt mit Grund genannt: ältere Aufzeichnung, HWiNFO nicht aktiv,
   nur bei NVIDIA verfügbar, Spiel nicht auslesbar (Anti-Cheat), Ping-Messung aus
 - Reihenfolge: Ergebnis, Auf einen Blick, Meldungen, Zusammenfassung, Bild und Ruckler, Prozessor, Grafikkarte,
-  Verbindung (zugeklappt – sie betrifft den Lag, nicht die FPS)
+  Speicher und Treiber, Verbindung (zugeklappt – sie betrifft den Lag, nicht die FPS)
+- **Speicher und Treiber**: Speicher des Spiels, RAM-Belegung mit Speicherzusage, DPC-Anteil des höchsten Kerns
+- **Leistung im Lauf der Sitzung** (ab 45 min): erstes gegen letztes Drittel (ohne die ersten 2 min). Sinken die FPS
+  um mehr als 15 % oder verdoppeln sich die Ruckler, ist das eine Hauptaussage, wenn zugleich der Speicher des
+  Spiels um mindestens 0,5 GB wuchs (Speicherleck, dann auch erster Tipp „Spiel neu starten“) oder die Temperaturen
+  um mindestens 5 °C stiegen – sonst nur ein Nebenbefund, weil andere Spielszenen den Vergleich verfälschen können
+- **Nebenbefunde** zusätzlich: Bufferbloat (Median-Ping in Sekunden mit Datenverkehr gegenüber ohne, ab 30 ms),
+  Speicherzusage ab 90 %, Treiber-Unterbrechungen (mindestens 2 % der Zeit ≥ 20 % DPC)
 - Zusammenfassung: Ø FPS, Ø 1%-Low, Hauptengpass, **Ø FPS im CPU-Limit**, Ruckler pro Minute, Drosselung;
   Temperaturen, Takt und Ping stehen in ihren Abschnitten
 - Verlaufsdiagramme (FPS mit Engpass-Streifen und Rucklern, CPU-/GPU-Arbeitszeit, Auslastung, Temperaturen)
