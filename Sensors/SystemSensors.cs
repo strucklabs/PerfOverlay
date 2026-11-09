@@ -22,8 +22,56 @@ internal sealed class MemorySensor
         double used = (status.ullTotalPhys - status.ullAvailPhys) / GB;
         double commitLimit = status.ullTotalPageFile / GB;
         double commit = (status.ullTotalPageFile - status.ullAvailPageFile) / GB;
-        return new MemoryData(used, total, status.dwMemoryLoad, commit, commitLimit, _pdh.Get(_pagesInput) ?? 0);
+        var (pageFile, pageFileUsed) = PageFiles();
+        return new MemoryData(used, total, status.dwMemoryLoad, commit, commitLimit, _pdh.Get(_pagesInput) ?? 0)
+        {
+            PageFileGB = pageFile,
+            PageFileUsedGB = pageFileUsed,
+        };
     }
+
+    /// <summary>
+    /// Größe und Belegung aller Auslagerungsdateien (SystemPageFileInformation, ohne Admin-Rechte). Eine von Windows
+    /// verwaltete Datei wächst bei Bedarf – die Größe ist der aktuelle Stand.
+    /// </summary>
+    internal static (double? SizeGB, double? UsedGB) PageFiles()
+    {
+        const int SystemPageFileInformation = 18;
+        const int StatusInfoLengthMismatch = unchecked((int)0xC0000004);
+        int size = 1024;
+        for (int attempt = 0; attempt < 4; attempt++, size *= 4)
+        {
+            IntPtr buffer = System.Runtime.InteropServices.Marshal.AllocHGlobal(size);
+            try
+            {
+                int status = NtQuerySystemInformation(SystemPageFileInformation, buffer, size, out int needed);
+                if (status == StatusInfoLengthMismatch) { size = Math.Max(size, needed); continue; }
+                if (status != 0) return (null, null);
+                if (needed == 0) return (0, 0);   // keine Auslagerungsdatei
+                long pages = 0, inUse = 0;
+                int offset = 0;
+                while (true)
+                {
+                    // SYSTEM_PAGEFILE_INFORMATION: NextEntryOffset, TotalSize, TotalInUse, PeakUsage (je ULONG, in Seiten)
+                    int next = System.Runtime.InteropServices.Marshal.ReadInt32(buffer, offset);
+                    pages += (uint)System.Runtime.InteropServices.Marshal.ReadInt32(buffer, offset + 4);
+                    inUse += (uint)System.Runtime.InteropServices.Marshal.ReadInt32(buffer, offset + 8);
+                    if (next == 0) break;
+                    offset += next;
+                }
+                double pageGB = Environment.SystemPageSize / (1024.0 * 1024 * 1024);
+                return (pages * pageGB, inUse * pageGB);
+            }
+            finally
+            {
+                System.Runtime.InteropServices.Marshal.FreeHGlobal(buffer);
+            }
+        }
+        return (null, null);
+    }
+
+    [System.Runtime.InteropServices.DllImport("ntdll.dll")]
+    private static extern int NtQuerySystemInformation(int infoClass, IntPtr buffer, int length, out int returnLength);
 }
 
 internal sealed class DiskSensor

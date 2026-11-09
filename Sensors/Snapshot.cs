@@ -76,6 +76,12 @@ public sealed record MemoryData(
     double CommitLimitGB,
     double PagesInPerSec)    // Hard Faults: Seiten, die von der Platte nachgeladen werden
 {
+    /// <summary>Größe aller Auslagerungsdateien zusammen (GB); null = nicht lesbar, 0 = keine Auslagerungsdatei.</summary>
+    public double? PageFileGB { get; init; }
+
+    /// <summary>Davon tatsächlich mit ausgelagerten Daten belegt (GB).</summary>
+    public double? PageFileUsedGB { get; init; }
+
     /// <summary>Zugesicherter Speicher im Verhältnis zur Grenze (RAM + Auslagerungsdatei), in %.</summary>
     public double CommitPercent => CommitLimitGB > 0 ? 100 * CommitGB / CommitLimitGB : 0;
 }

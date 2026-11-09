@@ -367,6 +367,14 @@ public partial class OverlayWindow : Window
             Line(RamConfigLine, L("      "), (rc.Summary, suboptimal ? WarnBrush : null));
         }
         else Line(RamConfigLine, L("      Commit "), V($"{m.CommitGB:0}/{m.CommitLimitGB:0}"), L(" GB"));
+        // Auslagerungsdatei mit Belegung und Speicherzusage (ab 90 % knapp – passend zum Hinweis)
+        var commitBrush = m.CommitPercent >= 90 ? WarnBrush : null;
+        if (m.PageFileGB is double pf && pf > 0)
+            Line(PageFileLine, L("      Auslagerung "), V($"{pf:0}"), L(" GB, "), V($"{m.PageFileUsedGB ?? 0:0.0}"),
+                L(" belegt, Zusage "), ($"{m.CommitPercent:0} %", commitBrush));
+        else Line(PageFileLine, L("      Auslagerung "), (m.PageFileGB == 0 ? "keine" : "–", MutedBrush),
+            L(", Zusage "), ($"{m.CommitPercent:0} %", commitBrush));
+
         var d = s.Disk;
         Line(DiskLine, L("Disk  "), V($"{d.ActivePercent,4:0} %"), L(" aktiv  "),
             ($"{d.LatencyMs:0.0}", d.LatencyMs > 20 ? WarnBrush : null), L(" ms  "), V($"{d.MBps:0}"), L(" MB/s"));
@@ -374,8 +382,6 @@ public partial class OverlayWindow : Window
         // Wer nutzt die Grafikkarte? Besonders im Leerlauf aufschlussreich (taktet die GPU nicht herunter?)
         var users = s.GpuTopProcesses.Take(3).Select(p => $"{p.Name} {p.Load:0} %").ToList();
         GpuUsersLine.Text = "GPU-Nutzer: " + (users.Count > 0 ? string.Join(", ", users) : "–");
-        string source = g?.Source is "NVML" or "ADLX" ? g.Source : g != null ? "Windows-Zähler" : "–";
-        SourceLine.Text = $"Quellen: GPU {source} · CPU-Temperatur {s.CpuThermal?.Source ?? "–"}";
 
         RenderNetwork(s.Network, s.GameConnections);
     }

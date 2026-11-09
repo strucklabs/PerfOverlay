@@ -145,8 +145,8 @@
                 </Border>
                 <TextBlock x:Name="RamLine" />
                 <TextBlock x:Name="RamConfigLine" />
+                <TextBlock x:Name="PageFileLine" />
                 <TextBlock x:Name="DiskLine" />
-                <TextBlock x:Name="SourceLine" Foreground="#6B7280" FontFamily="Segoe UI" FontSize="11" />
 
                 <Border Style="{StaticResource Section}">
                     <TextBlock Text="VERBINDUNG" Style="{StaticResource SectionText}" />

@@ -76,6 +76,14 @@ public class BlockBTests
     }
 
     [Fact]
+    public void Auslagerungsdatei_des_Testrechners_ist_lesbar()
+    {
+        var (size, used) = MemorySensor.PageFiles();
+        Assert.NotNull(size);
+        Assert.InRange(used ?? -1, 0, size!.Value + 0.01);
+    }
+
+    [Fact]
     public void Speicher_Hinweis_nennt_den_groessten_Verbraucher()
     {
         var hog = MemoryHogs.Largest([("Comfy Desktop", 20L << 30), ("python", 6L << 30), ("Comfy Desktop", 4L << 30),
