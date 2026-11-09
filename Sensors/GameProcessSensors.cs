@@ -102,6 +102,45 @@ internal sealed class GameMemorySensor
     [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr handle);
 }
 
+/// <summary>Programm mit dem meisten zugesagten (privaten) Speicher; mehrere Prozesse gleichen Namens zusammengezählt.</summary>
+public sealed record MemoryHog(string Name, double GB);
+
+/// <summary>
+/// Größter Speicherverbraucher – nur gefragt, wenn die Speicherzusage hoch ist. Meist läuft dann nebenbei ein großes
+/// Programm (z. B. eine KI-Anwendung oder ein Browser mit vielen Tabs), und es zu schließen hilft mehr als eine
+/// größere Auslagerungsdatei.
+/// </summary>
+internal static class MemoryHogs
+{
+    public static MemoryHog? Largest()
+    {
+        var all = System.Diagnostics.Process.GetProcesses();
+        try
+        {
+            return Largest(all.Select(p => (p.ProcessName, SafePrivate(p))));
+        }
+        finally
+        {
+            foreach (var p in all) p.Dispose();
+        }
+    }
+
+    /// <summary>Rein rechnerisch – damit testbar.</summary>
+    public static MemoryHog? Largest(IEnumerable<(string Name, long PrivateBytes)> processes) =>
+        processes
+            .Where(p => p.Name is not ("Idle" or "System" or "Memory Compression" or "Registry"))
+            .GroupBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new MemoryHog(g.First().Name, g.Sum(p => p.PrivateBytes) / (1024.0 * 1024 * 1024)))
+            .OrderByDescending(h => h.GB)
+            .FirstOrDefault(h => h.GB >= 0.5);
+
+    private static long SafePrivate(System.Diagnostics.Process p)
+    {
+        try { return p.PrivateMemorySize64; }
+        catch (InvalidOperationException) { return 0; }   // inzwischen beendet
+    }
+}
+
 /// <summary>Grafikadapter laut DXGI; Luid im Format der PDH-Instanznamen ("0x00000000_0x0000C2B1").</summary>
 public sealed record GpuAdapter(string Luid, string Name, bool Integrated);
 

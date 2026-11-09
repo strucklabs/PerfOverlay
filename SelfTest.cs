@@ -60,6 +60,7 @@ internal static class SelfTest
             log.AppendLine($"{label}: {value}");
         log.AppendLine("Grafikadapter: " + string.Join(", ", GpuAdapters.All.Select(a => $"{a.Name} ({(a.Integrated ? "intern" : "Grafikkarte")})")));
         log.AppendLine($"DPC/Interrupts (höchster Kern): {snapshot.Cpu.DpcMaxPercent:0.0} %   Speicherzusage: {snapshot.Memory.CommitGB:0.0} von {snapshot.Memory.CommitLimitGB:0.0} GB ({snapshot.Memory.CommitPercent:0} %)");
+        if (MemoryHogs.Largest() is { } hog) log.AppendLine($"Größter Speicherverbraucher: {hog.Name} {hog.GB:0.0} GB");
         log.AppendLine();
         log.AppendLine("=== HWiNFO: CPU- und GPU-Sensoren (Rohdaten) ===");
         log.AppendLine(HwInfoSensor.DumpReadings());

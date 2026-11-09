@@ -25,6 +25,8 @@ internal sealed class SensorHub : IDisposable
     private readonly ConnectionSensor _connections = new();
     private readonly SystemInfoSensor _system;
     private readonly GameMemorySensor _gameMemory = new();
+    private MemoryHog? _topMemory;
+    private DateTime _topMemoryTime = DateTime.MinValue;
 
     /// <param name="pingTarget">Ping-Ziel im Internet für die Verbindungsanalyse; leer = nicht pingen.</param>
     public SensorHub(string? pingTarget = "1.1.1.1")
@@ -84,10 +86,19 @@ internal sealed class SensorHub : IDisposable
         var gameGpu = _windowsGpu.LoadByAdapter(gamePid);
         var mismatch = gameGpu.Count > 0 ? GpuAdapters.Check(gameGpu, GpuAdapters.All) : null;
 
+        // Größter Speicherverbraucher: Prozessliste kostet einige ms – nur bei hoher Zusage und höchstens alle 10 s
+        var memory = _memory.Read();
+        if (memory.CommitPercent < 90) _topMemory = null;
+        else if (now - _topMemoryTime >= TimeSpan.FromSeconds(10))
+        {
+            _topMemory = MemoryHogs.Largest();
+            _topMemoryTime = now;
+        }
+
         return new Snapshot(
             now,
             _cpu.Read(),
-            _memory.Read(),
+            memory,
             _disk.Read(),
             gpu,
             topProcesses,
@@ -112,6 +123,7 @@ internal sealed class SensorHub : IDisposable
             GameMemoryGB = gameMemory,
             GameMemoryLeak = leak,
             GameGpuMismatch = mismatch,
+            TopMemory = _topMemory,
         };
     }
 

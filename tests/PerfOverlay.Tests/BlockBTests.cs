@@ -71,8 +71,19 @@ public class BlockBTests
     {
         var notes = Run(i => Snap(T0.AddSeconds(i), commitGB: 37), 7);   // 37 von 40 GB = 92,5 %
         var n = Assert.Single(notes, n => n.Key == "commit");
-        Assert.Contains("37,0/40,0 GB", n.Text);
+        Assert.Equal("Speicher fast voll (93 %) – Auslagerungsdatei vergrößern?", n.Text);   // ohne bekannten Verbraucher
         Assert.DoesNotContain(Run(i => Snap(T0.AddSeconds(i), commitGB: 30), 10), n => n.Key == "commit");
+    }
+
+    [Fact]
+    public void Speicher_Hinweis_nennt_den_groessten_Verbraucher()
+    {
+        var hog = MemoryHogs.Largest([("Comfy Desktop", 20L << 30), ("python", 6L << 30), ("Comfy Desktop", 4L << 30),
+                                      ("Memory Compression", 30L << 30), ("chrome", 3L << 30)]);
+        Assert.Equal(new MemoryHog("Comfy Desktop", 24), hog);
+        Assert.Equal("Speicher fast voll (91 %) – Comfy Desktop belegt 24 GB", BottleneckAnalyzer.CommitNote(91.2, hog));
+        Assert.Null(MemoryHogs.Largest([("klein", 100L << 20)]));   // unter 0,5 GB: niemand Bestimmtes
+        Assert.NotNull(MemoryHogs.Largest());                         // echte Prozessliste ist lesbar
     }
 
     // ------------------------------------------------------------------ K10 Sync

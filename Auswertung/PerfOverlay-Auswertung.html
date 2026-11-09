@@ -570,7 +570,7 @@ function renderSession(view, s) {
   plot(gpu, "GPU-Spannung (V)", [{ key: "gpuV", label: "Spannung", color: "var(--limit)" }], { unit: " V" });
   plot(gpu, "GPU-Lüfter (U/min)", [{ key: "gpuFanRpm", label: "GPU-Lüfter", color: "var(--gpu)" }], { min: 0, unit: " U/min" });
 
-  // Speicher und Treiber: Speicherleck, Auslagerungsdatei, Treiber-Unterbrechungen
+  // Speicher und Treiber: Speicherleck, Speicherzusage, Treiber-Unterbrechungen
   if (st.gameRamMax !== null || st.commitMax !== null || st.dpcMax !== null || s.cols.has("RAM_Proz")) {
     const sys = section(view, "Speicher und Treiber", "Arbeitsspeicher, Speicher des Spiels, Treiber-Unterbrechungen", { id: "system", help: HELP.system });
     if (st.gameRamMax !== null || st.commitMax !== null || st.dpcMax !== null)
@@ -889,7 +889,8 @@ function insightsFor(s) {
     add(side, "warn", `Bufferbloat: Bei Download oder Upload stieg der Ping von ${fmt(st.pingLoad.without, 0)} auf ${fmt(st.pingLoad.withLoad, 0)} ms – `
       + "im Router QoS bzw. SQM aktivieren oder Downloads während des Spielens begrenzen.");
   if (st.commitMax !== null && st.commitMax >= 90)
-    add(side, "warn", `Die Speicherzusage erreichte ${fmt(st.commitMax, 0)} % – die Auslagerungsdatei ist knapp; von Windows verwalten lassen oder vergrößern.`);
+    add(side, "warn", `Die Speicherzusage erreichte ${fmt(st.commitMax, 0)} % – große Programme vor dem Spielen schließen `
+      + "(die Meldungen nennen den größten Verbraucher) oder die Auslagerungsdatei vergrößern.");
   if (st.dpcHighShare !== null && st.dpcHighShare >= 0.02)
     add(side, "warn", `Treiber belegten zeitweise einen Prozessorkern stark (bis ${fmt(st.dpcMax, 0)} %, ${pct(st.dpcHighShare)} der Zeit) – `
       + "häufige Verursacher sind Netzwerk-, Audio-, USB- und RGB-Treiber; aktuelle Treiber installieren.");
@@ -971,7 +972,8 @@ const HELP = {
       gleich, ist das normal. Steigt sie die ganze Zeit weiter, gibt das Spiel Speicher nicht mehr frei (<b>Speicherleck</b>). Mit der Zeit wird es
       dann langsamer oder stürzt ab – ein Neustart des Spiels hilft vorübergehend.</li>
     <li><b>Speicherzusage</b>: wie viel Speicher Windows den Programmen insgesamt zugesagt hat, gemessen an Arbeitsspeicher plus Auslagerungsdatei.
-      Ab etwa 90 % wird es knapp. Dann hilft es, die Auslagerungsdatei von Windows verwalten zu lassen oder sie zu vergrößern.</li>
+      Ab etwa 90 % wird es knapp. Meist läuft dann nebenbei ein großes Programm – es vor dem Spielen zu schließen hilft am meisten. Sonst die
+      Auslagerungsdatei von Windows verwalten lassen oder vergrößern.</li>
     <li><b>Treiber-Unterbrechungen (DPC)</b>: Zeit, in der Treiber einen Prozessorkern für sich beanspruchen. Einzelne Sekunden bis etwa 12 % sind
       normal. Liegt der Wert öfter über 20 %, hält ein Treiber das Spiel auf – häufig Netzwerk-, Audio-, USB- oder RGB-Treiber.</li></ul>`,
   network: `<ul>

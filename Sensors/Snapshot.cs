@@ -210,6 +210,9 @@ public sealed record Snapshot(
     /// <summary>Speicher des Spiels wächst seit mindestens 20 min ohne Plateau.</summary>
     public MemoryLeak? GameMemoryLeak { get; init; }
 
+    /// <summary>Größter Speicherverbraucher – nur ermittelt, solange die Speicherzusage bei 90 % oder mehr liegt.</summary>
+    public MemoryHog? TopMemory { get; init; }
+
     /// <summary>Spiel rendert auf der Prozessorgrafik statt auf der Grafikkarte.</summary>
     public GpuMismatch? GameGpuMismatch { get; init; }
 }

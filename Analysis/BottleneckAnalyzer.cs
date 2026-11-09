@@ -269,10 +269,11 @@ public sealed class BottleneckAnalyzer
         if (s.Disk.ActivePercent > 80 && s.Disk.LatencyMs > 20)
             notes.Add(new("disk", $"Datenträger ausgelastet ({s.Disk.LatencyMs:0} ms Latenz)", Severity.Warn));
 
-        // Zugesicherter Speicher: Ist die Auslagerungsdatei zu klein, kann Windows keinen Speicher mehr zusagen.
-        // Wird sie von Windows verwaltet, wächst sie mit – deshalb erst nach einigen Sekunden.
+        // Zugesicherter Speicher: Ist er fast ausgeschöpft, kann Windows keinen Speicher mehr zusagen. Meist läuft
+        // nebenbei ein großes Programm – deshalb den größten Verbraucher nennen. Wird die Auslagerungsdatei von
+        // Windows verwaltet, wächst sie mit – deshalb erst nach einigen Sekunden.
         if (Sustained("commit", mem.CommitPercent >= 90, s.Time, TimeSpan.FromSeconds(5)))
-            notes.Add(new("commit", $"Auslagerungsdatei zu klein ({mem.CommitGB:0.0}/{mem.CommitLimitGB:0.0} GB zugesagt)", Severity.Warn));
+            notes.Add(new("commit", CommitNote(mem.CommitPercent, s.TopMemory), Severity.Warn));
 
         // Treiber, die einen Kern dauerhaft mit DPCs/Interrupts belegen
         if (s.Cpu.DpcMaxPercent is double dpc && Sustained("dpc", dpc >= DpcHintPercent, s.Time, TimeSpan.FromSeconds(5)))
@@ -332,6 +333,11 @@ public sealed class BottleneckAnalyzer
             return new("CPU AUSGELASTET", $"CPU gesamt {s.Cpu.TotalLoad:0} % ({why})", Severity.Warn, notes);
         return new("KEIN ENGPASS", $"System hat Reserven ({why})", Severity.Good, notes);
     }
+
+    /// <summary>Meldung zur Speicherzusage – mit dem größten Verbraucher, sonst mit dem Rat zur Auslagerungsdatei.</summary>
+    internal static string CommitNote(double percent, MemoryHog? top) => top != null
+        ? $"Speicher fast voll ({percent:0} %) – {top.Name} belegt {top.GB:0} GB"
+        : $"Speicher fast voll ({percent:0} %) – Auslagerungsdatei vergrößern?";
 
     /// <summary>
     /// Tipps, die Systemeinstellungen einbeziehen (Plan Engpass-Erweiterung, T1–T3 und T7). Akku und
