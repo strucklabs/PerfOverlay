@@ -15,7 +15,7 @@
     <ApplicationIcon>Assets\PerfOverlay.ico</ApplicationIcon>
     <AssemblyName>PerfOverlay</AssemblyName>
     <RootNamespace>PerfOverlay</RootNamespace>
-    <Version>0.3.1</Version>
+    <Version>0.4.0</Version>
     <!-- WinForms-Analyzer will DPI-Einstellungen per API; für WPF gehört das ins Manifest -->
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
   </PropertyGroup>
