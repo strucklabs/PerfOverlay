@@ -34,6 +34,7 @@ public class BlockETests
     {
         var sys = new SystemInfo { Display = new DisplayInfo(3440, 1440, 120, 144), Power = HighPerf };
         Assert.Equal("Monitor kann 144 Hz – in Windows umstellen", Tip(sys, BottleneckKind.Limit).Tip);
+        Assert.Equal("Standard", Tip(sys, BottleneckKind.Limit, fps: 60).Tip);   // FPS-Limit im Spiel, nicht VSync an der Hz-Grenze
         Assert.Equal("Standard", Tip(sys, BottleneckKind.Gpu).Tip);
     }
 

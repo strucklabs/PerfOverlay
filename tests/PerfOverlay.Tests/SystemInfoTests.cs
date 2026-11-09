@@ -22,6 +22,25 @@ public class SystemInfoTests
     public void ReBar_aus_der_BAR1_Groesse(double? bar1, double? vram, bool? expected) =>
         Assert.Equal(expected, SystemInfoSensor.ReBarFromBar1(bar1, vram));
 
+    [Theory]
+    [InlineData("NVIDIA GeForce RTX 3080", true)]
+    [InlineData("NVIDIA GeForce RTX 4060 Laptop GPU", true)]
+    [InlineData("NVIDIA GeForce RTX 5090", true)]
+    [InlineData("NVIDIA GeForce RTX 2080 SUPER", false)]   // keine ReBAR-Unterstützung – kein Hinweis
+    [InlineData("NVIDIA GeForce GTX 1080 Ti", false)]
+    [InlineData("NVIDIA RTX A4000", true)]
+    [InlineData("NVIDIA RTX 2000 Ada Generation", true)]
+    [InlineData(null, false)]
+    public void ReBar_nur_bei_Karten_die_es_unterstuetzen(string? name, bool supported) =>
+        Assert.Equal(supported, SystemInfoSensor.SupportsReBar(name));
+
+    [Fact]
+    public void Monitor_Kopfzeile_nennt_die_Moeglichkeit_nur_bei_echtem_Abstand()
+    {
+        Assert.Equal("1920×1080, 59 Hz", new DisplayInfo(1920, 1080, 59, 60).Summary);
+        Assert.Equal("3440×1440, 120 Hz (möglich 144 Hz)", new DisplayInfo(3440, 1440, 120, 144).Summary);
+    }
+
     [Fact]
     public void HAGS_und_Speicher_Integritaet_einordnen()
     {

@@ -15,7 +15,7 @@ public sealed record DisplayInfo(int Width, int Height, int CurrentHz, int MaxHz
     /// </summary>
     public bool BelowMax => MaxHz - CurrentHz >= 15;
 
-    public string Summary => $"{Width}×{Height}, {CurrentHz} Hz" + (MaxHz > CurrentHz ? $" (möglich {MaxHz} Hz)" : "");
+    public string Summary => $"{Width}×{Height}, {CurrentHz} Hz" + (BelowMax ? $" (möglich {MaxHz} Hz)" : "");
 }
 
 public enum PowerPlanKind { Balanced, HighPerformance, Ultimate, PowerSaver, Other }
@@ -91,7 +91,9 @@ internal sealed class SystemInfoSensor
 
     /// <param name="bar1TotalMB">BAR1-Größe aus NVML (null ohne NVIDIA).</param>
     /// <param name="vramTotalMB">Grafikspeicher (für den Vergleich mit BAR1).</param>
-    public SystemInfoSensor(double? bar1TotalMB, double? vramTotalMB) => _reBar = ReBarFromBar1(bar1TotalMB, vramTotalMB);
+    /// <param name="gpuName">Name der NVIDIA-Karte – ReBAR gibt es erst ab der RTX-30-Reihe.</param>
+    public SystemInfoSensor(double? bar1TotalMB, double? vramTotalMB, string? gpuName = null) =>
+        _reBar = SupportsReBar(gpuName) ? ReBarFromBar1(bar1TotalMB, vramTotalMB) : null;
 
     public SystemInfo Read(DateTime now)
     {
@@ -138,6 +140,21 @@ internal sealed class SystemInfoSensor
         return bar1 > 1024;
     }
 
+    /// <summary>
+    /// NVIDIA unterstützt Resizable BAR ab der GeForce-RTX-30-Reihe (und den zugehörigen Profi-Karten der
+    /// Ampere-/Ada-Generation). Ältere Karten haben immer 256 MB BAR1 – ein Hinweis „im BIOS aktivieren“ wäre falsch.
+    /// </summary>
+    public static bool SupportsReBar(string? gpuName)
+    {
+        if (gpuName == null) return false;
+        // Profi-Karten zuerst ("RTX 2000 Ada" ist keine RTX-20-Karte): RTX A2000 … A6000 (Ampere),
+        // RTX 2000 … 6000 Ada, RTX PRO (Blackwell)
+        if (System.Text.RegularExpressions.Regex.IsMatch(gpuName, @"RTX\s*(A\d{4}|\d{4}\s*Ada|PRO\s*\d{4})")) return true;
+        // GeForce RTX 3050 … 5090 (Reihe = erste Ziffer der vierstelligen Nummer, ab 3)
+        var geforce = System.Text.RegularExpressions.Regex.Match(gpuName, @"RTX\s*(\d)0\d0");
+        return geforce.Success && geforce.Groups[1].Value[0] >= '3';
+    }
+
     /// <summary>HwSchMode: 2 = an, 1 = aus, fehlt = Windows-Standard (unbekannt).</summary>
     public static bool? HagsFromRegistry(object? value) => value is int mode ? mode == 2 ? true : mode == 1 ? false : null : null;
 
@@ -173,13 +190,15 @@ internal sealed class SystemInfoSensor
             max = hz;
             var mode = NewDevMode();
             for (int i = 0; EnumDisplaySettings(device, i, ref mode); i++)
-                if (mode.dmPelsWidth == w && mode.dmPelsHeight == h) max = Math.Max(max, (int)mode.dmDisplayFrequency);
+                if (mode.dmPelsWidth == w && mode.dmPelsHeight == h && (mode.dmDisplayFlags & DmInterlaced) == 0)
+                    max = Math.Max(max, (int)mode.dmDisplayFrequency);
             _maxHz[(device, w, h)] = max;
         }
         return new DisplayInfo(w, h, hz, max);
     }
 
     private const int EnumCurrentSettings = -1;
+    private const uint DmInterlaced = 2;   // Zeilensprung-Modi (alte Fernseher) sind keine echte Alternative
 
     private static DEVMODE NewDevMode() => new() { dmSize = (ushort)Marshal.SizeOf<DEVMODE>() };
 

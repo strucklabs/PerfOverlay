@@ -27,6 +27,7 @@ internal sealed class SensorHub : IDisposable
     private readonly GameMemorySensor _gameMemory = new();
     private MemoryHog? _topMemory;
     private DateTime _topMemoryTime = DateTime.MinValue;
+    private Task<MemoryHog?>? _topMemoryTask;
 
     /// <param name="pingTarget">Ping-Ziel im Internet für die Verbindungsanalyse; leer = nicht pingen.</param>
     public SensorHub(string? pingTarget = "1.1.1.1")
@@ -38,7 +39,7 @@ internal sealed class SensorHub : IDisposable
         _network = new NetworkSensor(_pdh, pingTarget);
         _nvml = NvmlGpuSensor.TryCreate();
         if (_nvml == null) _adlx = AdlxGpuSensor.TryCreate(probeFirst: true);
-        _system = new SystemInfoSensor(_nvml?.Bar1TotalMB, _nvml?.VramTotalMB);
+        _system = new SystemInfoSensor(_nvml?.Bar1TotalMB, _nvml?.VramTotalMB, _nvml?.Name);
         _pdh.Collect();   // Ratenzähler brauchen zwei Messpunkte
     }
 
@@ -86,12 +87,18 @@ internal sealed class SensorHub : IDisposable
         var gameGpu = _windowsGpu.LoadByAdapter(gamePid);
         var mismatch = gameGpu.Count > 0 ? GpuAdapters.Check(gameGpu, GpuAdapters.All) : null;
 
-        // Größter Speicherverbraucher: Prozessliste kostet einige ms – nur bei hoher Zusage und höchstens alle 10 s
+        // Größter Speicherverbraucher: Die Prozessliste kostet einige 10 ms – nur bei hoher Zusage, höchstens alle 10 s
+        // und im Hintergrund, damit der Messtakt nicht stockt
         var memory = _memory.Read();
-        if (memory.CommitPercent < 90) _topMemory = null;
-        else if (now - _topMemoryTime >= TimeSpan.FromSeconds(10))
+        if (_topMemoryTask is { IsCompleted: true } done)
         {
-            _topMemory = MemoryHogs.Largest();
+            _topMemory = done.IsCompletedSuccessfully ? done.Result : null;
+            _topMemoryTask = null;
+        }
+        if (memory.CommitPercent < 90) _topMemory = null;
+        else if (_topMemoryTask == null && now - _topMemoryTime >= TimeSpan.FromSeconds(10))
+        {
+            _topMemoryTask = Task.Run(MemoryHogs.Largest);
             _topMemoryTime = now;
         }
 

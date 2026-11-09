@@ -27,6 +27,8 @@ internal sealed class NvmlGpuSensor : IDisposable
         catch (EntryPointNotFoundException) { /* sehr alter Treiber */ }
     }
 
+    public string Name => _name;
+
     /// <summary>Größe des BAR1-Fensters (für die Erkennung von Resizable BAR).</summary>
     public double? Bar1TotalMB { get; }
     public double? VramTotalMB { get; }

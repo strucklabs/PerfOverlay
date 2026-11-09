@@ -700,7 +700,7 @@ function resultBlock(s) {
   const hz = (m["Monitor"] || "").match(/(\d+) Hz \(möglich (\d+) Hz\)/);
   const balanced = /Ausbalanciert|Balanced|Energiespar|Power saver/i.test(m["Energieplan"] || "");
   const win10 = /^10\.0\.(\d+)/.exec(m["Windows"] || "");
-  if (clear && top === "Limit" && hz)
+  if (clear && top === "Limit" && hz && hz[2] - hz[1] >= 15 && st.fps && Math.abs(st.fps - hz[1]) <= hz[1] * 0.05)
     tips.unshift(`Der Monitor lief mit ${hz[1]} Hz, möglich sind ${hz[2]} Hz – in den Windows-Anzeigeeinstellungen umstellen, dann sind mehr FPS möglich`);
   if (clear && top === "Limit" && noteShare(st, /^FPS über \d+ Hz/) > 0)
     extra.push("Mit G-Sync/FreeSync: ein FPS-Limit knapp unter der Bildwiederholrate setzen (z. B. 141 bei 144 Hz) – so bleibt das Bild ohne Risse");

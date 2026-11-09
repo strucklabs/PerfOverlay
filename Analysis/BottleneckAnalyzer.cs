@@ -290,6 +290,10 @@ public sealed class BottleneckAnalyzer
         // --- Systemeinstellungen: Monitor, Energie, Resizable BAR ---
         if (s.System is { } sys) AddSystemNotes(sys, notes);
 
+        // --- Prozessorgrafik statt Grafikkarte (außerhalb des Spiel-Blocks, damit die Zeitmessung ohne Spiel zurückgesetzt wird) ---
+        if (Sustained("gpu-integrated", f != null && s.GameGpuMismatch != null, s.Time, TimeSpan.FromSeconds(5)))
+            notes.Add(new("gpu-integrated", "Spiel nutzt die Prozessorgrafik statt der Grafikkarte", Severity.Bad));
+
         // --- Andere Prozesse auf der GPU ---
         if (f != null)
         {
@@ -299,9 +303,6 @@ public sealed class BottleneckAnalyzer
 
             if (s.Timer is { IsSlow: true } timer)
                 notes.Add(new("timer", TimerNote(timer), Severity.Warn));
-
-            if (Sustained("gpu-integrated", s.GameGpuMismatch != null, s.Time, TimeSpan.FromSeconds(5)))
-                notes.Add(new("gpu-integrated", "Spiel nutzt die Prozessorgrafik statt der Grafikkarte", Severity.Bad));
 
             if (s.GameMemoryLeak is { } leak)
                 notes.Add(new("game-memleak", $"Spiel-Speicher wächst: {leak.FromGB:0.0} → {leak.ToGB:0.0} GB in {leak.Minutes:0} min", Severity.Warn));
@@ -352,7 +353,8 @@ public sealed class BottleneckAnalyzer
             return v with { Tip = "Energiesparmodus ausschalten – er drosselt CPU und GPU" };
 
         int hz = sys.Display?.CurrentHz ?? 0;
-        if (v.Kind == BottleneckKind.Limit && sys.Display is { BelowMax: true } d && f.SyncInterval >= 1)
+        if (v.Kind == BottleneckKind.Limit && sys.Display is { BelowMax: true } d && f.SyncInterval >= 1
+            && Math.Abs(f.Fps - d.CurrentHz) <= d.CurrentHz * 0.05)
             return v with { Tip = $"Monitor kann {d.MaxHz} Hz – in Windows umstellen" };
         if (v.Kind == BottleneckKind.Limit && hz >= 30 && f.SyncInterval == 0 && f.Fps > hz * 1.05)
             return v with { Tip = $"Mit G-Sync/FreeSync: Limit auf {hz - 3} FPS setzen" };
