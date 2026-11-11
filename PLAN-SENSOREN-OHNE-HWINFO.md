@@ -1,6 +1,6 @@
 # Plan: Sensoren ohne HWiNFO (Stand 11.11.2026)
 
-Nur Planung, noch nichts umgesetzt.
+Umgesetzt am 11.11.2026 in S1–S6 (5861f2c, f9a30d9, 5c9cb9a, 639968b, faf3421, Version 0.5.0). Abnahme: 1, 3 (ohne HWiNFO-Vergleich), 6, 7, 8 auf Marcos PC geprüft; offen: 2 (Vergleich mit laufendem HWiNFO), 4 (PawnIO nachträglich ohne Neustart, nur im Code), 5 (AMD nur mit Testwerten).
 
 ## Ziel
 

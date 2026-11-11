@@ -128,6 +128,24 @@ Das Icon (`Assets\PerfOverlay.ico`) wird mit `Assets\make-icon.ps1` erzeugt.
 | CPU-Temperatur, Package-Leistung, CPU-Lüfter (optional) | **1. PawnIO**, falls installiert (Dienst `PawnIO` in der Registry, alle 30 s geprüft) und PerfOverlay mit Admin-Rechten läuft: LibreHardwareMonitorLib mit CPU- und Mainboard-Teil, eigener Hintergrund-Takt 1 s (eine Abfrage bis ~300 ms). Intel: „CPU Package“, TjMax aus Kerntemperatur + „Distance to TjMax“; AMD: „Core (Tctl/Tdie)“, TjMax nach Modell. CPU-Lüfter = erster Lüfter des Lüfterchips (CPU_FAN), nur wenn er dreht. Hinweis „CPU-Werte über PawnIO“. PerfOverlay installiert PawnIO nie selbst. Drosselgrund mit PawnIO abgeleitet: Windows-„% Performance Limit“ < 90 % für 3 s bei > 30 % Last → „CPU drosselt: Temperatur“, wenn höchstens 5 °C unter TjMax (ohne TjMax ab 95 °C), sonst „CPU drosselt: Strom-/Leistungslimit“. **2. HWiNFO** (Shared Memory, liefert zusätzlich PL1 und Drosselungsgründe). **3.** sonst Hinweis „HWiNFO starten oder PawnIO installieren“ bzw. „als Admin starten (PawnIO)“. | 
 | CPU-Temperatur über HWiNFO | Shared Memory von **HWiNFO** (`Global\HWiNFO_SENS_SM2`), wird automatisch erkannt. In HWiNFO muss „Shared Memory Support“ aktiv sein (Gratisversion: 12 Stunden, danach neu aktivieren). |
 
+### PawnIO und HWiNFO
+
+GPU-Werte liest PerfOverlay vollständig selbst (NVML, LibreHardwareMonitorLib/NVAPI, ADLX). Für CPU-Temperatur,
+CPU-Leistung und die Lüfter des Mainboards braucht Windows dagegen einen Kerneltreiber – ohne ihn sind diese Werte
+nicht lesbar (die Windows-Thermozonen sind auf Desktop-Mainboards meist feste Werte). PerfOverlay nutzt deshalb, was
+vorhanden ist:
+
+1. **PawnIO** ([pawnio.eu](https://pawnio.eu), quelloffen, digital signiert): ein allgemeiner Treiber, der nur
+   signierte, geprüfte Module für einzelne Hardware-Zugriffe ausführt – anders als der früher übliche WinRing0, den
+   Windows inzwischen als gefährlich blockiert. Ist PawnIO installiert und läuft PerfOverlay mit Admin-Rechten, liest
+   LibreHardwareMonitorLib darüber CPU und Lüfterchip.
+2. **HWiNFO** mit „Shared Memory Support“, falls es läuft (liefert zusätzlich PL1 und fertige Drosselgründe).
+3. Sonst fehlen CPU-Temperatur und -Leistung; CPU-Drosselung erkennt PerfOverlay weiter über Windows.
+
+PerfOverlay installiert PawnIO nie selbst und ändert keine Systemeinstellungen. Hinweis: Manche Anti-Cheat-Systeme
+reagieren empfindlich auf Treiber für direkten Hardwarezugriff; PawnIO ist dafür deutlich unproblematischer als
+WinRing0, ausschließen lässt es sich aber nicht.
+
 ## Engpass-Logik (`Analysis/BottleneckAnalyzer.cs`)
 
 Mit Frame-Daten (zuverlässig), bezogen auf die vom Spiel gerenderten Frames (Frame Generation wird herausgerechnet):
@@ -185,9 +203,10 @@ Frames kennzeichnen – bei DLSS 3 ist das nicht garantiert (ungetestet).
 | NVIDIA-Karten (NVML) | ✅ |
 | AMD-Grafikkarten (ADLX) | ⚠️ eingebaut, auf echter Hardware noch ungetestet |
 | Intel-Grafikkarten | ⚠️ nur Auslastung und VRAM über Windows-Zähler, ungetestet |
+| CPU-Werte über PawnIO | ✅ Intel i5-13600KF / Gigabyte Z690 UD (ITE IT8689E) getestet; AMD-CPUs ungetestet |
 | AMD-CPUs mit HWiNFO | ✅ Tctl/Tdie, Package Power, Drosselung über PPT/TDC/EDC-Limit (%) und HTC/PROCHOT, Power Reporting Deviation |
-| AMD-CPUs ohne HWiNFO | ⚠️ Windows-„% Leistungslimit“ bleibt bei EDC-Begrenzung auf 100 %, Drosselung also nicht erkennbar |
-| CPU-Temperaturbewertung | relativ zu TjMax (Intel: aus HWiNFO berechnet; AMD: nach Modell 89/90/95 °C, Hinweis nur bei Drosselung) |
+| AMD-CPUs ohne HWiNFO | ⚠️ Windows-„% Leistungslimit“ bleibt bei EDC-Begrenzung auf 100 %, Drosselung also nicht erkennbar (auch mit PawnIO) |
+| CPU-Temperaturbewertung | relativ zu TjMax (Intel: Kerntemperatur + „Distance to TjMax“ aus PawnIO bzw. HWiNFO; AMD: nach Modell 89/90/95 °C, Hinweis nur bei Drosselung) |
 | Mehrere Monitore | Overlay wechselt auf den Monitor, auf dem das Spiel im Vordergrund läuft |
 | Hybrid-CPUs (Intel ab 12. Gen.) | ✅ P- und E-Kerne getrennt (Windows `GetSystemCpuSetInformation`, auch unter Windows 10); CPU-Schätzung nutzt nur P-Kerne |
 | Viele Threads | Kernbalken skalieren ihre Breite, bis 64 Threads passen sie ins Overlay |
@@ -195,7 +214,6 @@ Frames kennzeichnen – bei DLSS 3 ist das nicht garantiert (ungetestet).
 
 ## Ideen für Phase 2
 
-- Weitere Temperaturquellen neben HWiNFO: Core Temp, MSI Afterburner (Shared Memory)
 - SSD-Temperatur über WMI `MSFT_StorageReliabilityCounter`
 - Hauptfenster in der EXE mit Live-Auswertung (gleiche Datenbasis wie die CSV-Sitzungen)
 - Download-Link im Kopf der Auswertung, sobald es einen Release Candidate gibt
