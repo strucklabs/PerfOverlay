@@ -37,6 +37,14 @@ public sealed record CpuData(
     public bool IsPerfCore(int i) => !IsHybrid || i >= CoreClasses.Length || CoreClasses[i] == TopClass;
 }
 
+/// <summary>Zustand des Treibers PawnIO für die CPU-Werte.</summary>
+public enum PawnIoState
+{
+    NotInstalled,   // nicht installiert – CPU-Werte nur über HWiNFO
+    NeedsAdmin,     // installiert, aber PerfOverlay läuft ohne Admin-Rechte
+    Active,         // installiert und nutzbar (Werte kommen nach dem ersten Lesen)
+}
+
 public enum HwInfoStatus
 {
     Active,          // liefert Daten
@@ -201,6 +209,8 @@ public sealed record Snapshot(
     public TimerInfo? Timer { get; init; }
 
     public HwInfoStatus HwInfoStatus { get; init; } = HwInfoStatus.NotRunning;
+
+    public PawnIoState PawnIo { get; init; } = PawnIoState.NotInstalled;
 
     public NetworkData? Network { get; init; }
 

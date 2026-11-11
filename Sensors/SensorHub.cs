@@ -25,6 +25,9 @@ internal sealed class SensorHub : IDisposable
     private readonly ConnectionSensor _connections = new();
     private readonly SystemInfoSensor _system;
     private readonly LhmGpuSensor? _lhmGpu;
+    // CPU-Temperatur, -Leistung und -Lüfter über PawnIO (nur wenn installiert und mit Admin-Rechten)
+    private readonly LhmCpuSensor _lhmCpu = new();
+    private readonly bool _elevated = Win32.IsElevated();
     private readonly GameMemorySensor _gameMemory = new();
     private MemoryHog? _topMemory;
     private DateTime _topMemoryTime = DateTime.MinValue;
@@ -90,6 +93,8 @@ internal sealed class SensorHub : IDisposable
         var gameGpu = _windowsGpu.LoadByAdapter(gamePid);
         var mismatch = gameGpu.Count > 0 ? GpuAdapters.Check(gameGpu, GpuAdapters.All) : null;
 
+        var hwInfoCpu = _hwInfo.Read();
+
         // Größter Speicherverbraucher: Die Prozessliste kostet einige 10 ms – nur bei hoher Zusage, höchstens alle 10 s
         // und im Hintergrund, damit der Messtakt nicht stockt
         var memory = _memory.Read();
@@ -115,7 +120,8 @@ internal sealed class SensorHub : IDisposable
             frames,
             _presentMon.Status,
             _presentMon.Running,
-            _hwInfo.Read(),
+            // PawnIO hat Vorrang vor HWiNFO; HWiNFO wird trotzdem gelesen (füllt GPU-Lücken, liefert Status)
+            _lhmCpu.Latest ?? hwInfoCpu,
             _memoryConfig.IsCompletedSuccessfully ? _memoryConfig.Result : null)
         {
             MainThread = _processCpu.SampleMainThread(gamePid),
@@ -127,6 +133,7 @@ internal sealed class SensorHub : IDisposable
             // Eigene Abfrage (NVML bzw. ADLX) zuerst, HWiNFO füllt nur noch Lücken (_hwInfo.Gpu wird oben mitgelesen)
             GpuThermal = MergeThermal(MergeThermal(adlxThermal ?? NvmlThermal(), _lhmGpu?.Latest), _hwInfo.Gpu),
             HwInfoStatus = _hwInfo.Status,
+            PawnIo = !_lhmCpu.Installed ? PawnIoState.NotInstalled : _elevated ? PawnIoState.Active : PawnIoState.NeedsAdmin,
             IgnoredApp = ignoredApp,
             Timer = _timer.IsCompletedSuccessfully ? _timer.Result : null,
             GameConnections = _connections.Read(gamePid, now),
@@ -160,6 +167,7 @@ internal sealed class SensorHub : IDisposable
     {
         _network.Dispose();
         _lhmGpu?.Dispose();
+        _lhmCpu.Dispose();
         _hwInfo.Dispose();
         _presentMon.Dispose();
         _nvml?.Dispose();

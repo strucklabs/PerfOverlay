@@ -47,6 +47,7 @@ public static class NoteCategories
         ["gpu-hotspot"] = NoteCategory.Hint,
         ["amd-prd"] = NoteCategory.Hint,
         ["hwinfo"] = NoteCategory.Hint,
+        ["cpu-pawnio"] = NoteCategory.Hint,
         ["net-router"] = NoteCategory.Hint,
         ["net-internet"] = NoteCategory.Hint,
         ["net-transfer"] = NoteCategory.Hint,

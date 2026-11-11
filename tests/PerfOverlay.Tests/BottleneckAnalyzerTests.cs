@@ -73,7 +73,7 @@ public class BottleneckAnalyzerTests
     }
 
     [Theory]
-    [InlineData(HwInfoStatus.NotRunning, "hwinfo.com")]
+    [InlineData(HwInfoStatus.NotRunning, "HWiNFO starten oder PawnIO installieren")]
     [InlineData(HwInfoStatus.NoSharedMemory, "Shared Memory Support")]
     [InlineData(HwInfoStatus.Stopped, "12 h")]
     public void HWiNFO_Hinweis_passt_zum_Zustand(HwInfoStatus status, string expected)
@@ -81,6 +81,58 @@ public class BottleneckAnalyzerTests
         var v = Run(i => Snap(T0.AddSeconds(i * 0.5), hwInfo: status), ticks: 1);
         var note = Assert.Single(v.Notes, n => n.Key == "hwinfo");
         Assert.Contains(expected, note.Text);
+    }
+
+    private static Snapshot WithCpu(Snapshot s, PawnIoState pawn, CpuThermalData? cpu) => s with { PawnIo = pawn, CpuThermal = cpu };
+
+    [Fact]
+    public void PawnIO_hat_Vorrang_und_wird_genannt()
+    {
+        var pawnCpu = new CpuThermalData("PawnIO", 55, 59, 55, null, [], 100, false);
+        var v = Run(i => WithCpu(Snap(T0.AddSeconds(i * 0.5), hwInfo: HwInfoStatus.Active), PawnIoState.Active, pawnCpu), ticks: 1);
+        Assert.Equal("CPU-Werte über PawnIO", Assert.Single(v.Notes, n => n.Key == "cpu-pawnio").Text);
+        Assert.DoesNotContain(v.Notes, n => n.Key == "hwinfo");
+    }
+
+    [Fact]
+    public void PawnIO_installiert_aber_ohne_Admin()
+    {
+        var v = Run(i => WithCpu(Snap(T0.AddSeconds(i * 0.5), hwInfo: HwInfoStatus.NotRunning), PawnIoState.NeedsAdmin, null), ticks: 1);
+        Assert.Equal("CPU-Temperatur: als Admin starten (PawnIO)", Assert.Single(v.Notes, n => n.Key == "hwinfo").Text);
+    }
+
+    [Fact]
+    public void Solange_PawnIO_noch_startet_kein_irrefuehrender_Hinweis()
+    {
+        var v = Run(i => WithCpu(Snap(T0.AddSeconds(i * 0.5), hwInfo: HwInfoStatus.NotRunning), PawnIoState.Active, null), ticks: 1);
+        Assert.DoesNotContain(v.Notes, n => n.Key is "hwinfo" or "cpu-pawnio");
+    }
+
+    [Fact]
+    public void LibreHardwareMonitor_CPU_Werte_werden_ausgewertet()
+    {
+        var T = LibreHardwareMonitor.Hardware.SensorType.Temperature;
+        var intel = LhmCpuSensor.Extract("13th Gen Intel Core i5-13600KF", [
+            (T, "CPU Package", 55f), (T, "Core Max", 59f),
+            (T, "P-Core #2", 59f), (T, "P-Core #2 Distance to TjMax", 41f),
+            (T, "P-Core #1", 50f), (T, "P-Core #1 Distance to TjMax", 50f),
+            (LibreHardwareMonitor.Hardware.SensorType.Power, "CPU Package", 55.5f),
+            (LibreHardwareMonitor.Hardware.SensorType.Fan, "Fan #1", 1298f),
+            (LibreHardwareMonitor.Hardware.SensorType.Fan, "Fan #2", 0f)])!;
+        Assert.Equal("PawnIO", intel.Source);
+        Assert.Equal(55, intel.TempC);
+        Assert.Equal(100, intel.TjMaxC);
+        Assert.Equal(55.5, intel.PowerW!.Value, 1);
+        Assert.Equal(1298, intel.FanRpm);
+        Assert.False(intel.IsAmd);
+
+        var amd = LhmCpuSensor.Extract("AMD Ryzen 7 7800X3D 8-Core Processor", [
+            (T, "Core (Tctl/Tdie)", 81f), (LibreHardwareMonitor.Hardware.SensorType.Power, "Package", 88f),
+            (LibreHardwareMonitor.Hardware.SensorType.Fan, "Fan #1", 0f)])!;
+        Assert.True(amd.IsAmd);
+        Assert.Equal(81, amd.TempC);
+        Assert.Null(amd.FanRpm);   // Lüfter steht (0 U/min) – nicht als Wert zeigen
+        Assert.Null(LhmCpuSensor.Extract("Intel", []));
     }
 
     [Fact]

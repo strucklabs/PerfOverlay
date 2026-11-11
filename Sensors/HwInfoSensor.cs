@@ -226,7 +226,7 @@ internal sealed class HwInfoSensor : IDisposable
     /// TjMax laut AMD-Spezifikation: Ryzen 5000 (Zen 3) 90 °C, X3D-Modelle der 7000er 89 °C,
     /// sonst (Ryzen 3000, 7000, 9000) 95 °C.
     /// </summary>
-    private static double AmdTjMax(string name)
+    internal static double AmdTjMax(string name)
     {
         var m = System.Text.RegularExpressions.Regex.Match(name, @"Ryzen \d+ (\d)\d{3}");
         if (!m.Success) return 95;
