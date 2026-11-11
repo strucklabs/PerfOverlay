@@ -121,7 +121,8 @@ internal sealed class SensorHub : IDisposable
             Network = _network.Read() with { TopTransfer = _processCpu.TopTransfer(gamePid) },
             GameSharedVramGB = _windowsGpu.Available ? _windowsGpu.SharedUsageGB(gamePid) : null,
             ForegroundPid = foregroundPid,
-            GpuThermal = MergeThermal(_hwInfo.Gpu, adlxThermal),   // _hwInfo.Gpu wird beim _hwInfo.Read() oben mitgelesen
+            // Eigene Abfrage (NVML bzw. ADLX) zuerst, HWiNFO füllt nur noch Lücken (_hwInfo.Gpu wird oben mitgelesen)
+            GpuThermal = MergeThermal(adlxThermal ?? NvmlThermal(), _hwInfo.Gpu),
             HwInfoStatus = _hwInfo.Status,
             IgnoredApp = ignoredApp,
             Timer = _timer.IsCompletedSuccessfully ? _timer.Result : null,
@@ -134,15 +135,22 @@ internal sealed class SensorHub : IDisposable
         };
     }
 
-    /// <summary>HWiNFO hat Vorrang (falls es läuft und der Nutzer es so eingerichtet hat), ADLX füllt Lücken.</summary>
-    internal static GpuThermalData? MergeThermal(GpuThermalData? hwInfo, GpuThermalData? adlx)
+    /// <summary>Zusatzwerte der GPU aus NVML (bisher nur die Lüfterdrehzahl); null ohne NVIDIA oder ohne Werte.</summary>
+    private GpuThermalData? NvmlThermal() =>
+        _nvml?.ReadFanRpm() is double rpm ? new GpuThermalData(null, null, null, rpm) : null;
+
+    /// <summary>
+    /// Die eigene Abfrage (NVML/NVAPI bzw. ADLX) hat Vorrang, HWiNFO füllt nur Lücken – so hängen die GPU-Werte
+    /// nicht davon ab, ob HWiNFO läuft (Plan Sensoren ohne HWiNFO).
+    /// </summary>
+    internal static GpuThermalData? MergeThermal(GpuThermalData? own, GpuThermalData? hwInfo)
     {
-        if (hwInfo == null || adlx == null) return hwInfo ?? adlx;
+        if (own == null || hwInfo == null) return own ?? hwInfo;
         return new GpuThermalData(
-            hwInfo.CoreVoltage ?? adlx.CoreVoltage,
-            hwInfo.HotspotC ?? adlx.HotspotC,
-            hwInfo.MemoryJunctionC ?? adlx.MemoryJunctionC,
-            hwInfo.FanRpm ?? adlx.FanRpm);
+            own.CoreVoltage ?? hwInfo.CoreVoltage,
+            own.HotspotC ?? hwInfo.HotspotC,
+            own.MemoryJunctionC ?? hwInfo.MemoryJunctionC,
+            own.FanRpm ?? hwInfo.FanRpm);
     }
 
     public void Dispose()

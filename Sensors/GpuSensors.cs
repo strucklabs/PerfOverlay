@@ -94,6 +94,33 @@ internal sealed class NvmlGpuSensor : IDisposable
         };
     }
 
+    private bool _rpmUnsupported;
+
+    /// <summary>
+    /// Lüfterdrehzahl in U/min (Mittel über alle Lüfter) – ab etwa Treiber R535 direkt aus NVML, ohne HWiNFO.
+    /// Ältere Treiber kennen die Funktion nicht, dann bleibt der Wert leer.
+    /// </summary>
+    public double? ReadFanRpm()
+    {
+        if (_rpmUnsupported) return null;
+        try
+        {
+            if (Nvml.nvmlDeviceGetNumFans(_device, out uint count) != 0 || count == 0) return null;
+            var speeds = new List<double>();
+            for (uint i = 0; i < count; i++)
+            {
+                var info = new Nvml.FanSpeedInfo { Version = Nvml.FanSpeedInfoV1, Fan = i };
+                if (Nvml.nvmlDeviceGetFanSpeedRPM(_device, ref info) == 0) speeds.Add(info.Speed);
+            }
+            return speeds.Count > 0 ? speeds.Average() : null;
+        }
+        catch (EntryPointNotFoundException)
+        {
+            _rpmUnsupported = true;   // alter Treiber – nicht bei jedem Takt erneut versuchen
+            return null;
+        }
+    }
+
     public void Dispose() => Nvml.nvmlShutdown();
 }
 

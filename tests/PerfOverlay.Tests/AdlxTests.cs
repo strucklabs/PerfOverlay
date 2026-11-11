@@ -7,23 +7,34 @@ namespace PerfOverlay.Tests;
 public class AdlxTests
 {
     [Fact]
-    public void HWiNFO_hat_Vorrang_ADLX_fuellt_Luecken()
+    public void Eigene_Abfrage_hat_Vorrang_HWiNFO_fuellt_Luecken()
     {
-        var hwInfo = new GpuThermalData(0.85, 90, null, null);
-        var adlx = new GpuThermalData(1.10, 95, 88, 1500);
-        var merged = SensorHub.MergeThermal(hwInfo, adlx)!;
+        var own = new GpuThermalData(null, null, null, 1500);      // z. B. NVML: nur die Lüfterdrehzahl
+        var hwInfo = new GpuThermalData(0.85, 90, 88, 1480);
+        var merged = SensorHub.MergeThermal(own, hwInfo)!;
+        Assert.Equal(1500, merged.FanRpm);
         Assert.Equal(0.85, merged.CoreVoltage);
         Assert.Equal(90, merged.HotspotC);
         Assert.Equal(88, merged.MemoryJunctionC);
-        Assert.Equal(1500, merged.FanRpm);
     }
 
     [Fact]
     public void Ohne_eine_der_Quellen_bleibt_die_andere()
     {
         var adlx = new GpuThermalData(1.10, 95, 88, 1500);
+        Assert.Same(adlx, SensorHub.MergeThermal(adlx, null));
         Assert.Same(adlx, SensorHub.MergeThermal(null, adlx));
         Assert.Null(SensorHub.MergeThermal(null, null));
+    }
+
+    [Fact]
+    public void NVML_liefert_die_Luefterdrehzahl_ohne_HWiNFO()
+    {
+        using var nvml = NvmlGpuSensor.TryCreate();
+        if (nvml == null) return;   // keine NVIDIA-Karte auf diesem Rechner
+        var rpm = nvml.ReadFanRpm();
+        // Karten im Lüfter-Stopp-Modus melden 0, sonst 300–5000 U/min; null nur bei sehr alten Treibern
+        if (rpm is double r) Assert.InRange(r, 0, 6000);
     }
 
     [Fact]

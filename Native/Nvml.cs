@@ -55,7 +55,21 @@ public static class Nvml
         public ulong Used;
     }
 
+    /// <summary>nvmlFanSpeedInfo_t (v1): Version, Lüfterindex, Drehzahl in U/min.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FanSpeedInfo
+    {
+        public uint Version;
+        public uint Fan;
+        public uint Speed;
+    }
+
+    /// <summary>NVML_STRUCT_VERSION(FanSpeedInfo, 1): Strukturgröße | (Version << 24).</summary>
+    public static readonly uint FanSpeedInfoV1 = (uint)Marshal.SizeOf<FanSpeedInfo>() | (1u << 24);
+
     [DllImport(Dll)] public static extern int nvmlInit_v2();
+    [DllImport(Dll)] public static extern int nvmlDeviceGetNumFans(IntPtr device, out uint numFans);
+    [DllImport(Dll)] public static extern int nvmlDeviceGetFanSpeedRPM(IntPtr device, ref FanSpeedInfo fanSpeed);
     [DllImport(Dll)] public static extern int nvmlDeviceGetBAR1MemoryInfo(IntPtr device, out Bar1Memory bar1);
     [DllImport(Dll)] public static extern int nvmlShutdown();
     [DllImport(Dll)] public static extern int nvmlDeviceGetCount_v2(out uint count);
