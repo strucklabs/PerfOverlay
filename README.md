@@ -124,7 +124,7 @@ Das Icon (`Assets\PerfOverlay.ico`) wird mit `Assets\make-icon.ps1` erzeugt.
 | Verbindung | Ping je Sekunde zum Router (Standard-Gateway) und zu `PingTarget` (Standard `1.1.1.1`, leer = aus) → Ø-Ping, Jitter, Verlust über 30 s; PDH `Network Interface(*)\Bytes Received/Sent`; Datendurchsatz je Prozess über `GetProcessIoCounters` (Datei + Netzwerk, daher „vermutlich“) |
 | Tote Verbindungen | Je Sekunde die TCP-Tabelle über `GetExtendedTcpTable` (IPv4/IPv6, ohne Admin, wie `netstat -ano`), nur Verbindungen des Spielprozesses. Tot = CLOSE_WAIT: Die Gegenseite hat geschlossen, das Spiel nicht. Ab 3 Verbindungen, die länger als 30 s in CLOSE_WAIT hängen, Hinweis im Overlay (Fehler im Spiel, Neustart hilft vorübergehend). Spalten `Verbindungen` und `Tote_Verbindungen`; die Auswertung vergleicht Ruckler und FPS mit und ohne tote Verbindungen und stellt einen deutlichen Unterschied (doppelt so viele Ruckler oder 10 % weniger FPS) als Hauptaussage heraus. |
 | HWiNFO-Zustand | Beim Start und bei jedem Wechsel ein Hinweis, was fehlt: HWiNFO läuft nicht / läuft, aber Sensorfenster bzw. „Shared Memory Support“ fehlt / lieferte, hat aber aufgehört (beendet oder 12-h-Grenze der Gratisversion). |
-| GPU-Spannung, Hotspot, Speicher-Junction (optional) | HWiNFO (`GPU Core Voltage`, `… Hot Spot …`, `… Memory Junction …`). Hinweise ab 100 °C Speichertemperatur (GDDR6X drosselt um 110 °C) und bei Hotspot ≥ 20 °C über GPU-Temperatur. |
+| GPU-Spannung, Hotspot, Speicher-Junction | NVIDIA: **LibreHardwareMonitorLib** (NVAPI, nur der GPU-Teil – lädt keinen Treiber), eigener Hintergrund-Takt 1 s, da eine Abfrage bis ~80 ms dauert; RTX 50 liefert über NVAPI keinen Hotspot. AMD: ADLX. HWiNFO füllt nur noch Lücken. Hinweise ab 100 °C Speichertemperatur (GDDR6X drosselt um 110 °C) und bei Hotspot ≥ 20 °C über GPU-Temperatur. |
 | CPU-Temperatur, Package-Leistung, PL1, Drosselungsgründe (optional) | Shared Memory von **HWiNFO** (`Global\HWiNFO_SENS_SM2`), wird automatisch erkannt. In HWiNFO muss „Shared Memory Support“ aktiv sein (Gratisversion: 12 Stunden, danach neu aktivieren). |
 
 ## Engpass-Logik (`Analysis/BottleneckAnalyzer.cs`)
@@ -204,3 +204,7 @@ Frames kennzeichnen – bei DLSS 3 ist das nicht garantiert (ungetestet).
 PerfOverlay steht unter der MIT-Lizenz, siehe [`LICENSE`](LICENSE).
 Die mitgelieferte `tools\PresentMon.exe` stammt unverändert von Intel und steht unter deren MIT-Lizenz,
 siehe [`tools\PresentMon-LICENSE.txt`](tools/PresentMon-LICENSE.txt).
+
+## Drittanbieter-Komponenten
+
+LibreHardwareMonitorLib und ihre Abhängigkeiten (DiskInfoToolkit, RAMSPDToolkit-NDD, BlackSharp.Core – MPL 2.0; HidSharp – Apache 2.0) werden unverändert mitgeliefert. Lizenzen und Quelltext-Adressen stehen in `THIRD-PARTY-NOTICES.txt`, die im Paket neben der EXE liegt.

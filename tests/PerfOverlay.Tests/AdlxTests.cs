@@ -38,6 +38,38 @@ public class AdlxTests
     }
 
     [Fact]
+    public void LibreHardwareMonitor_Sensoren_werden_nach_Typ_und_Name_gewaehlt()
+    {
+        var data = LhmGpuSensor.Extract([
+            (LibreHardwareMonitor.Hardware.SensorType.Temperature, "GPU Core", 60f),
+            (LibreHardwareMonitor.Hardware.SensorType.Voltage, "GPU Core Voltage", 0.85f),
+            (LibreHardwareMonitor.Hardware.SensorType.Temperature, "GPU Hot Spot", 74.5f),
+            (LibreHardwareMonitor.Hardware.SensorType.Temperature, "GPU Memory Junction", 86f),
+            (LibreHardwareMonitor.Hardware.SensorType.Fan, "GPU Fan", 1650f),
+        ])!;
+        Assert.Equal(0.85, data.CoreVoltage!.Value, 3);
+        Assert.Equal(74.5, data.HotspotC!.Value, 1);
+        Assert.Equal(86, data.MemoryJunctionC);
+        Assert.Equal(1650, data.FanRpm);
+        // RTX 50: kein Hotspot über NVAPI – fehlt einfach, ohne Fehler
+        var rtx50 = LhmGpuSensor.Extract([(LibreHardwareMonitor.Hardware.SensorType.Voltage, "GPU Core Voltage", 0.9f)])!;
+        Assert.Null(rtx50.HotspotC);
+        Assert.Null(LhmGpuSensor.Extract([]));
+    }
+
+    [Fact]
+    public void LibreHardwareMonitor_liefert_auf_NVIDIA_Werte_ohne_HWiNFO()
+    {
+        if (NvmlGpuSensor.TryCreate() is not { } nvml) return;   // keine NVIDIA-Karte
+        nvml.Dispose();
+        using var lhm = new LhmGpuSensor();
+        for (int i = 0; i < 50 && lhm.Latest == null; i++) Thread.Sleep(100);
+        var d = Assert.IsType<GpuThermalData>(lhm.Latest);
+        Assert.InRange(d.CoreVoltage ?? -1, 0.5, 1.3);
+        Assert.InRange(d.MemoryJunctionC ?? -1, 10, 120);
+    }
+
+    [Fact]
     public void Ohne_AMD_Treiber_kein_Sensor_und_kein_Absturz()
     {
         // Auf Rechnern ohne Radeon-Treiber fehlt amdadlx64.dll – das muss still null ergeben

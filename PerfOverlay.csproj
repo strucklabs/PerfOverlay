@@ -40,12 +40,15 @@
     <!-- Intels MIT-Lizenz verlangt, dass der Lizenztext mit PresentMon weitergegeben wird -->
     <None Update="tools\PresentMon-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
     <None Include="LICENSE" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <!-- Lizenzen der mitgelieferten Bibliotheken (LibreHardwareMonitorLib & Co.) -->
+    <None Include="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
     <None Update="Auswertung\PerfOverlay-Auswertung.html" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
     <!-- Tray-Icon; Quelle wird mit Assets\make-icon.ps1 erzeugt -->
     <EmbeddedResource Include="Assets\PerfOverlay.ico" LogicalName="PerfOverlay.ico" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.6" />
     <PackageReference Include="System.Management" Version="10.0.13" />
   </ItemGroup>
 

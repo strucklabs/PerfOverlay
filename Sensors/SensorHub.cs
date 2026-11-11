@@ -24,6 +24,7 @@ internal sealed class SensorHub : IDisposable
     private readonly NetworkSensor _network;
     private readonly ConnectionSensor _connections = new();
     private readonly SystemInfoSensor _system;
+    private readonly LhmGpuSensor? _lhmGpu;
     private readonly GameMemorySensor _gameMemory = new();
     private MemoryHog? _topMemory;
     private DateTime _topMemoryTime = DateTime.MinValue;
@@ -40,6 +41,8 @@ internal sealed class SensorHub : IDisposable
         _nvml = NvmlGpuSensor.TryCreate();
         if (_nvml == null) _adlx = AdlxGpuSensor.TryCreate(probeFirst: true);
         _system = new SystemInfoSensor(_nvml?.Bar1TotalMB, _nvml?.VramTotalMB, _nvml?.Name);
+        // Spannung, Hotspot, Speichertemperatur bei NVIDIA ohne HWiNFO (AMD liefert ADLX selbst)
+        if (_nvml != null) _lhmGpu = new LhmGpuSensor();
         _pdh.Collect();   // Ratenzähler brauchen zwei Messpunkte
     }
 
@@ -122,7 +125,7 @@ internal sealed class SensorHub : IDisposable
             GameSharedVramGB = _windowsGpu.Available ? _windowsGpu.SharedUsageGB(gamePid) : null,
             ForegroundPid = foregroundPid,
             // Eigene Abfrage (NVML bzw. ADLX) zuerst, HWiNFO füllt nur noch Lücken (_hwInfo.Gpu wird oben mitgelesen)
-            GpuThermal = MergeThermal(adlxThermal ?? NvmlThermal(), _hwInfo.Gpu),
+            GpuThermal = MergeThermal(MergeThermal(adlxThermal ?? NvmlThermal(), _lhmGpu?.Latest), _hwInfo.Gpu),
             HwInfoStatus = _hwInfo.Status,
             IgnoredApp = ignoredApp,
             Timer = _timer.IsCompletedSuccessfully ? _timer.Result : null,
@@ -156,6 +159,7 @@ internal sealed class SensorHub : IDisposable
     public void Dispose()
     {
         _network.Dispose();
+        _lhmGpu?.Dispose();
         _hwInfo.Dispose();
         _presentMon.Dispose();
         _nvml?.Dispose();
