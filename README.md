@@ -52,7 +52,7 @@ Ecke bzw. gezogene Position, Monitor, Ansicht und „Sitzungen aufzeichnen“ we
 erscheint das Overlay auf dem Hauptmonitor; eine beschädigte Datei führt zu den Standardwerten.
 
 Selbsttest ohne Fenster: `PerfOverlay.exe --selftest 6` schreibt `selftest.txt` und `selftest.png` neben die EXE. Die zweite Zeile nennt den Zeitgeber, z. B. „TSC (10 MHz, 12 ns pro Abfrage)“; als Administrator gestartet
-zusätzlich, ob `useplatformclock` gesetzt ist. Die dritte Zeile zählt tote Verbindungen (CLOSE_WAIT) aller Programme, z. B. „3 (SearchApp 2, nvcontainer 1)“. Unter „=== System ===“ stehen Monitor, Energieplan, Speicher-Integrität, HAGS, Resizable BAR sowie die Grafikadapter, DPC-Anteil und Speicherzusage. Sitzungsdateien enthalten dieselbe Angabe als Kopfzeile `# Zeitgeber:`.
+zusätzlich, ob `useplatformclock` gesetzt ist. Die dritte Zeile zählt tote Verbindungen (CLOSE_WAIT) aller Programme, z. B. „3 (SearchApp 2, nvcontainer 1)“. Unter „=== System ===“ stehen Monitor, Energieplan, Speicher-Integrität, HAGS, Resizable BAR sowie die Grafikadapter, DPC-Anteil und Speicherzusage. Dazu „GPU-Sensoren“ und „CPU-Sensoren“ (Quelle sowie Zustand von PawnIO und HWiNFO) und ein Abschnitt mit den Rohdaten von LibreHardwareMonitor. Sitzungsdateien enthalten dieselbe Angabe als Kopfzeile `# Zeitgeber:`.
 
 ## Sitzungen aufzeichnen und auswerten
 
@@ -68,7 +68,7 @@ im Browser aus – ohne Internet, ohne Upload:
 - **Auf einen Blick**: Kernaussagen nach festen Schwellen – Engpass zuerst, dann Drosselung, Gleichmäßigkeit und
   Ruckler; Temperaturen ohne Drosselung und die Verbindung als „Nebenbefunde“. Als Hinweis formuliert, nicht als Diagnose
 - Aufklappbare Abschnitte (Zustand wird im Browser gemerkt), jeder mit einer Lesehilfe „So liest du das“
-- Fehlende Werte werden je Abschnitt mit Grund genannt: ältere Aufzeichnung, HWiNFO nicht aktiv,
+- Fehlende Werte werden je Abschnitt mit Grund genannt (ab Sitzungen mit Kopfzeile `# CPU-Sensoren`: CPU-Werte ohne PawnIO/HWiNFO, GPU-Werte, die Karte oder Treiber nicht liefern; ältere Sitzungen wie bisher): ältere Aufzeichnung, HWiNFO nicht aktiv,
   nur bei NVIDIA verfügbar, Spiel nicht auslesbar (Anti-Cheat), Ping-Messung aus
 - Reihenfolge: Ergebnis, Auf einen Blick, Meldungen, Zusammenfassung, Bild und Ruckler, Prozessor, Grafikkarte,
   Speicher und Treiber, Verbindung (zugeklappt – sie betrifft den Lag, nicht die FPS)

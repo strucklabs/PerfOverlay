@@ -136,6 +136,8 @@ public sealed class SessionRecorder : IDisposable
         if (s.MemoryConfig != null) _writer.WriteLine($"# RAM: {s.MemoryConfig.Summary}");
         _writer.WriteLine($"# Windows: {Environment.OSVersion.Version}");
         if (s.Timer != null) _writer.WriteLine($"# Zeitgeber: {s.Timer.Summary}");
+        // Zeigt der Auswertung auch, dass die Aufzeichnung aus einer Version mit eigener GPU-Abfrage stammt
+        _writer.WriteLine($"# CPU-Sensoren: {s.CpuThermal?.Source ?? "keine"}");
         foreach (var (label, value) in s.System?.Entries() ?? [])
             _writer.WriteLine($"# {label}: {value}");
         _writer.WriteLine(string.Join(';', Columns));

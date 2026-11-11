@@ -58,11 +58,22 @@ internal static class SelfTest
         log.AppendLine($"Windows: {Environment.OSVersion.VersionString}   Kerne (logisch): {Environment.ProcessorCount}");
         foreach (var (label, value) in snapshot!.System?.Entries() ?? [])
             log.AppendLine($"{label}: {value}");
+        string gpuSensors = snapshot.Gpu?.Source switch
+        {
+            "NVML" => "NVML + LibreHardwareMonitor (NVAPI)",
+            "ADLX" => "ADLX",
+            "Windows" => "nur Windows-Zähler",
+            _ => "keine",
+        };
+        log.AppendLine($"GPU-Sensoren: {gpuSensors}");
+        log.AppendLine($"CPU-Sensoren: {snapshot.CpuThermal?.Source ?? "keine"} (PawnIO: {snapshot.PawnIo}, HWiNFO: {snapshot.HwInfoStatus})");
         log.AppendLine("Grafikadapter: " + string.Join(", ", GpuAdapters.All.Select(a => $"{a.Name} ({(a.Integrated ? "intern" : "Grafikkarte")})")));
         log.AppendLine($"DPC/Interrupts (höchster Kern): {snapshot.Cpu.DpcMaxPercent:0.0} %   Speicherzusage: {snapshot.Memory.CommitGB:0.0} von {snapshot.Memory.CommitLimitGB:0.0} GB ({snapshot.Memory.CommitPercent:0} %)");
         log.AppendLine($"Auslagerungsdatei: {snapshot.Memory.PageFileGB:0.0} GB, belegt {snapshot.Memory.PageFileUsedGB:0.0} GB");
         if (MemoryHogs.Largest() is { } hog) log.AppendLine($"Größter Speicherverbraucher: {hog.Name} {hog.GB:0.0} GB");
         log.AppendLine();
+        log.AppendLine("=== LibreHardwareMonitor (Rohdaten) ===");
+        log.AppendLine(LhmCpuSensor.Dump());
         log.AppendLine("=== HWiNFO: CPU- und GPU-Sensoren (Rohdaten) ===");
         log.AppendLine(HwInfoSensor.DumpReadings());
         File.WriteAllText(Path.Combine(dir, "selftest.txt"), log.ToString());

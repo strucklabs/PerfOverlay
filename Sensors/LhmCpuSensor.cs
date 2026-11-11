@@ -122,6 +122,41 @@ internal sealed class LhmCpuSensor : IDisposable
         return new CpuThermalData("PawnIO", temp, coreMax, power, null, [], tjMax, isAmd, null, fan);
     }
 
+    /// <summary>
+    /// Selbsttest: alle Sensoren der Bibliothek als Text – GPU immer, CPU und Mainboard nur mit PawnIO und
+    /// Admin-Rechten (sonst würde die Bibliothek erfolglos nach einem Treiber suchen).
+    /// </summary>
+    internal static string Dump()
+    {
+        var sb = new System.Text.StringBuilder();
+        bool cpu = IsInstalled() && Win32.IsElevated();
+        sb.AppendLine(cpu ? "(GPU, CPU und Mainboard über PawnIO)" : "(nur GPU – CPU/Mainboard brauchen PawnIO und Admin-Rechte)");
+        var computer = new Computer { IsGpuEnabled = true, IsCpuEnabled = cpu, IsMotherboardEnabled = cpu };
+        try
+        {
+            computer.Open();
+            void Write(IHardware h, string indent)
+            {
+                h.Update();
+                sb.AppendLine($"{indent}{h.HardwareType}: {h.Name}");
+                foreach (var s in h.Sensors.Where(s => s.SensorType is SensorType.Temperature or SensorType.Power
+                             or SensorType.Fan or SensorType.Voltage or SensorType.Control))
+                    sb.AppendLine($"{indent}  {s.SensorType,-12} {s.Name,-36} {s.Value:0.###}");
+                foreach (var sub in h.SubHardware) Write(sub, indent + "  ");
+            }
+            foreach (var h in computer.Hardware) Write(h, "");
+        }
+        catch (Exception ex)
+        {
+            sb.AppendLine("Fehler: " + ex.Message);
+        }
+        finally
+        {
+            try { computer.Close(); } catch { /* egal */ }
+        }
+        return sb.ToString();
+    }
+
     public void Dispose()
     {
         _cts.Cancel();
