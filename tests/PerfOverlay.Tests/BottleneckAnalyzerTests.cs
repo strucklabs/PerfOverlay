@@ -108,6 +108,40 @@ public class BottleneckAnalyzerTests
         Assert.DoesNotContain(v.Notes, n => n.Key is "hwinfo" or "cpu-pawnio");
     }
 
+    private static Snapshot Limited(int i, CpuThermalData? cpu) =>
+        WithCpu(Snap(T0.AddSeconds(i)), PawnIoState.Active, cpu) with
+        {
+            Cpu = new CpuData(60, Enumerable.Repeat(60.0, 20).ToArray(), 3000, 3500) { PerfLimitPercent = 80 },
+        };
+
+    [Theory]
+    [InlineData(97.0, "CPU drosselt: Temperatur (begrenzt auf 80 %)", Severity.Bad)]
+    [InlineData(70.0, "CPU drosselt: Strom-/Leistungslimit (begrenzt auf 80 %)", Severity.Warn)]
+    public void Drosselgrund_ohne_HWiNFO_wird_aus_der_Temperatur_abgeleitet(double temp, string text, Severity severity)
+    {
+        var cpu = new CpuThermalData("PawnIO", temp, temp, 120, null, [], 100, false);
+        var v = Run(i => Limited(i, cpu), ticks: 5);
+        var note = Assert.Single(v.Notes, n => n.Key == "cpu-throttle");
+        Assert.Equal(text, note.Text);
+        Assert.Equal(severity, note.Severity);
+        Assert.DoesNotContain(v.Notes, n => n.Key == "cpu-perflimit");
+    }
+
+    [Fact]
+    public void Ohne_CPU_Sensoren_bleibt_die_Begrenzung_ohne_Grund()
+    {
+        var v = Run(i => Limited(i, null), ticks: 5);
+        Assert.Equal("CPU begrenzt auf 80 % (Power- oder Temperaturlimit)", Assert.Single(v.Notes, n => n.Key == "cpu-perflimit").Text);
+    }
+
+    [Fact]
+    public void Mit_HWiNFO_zaehlen_nur_dessen_Gruende()
+    {
+        var hw = new CpuThermalData("HWiNFO", 70, 72, 120, 125, [], 100, false);
+        var v = Run(i => Limited(i, hw), ticks: 5);
+        Assert.DoesNotContain(v.Notes, n => n.Key is "cpu-throttle" or "cpu-perflimit");
+    }
+
     [Fact]
     public void LibreHardwareMonitor_CPU_Werte_werden_ausgewertet()
     {

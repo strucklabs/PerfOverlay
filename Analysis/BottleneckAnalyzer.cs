@@ -181,9 +181,15 @@ public sealed class BottleneckAnalyzer
         else if (vramFull && gpu!.VramUsedGB / gpu.VramTotalGB > 0.95)
             notes.Add(new("vram", $"VRAM fast voll ({gpu.VramUsedGB:0.0}/{gpu.VramTotalGB:0.0} GB)", Severity.Info));
 
-        // --- CPU-Drosselung: genau mit HWiNFO, sonst über das Windows-Leistungslimit ---
+        // --- CPU-Drosselung: genau mit HWiNFO (fertige Gründe), mit PawnIO aus Windows-Leistungslimit und Temperatur
+        //     abgeleitet, ohne CPU-Sensoren nur über das Windows-Leistungslimit ---
+        bool perfLimited = Sustained("cpu-perflimit", s.Cpu.PerfLimitPercent is < 90 && s.Cpu.TotalLoad > 30, s.Time, TimeSpan.FromSeconds(3));
         if (s.CpuThermal is { } cpuThermal)
         {
+            // Quellen ohne fertige Gründe (PawnIO): Grund aus Temperatur ableiten
+            if (perfLimited && cpuThermal.Source != "HWiNFO")
+                notes.Add(DerivedThrottleNote(s.Cpu.PerfLimitPercent!.Value, cpuThermal));
+
             // Stromlimits (Intel ICCmax/EDP, AMD TDC/EDC) zählen erst bei hoher Last: Das Intel-Flag
             // "Electrical Design Point/Other" ist bei Alder/Raptor Lake auch bei 14 % Last gesetzt, und
             // AMD-EDC wird bei kurzen Lastspitzen einzelner Kerne erreicht, ohne dass das Spiel bremst.
@@ -214,10 +220,10 @@ public sealed class BottleneckAnalyzer
                         Severity.Bad));
             }
         }
-        else if (Sustained("cpu-perflimit", s.Cpu.PerfLimitPercent is < 90 && s.Cpu.TotalLoad > 30, s.Time, TimeSpan.FromSeconds(3)))
+        else if (perfLimited)
         {
             notes.Add(new("cpu-perflimit",
-                $"CPU begrenzt auf {s.Cpu.PerfLimitPercent:0} % (Power-/Temperaturlimit, Details mit HWiNFO)", Severity.Warn));
+                $"CPU begrenzt auf {s.Cpu.PerfLimitPercent:0} % (Power- oder Temperaturlimit)", Severity.Warn));
         }
 
         // --- CPU-Sensoren (PawnIO, sonst HWiNFO): beim Start und bei jedem Zustandswechsel kurz melden, woher die
@@ -371,6 +377,19 @@ public sealed class BottleneckAnalyzer
             _ when s.PawnIo == PawnIoState.NeedsAdmin => ("pawnio-admin", "hwinfo", "CPU-Temperatur: als Admin starten (PawnIO)"),
             _ => ("none", "hwinfo", "CPU-Temperatur: HWiNFO starten oder PawnIO installieren"),
         };
+    }
+
+    /// <summary>
+    /// Drosselgrund ohne HWiNFO (Plan Sensoren ohne HWiNFO, S4): Windows meldet über "% Performance Limit", dass die
+    /// CPU unter ihrem Nenntakt bleibt, aber nicht warum. Liegt die Temperatur höchstens 5 °C unter der
+    /// Maximaltemperatur (bzw. ohne bekanntes TjMax ab 95 °C), ist es die Temperatur, sonst ein Strom- oder
+    /// Leistungslimit. Der Text beginnt wie bei HWiNFO mit "CPU drosselt:", damit die Auswertung ihn mitzählt.
+    /// </summary>
+    internal static Note DerivedThrottleNote(double limitPercent, CpuThermalData t)
+    {
+        bool hot = t.HeadroomC is double headroom ? headroom <= 5 : t.TempC >= 95;
+        string reason = hot ? "Temperatur" : "Strom-/Leistungslimit";
+        return new("cpu-throttle", $"CPU drosselt: {reason} (begrenzt auf {limitPercent:0} %)", hot ? Severity.Bad : Severity.Warn);
     }
 
     /// <summary>Meldung zur Speicherzusage – mit dem größten Verbraucher, sonst mit dem Rat zur Auslagerungsdatei.</summary>
