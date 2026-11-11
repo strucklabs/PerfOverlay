@@ -36,6 +36,7 @@
     -->
     <Border x:Name="Root" Background="#D0101418" BorderBrush="#33FFFFFF" BorderThickness="1"
             CornerRadius="6" Padding="10,8" Width="400">
+      <Grid>
         <StackPanel>
             <!-- ================= Engpass-Teil (alle Ansichten) ================= -->
             <Border x:Name="VerdictBar" CornerRadius="4" Padding="8,4" Margin="0,0,0,6">
@@ -165,5 +166,10 @@
             <!-- Hotkeys – in jeder Ansicht sichtbar -->
             <TextBlock x:Name="FooterLine" Foreground="#6B7280" FontFamily="Segoe UI" FontSize="10.5" Margin="0,5,0,0" />
         </StackPanel>
+        <!-- Aufnahme-Lampe in der Ecke oben rechts (im Randbereich, ändert die Größe nicht):
+             grau = keine Aufzeichnung, rot blinkend = Sitzung wird aufgezeichnet -->
+        <Ellipse x:Name="RecordDot" Width="5" Height="5" Fill="#4B5563"
+                 HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-5.5,-6.5,0" />
+      </Grid>
     </Border>
 </Window>

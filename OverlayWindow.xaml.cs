@@ -27,6 +27,8 @@ public partial class OverlayWindow : Window
     private static readonly Brush WarnBrush = Frozen("#FBBF24");
     private static readonly Brush BadBrush = Frozen("#F87171");
     private static readonly Brush BarBackBrush = Frozen("#26FFFFFF");
+    private static readonly Brush RecordOnBrush = Frozen("#EF4444");
+    private static readonly Brush RecordOffBrush = Frozen("#4B5563");
 
     private readonly CancellationTokenSource _cts = new();
     private readonly BottleneckAnalyzer _analyzer = new();
@@ -221,6 +223,7 @@ public partial class OverlayWindow : Window
                     Render(snapshot, verdict, LogNotes(verdict, snapshot.Time));
                     try { _recorder.Record(snapshot, verdict); }
                     catch (IOException) { _recorder.Stop(); }   // z. B. Datei gesperrt – Overlay läuft weiter
+                    SetRecordingIndicator(_recorder.Recording);
                     UpdateTrayText(snapshot);
                     FollowGameMonitor(snapshot);
                     // Manche Spiele schieben sich nach vorn – Topmost regelmäßig erneuern
@@ -885,6 +888,33 @@ public partial class OverlayWindow : Window
         using var stream = typeof(OverlayWindow).Assembly.GetManifestResourceStream("PerfOverlay.ico");
         if (stream == null) return System.Drawing.SystemIcons.Application;
         return new System.Drawing.Icon(stream, System.Windows.Forms.SystemInformation.SmallIconSize);
+    }
+
+    private bool? _recordingShown;
+
+    /// <summary>
+    /// Aufnahme-Lampe oben rechts: rot und blinkend, solange eine Sitzung aufgezeichnet wird, sonst grau.
+    /// Wird nur bei einem Wechsel angefasst, damit das Blinken nicht bei jedem Takt neu beginnt.
+    /// </summary>
+    internal void SetRecordingIndicator(bool recording)
+    {
+        if (_recordingShown == recording) return;
+        _recordingShown = recording;
+        RecordDot.Fill = recording ? RecordOnBrush : RecordOffBrush;
+        if (recording)
+        {
+            var blink = new System.Windows.Media.Animation.DoubleAnimation(1, 0.2, TimeSpan.FromSeconds(0.7))
+            {
+                AutoReverse = true,
+                RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+            };
+            RecordDot.BeginAnimation(OpacityProperty, blink);
+        }
+        else
+        {
+            RecordDot.BeginAnimation(OpacityProperty, null);
+            RecordDot.Opacity = 1;
+        }
     }
 
     /// <summary>Tooltip am Tray-Icon (max. 63 Zeichen): zeigt, ob gerade aufgezeichnet wird.</summary>

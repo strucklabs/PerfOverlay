@@ -111,6 +111,7 @@ internal static class SelfTest
                 notes = window.LogNotes(verdict, snapshot.Time);
             }
 
+            window.SetRecordingIndicator(scene == "cpu");   // Vorschau: rote Lampe in der CPU-Szene
             foreach (var (view, name) in views)
             {
                 window.ApplyView(view);
