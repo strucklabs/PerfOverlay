@@ -297,7 +297,7 @@ function computeStats(d) {
     cpuFan: avg(d.cpuFanRpm), cpuFanMax: max(d.cpuFanRpm),
     pingNet: avg(d.pingNet), pingNetMax: max(d.pingNet), jitterNet: avg(d.jitterNet),
     lossNet: avg(d.lossNet), lossNetMax: max(d.lossNet), pingRouter: avg(d.pingRouter), netDownMax: max(d.netDown),
-    deadMax: max(d.dead), deadEffect: deadConnectionEffect(d),
+    deadMax: max(d.dead), deadEffect: deadConnectionEffect(d, loading),
     dpcMax: max(d.dpc), dpc: dpcEffect(d), commitMax: max(d.commit),
     gameRamFirst: valid(d.gameRam)[0] ?? null, gameRamLast: valid(d.gameRam).at(-1) ?? null, gameRamMax: max(d.gameRam),
     trend: performanceTrend(d), pingLoad: pingUnderLoad(d), leak: memoryLeak(d),
@@ -431,26 +431,33 @@ function pingUnderLoad(d) {
 /**
  * Tote Verbindungen (vom Server geschlossen, vom Spiel nicht – CLOSE_WAIT): Ruckler und FPS in Phasen mit
  * mindestens 3 toten Verbindungen, die schon 30 s bestehen (wie im Overlay), gegenüber dem Rest der Sitzung.
- * Nur Sekunden mit Bilddaten; beide Phasen brauchen mindestens 30 s, sonst ist der Vergleich nicht belastbar.
+ * Verglichen wird nur Spielgeschehen (Plan Probelauf Windrose, W4): Sekunden mit Bilddaten, ohne Ladebild/Menü und
+ * ohne die erste Minute – sonst vergleicht man das Laden am Anfang mit dem Spielen. Beide Phasen brauchen mindestens
+ * 5 Minuten. share = Anteil der verglichenen Zeit mit toten Verbindungen.
  */
-const DEAD_THRESHOLD = 3, DEAD_SECONDS = 30;
-function deadConnectionEffect(d) {
+const DEAD_THRESHOLD = 3, DEAD_SECONDS = 30, DEAD_MIN_PHASE = 300, DEAD_SKIP_START = 60;
+function deadConnectionEffect(d, loading = []) {
   if (!d.dead.some(v => v !== null)) return null;
   const high = { sec: 0, spikes: 0, fps: [] }, low = { sec: 0, spikes: 0, fps: [] };
+  const t0 = d.t[0] ?? 0;
   let run = 0;
   d.dead.forEach((v, i) => {
     run = v !== null && v >= DEAD_THRESHOLD ? run + 1 : 0;
-    if (d.fps[i] === null) return;
+    if (d.fps[i] === null || loading[i] || d.t[i] - t0 < DEAD_SKIP_START) return;
     const g = run >= DEAD_SECONDS ? high : low;
     g.sec++; g.spikes += d.spikes[i] || 0; g.fps.push(d.fps[i]);
   });
-  if (high.sec < 30 || low.sec < 30) return { highSec: high.sec, lowSec: low.sec, comparable: false };
+  const share = high.sec + low.sec ? high.sec / (high.sec + low.sec) : 0;
+  if (high.sec < DEAD_MIN_PHASE || low.sec < DEAD_MIN_PHASE) return { highSec: high.sec, lowSec: low.sec, share, comparable: false };
   return {
-    highSec: high.sec, lowSec: low.sec, comparable: true,
+    highSec: high.sec, lowSec: low.sec, share, comparable: true,
     spikesHigh: high.spikes / (high.sec / 60), spikesLow: low.spikes / (low.sec / 60),
     fpsHigh: avg(high.fps), fpsLow: avg(low.fps),
   };
 }
+
+/** Wie lange tote Verbindungen bestanden, in Worten – "zeitweise" untertreibt sonst eine fast durchgehende Phase. */
+const deadExtent = share => share >= 0.9 ? "fast durchgehend" : share >= 0.3 ? "über weite Strecken" : "zeitweise";
 
 /**
  * Treiber-Unterbrechungen (DPC) relativ zur üblichen Last der Sitzung – wie im Overlay (DpcBaseline, Plan Probelauf
@@ -1014,8 +1021,11 @@ function insightsFor(s) {
   else if (dpc && dpc.base >= DPC.infoBase)
     add(side, "info", `Treiberlast im Spiel hoch (üblich ${fmt(dpc.base, 0)} % eines Kerns), aber ohne Einfluss auf Ruckler.`);
   if (!deadConnectionsHurt(st) && dead && dead.highSec > 0)
-    add(side, "info", `Das Spiel hielt zeitweise bis zu ${fmt(st.deadMax, 0)} tote Verbindungen offen (vom Server geschlossen, vom Spiel nicht) – `
-      + (dead.comparable ? "ohne messbaren Einfluss auf Ruckler und FPS." : "für einen Vergleich mit den Rucklern war die Sitzung zu kurz."));
+    add(side, "info", `Das Spiel hielt ${deadExtent(dead.share)} bis zu ${fmt(st.deadMax, 0)} tote Verbindungen offen (vom Server geschlossen, vom Spiel nicht) – `
+      + (dead.comparable ? "ohne messbaren Einfluss auf Ruckler und FPS."
+        : dead.share >= 0.9 ? "kein Vergleich möglich, fast die ganze Sitzung lief mit toten Verbindungen."
+        : dead.share <= 0.1 ? "kein Vergleich möglich, die Phase mit toten Verbindungen war zu kurz."
+        : "für einen Vergleich mit den Rucklern war die Sitzung zu kurz (je mindestens 5 Minuten mit und ohne)."));
   if ((st.cpuTempMax !== null || st.gpuTempMax !== null) && !(tr && tr.decline && tr.warmer) && thr.cpu < 0.05 && thr.gpu < 0.1 && !side.some(x => x.level === "warn" || x.level === "info"))
     side.unshift({ level: "good", text: "Temperaturen unauffällig." });
 
