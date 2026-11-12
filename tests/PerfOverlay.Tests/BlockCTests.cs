@@ -1,3 +1,4 @@
+using System.IO;
 using System.Diagnostics;
 using PerfOverlay.Analysis;
 using PerfOverlay.Sensors;
@@ -9,46 +10,97 @@ public class BlockCTests
 {
     private static readonly DateTime T0 = new(2026, 11, 9, 20, 0, 0);
 
-    private static MemoryLeak? Track(Func<double, double> gbAtMinute, double minutes)
+    /// <summary>Echte Messdaten: Windrose-Probelauf (56 min, Spiel-RAM pendelt durch Laden/Freigeben zwischen 6 und 18 GB).</summary>
+    internal static List<(double Second, double GB)> WindroseRam()
     {
-        var t = new MemoryLeakTracker();
-        for (double m = 0; m <= minutes; m += 5 / 60.0) t.Add(42, T0.AddMinutes(m), gbAtMinute(m));
-        return t.Detect(T0.AddMinutes(minutes));
+        var lines = File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "Daten", "windrose.csv"))
+            .Where(l => !l.StartsWith('#')).ToList();
+        var header = lines[0].Split(';');
+        int sec = Array.IndexOf(header, "Sekunde"), ram = Array.IndexOf(header, "Spiel_RAM_GB");
+        var de = System.Globalization.CultureInfo.GetCultureInfo("de-DE");
+        return lines.Skip(1).Select(l => l.Split(';'))
+            .Where(c => c[ram] != "")
+            .Select(c => (double.Parse(c[sec], de), double.Parse(c[ram], de)))
+            .ToList();
+    }
+
+    /// <summary>Spielt die Sekundenwerte (plus optionalem künstlichem Leck ab Minute 15) ein und prüft jede Minute.</summary>
+    private static List<(int Minute, MemoryLeak Leak)> Replay(double leakMBPerMin)
+    {
+        var tracker = new MemoryLeakTracker();
+        var alarms = new List<(int, MemoryLeak)>();
+        int lastMinute = -1;
+        foreach (var (second, gb) in WindroseRam())
+        {
+            double minute = second / 60;
+            double value = gb + Math.Max(0, minute - 15) * leakMBPerMin / 1024;
+            var time = T0.AddSeconds(second);
+            tracker.Add(42, time, value);
+            if ((int)minute != lastMinute)
+            {
+                lastMinute = (int)minute;
+                if (tracker.Detect(time, freeCommitGB: 10) is { } leak) alarms.Add((lastMinute, leak));
+            }
+        }
+        return alarms;
     }
 
     [Fact]
-    public void Stetig_wachsender_Speicher_ist_ein_Leck()
+    public void Windrose_Laden_und_Freigeben_ist_kein_Leck()
     {
-        var leak = Track(m => 3 + m * 0.05, 30);   // 3 GB + 50 MB pro Minute
+        // Vorher: Fehlalarm "6,5 → 17,4 GB" in Minute 24–31, obwohl der Speicher längst flach war
+        Assert.Empty(Replay(0));
+    }
+
+    [Theory]
+    [InlineData(20)]
+    [InlineData(30)]
+    [InlineData(60)]
+    public void Kuenstliches_Leck_in_echten_Daten_wird_erkannt(double rate)
+    {
+        var alarms = Replay(rate);
+        Assert.NotEmpty(alarms);
+        Assert.True(alarms[0].Minute <= 15 + 30, $"erst in Minute {alarms[0].Minute} erkannt");
+        // gemessene Rate passt zur eingebauten (±25 %; das echte Grundrauschen kommt hinzu)
+        Assert.InRange(alarms[0].Leak.RateMBPerMin, rate * 0.75, rate * 1.25 + 15);
+    }
+
+    [Fact]
+    public void Stetig_wachsender_Speicher_ohne_Spruenge_ist_ein_Leck()
+    {
+        var t = new MemoryLeakTracker();
+        MemoryLeak? leak = null;
+        for (double m = 0; m <= 45; m += 5 / 60.0)
+        {
+            t.Add(42, T0.AddMinutes(m), 3 + m * 0.05);   // 3 GB + 51 MB pro Minute
+            leak = t.Detect(T0.AddMinutes(m), freeCommitGB: 2);
+        }
         Assert.NotNull(leak);
-        Assert.Equal(3.0, leak!.FromGB, 1);
-        Assert.Equal(4.5, leak.ToGB, 1);
-        Assert.Equal(30, leak.Minutes, 0);
+        Assert.InRange(leak!.RateMBPerMin, 45, 56);
+        Assert.InRange(leak.HoursToFull ?? -1, 0.5, 0.8);   // 2 GB frei / 51 MB/min ≈ 40 min
     }
 
     [Fact]
     public void Stufen_mit_Plateau_sind_kein_Leck()
     {
-        // Neues Gebiet geladen: +2 GB nach 10 min, danach konstant
-        Assert.Null(Track(m => m < 10 ? 3 : 5, 30));
-        // Anstieg in den ersten 20 min, in den letzten 10 min flach
-        Assert.Null(Track(m => 3 + Math.Min(m, 20) * 0.05, 30));
-    }
-
-    [Fact]
-    public void Zu_kurz_oder_zu_wenig_Wachstum_ist_kein_Leck()
-    {
-        Assert.Null(Track(m => 3 + m * 0.05, 15));    // erst 15 min
-        Assert.Null(Track(m => 3 + m * 0.01, 40));    // nur 10 MB pro Minute
+        var t = new MemoryLeakTracker();
+        MemoryLeak? leak = null;
+        for (double m = 0; m <= 60; m += 5 / 60.0)
+        {
+            double gb = 3 + Math.Floor(m / 12) * 2 + (m * 7 % 1 - 0.5) * 0.6;   // alle 12 min +2 GB, dazwischen Rauschen
+            t.Add(42, T0.AddMinutes(m), gb);
+            leak ??= t.Detect(T0.AddMinutes(m));
+        }
+        Assert.Null(leak);
     }
 
     [Fact]
     public void Prozesswechsel_setzt_den_Verlauf_zurueck()
     {
         var t = new MemoryLeakTracker();
-        for (double m = 0; m <= 30; m += 5 / 60.0) t.Add(42, T0.AddMinutes(m), 3 + m * 0.05);
-        t.Add(43, T0.AddMinutes(30.1), 2);
-        Assert.Null(t.Detect(T0.AddMinutes(30.1)));
+        for (double m = 0; m <= 45; m += 5 / 60.0) t.Add(42, T0.AddMinutes(m), 3 + m * 0.05);
+        t.Add(43, T0.AddMinutes(45.1), 2);
+        Assert.Null(t.Detect(T0.AddMinutes(45.1)));
     }
 
     [Fact]
@@ -120,9 +172,9 @@ public class BlockCTests
         var a = new BottleneckAnalyzer();
         Verdict? v = null;
         for (int i = 0; i < 7; i++)
-            v = a.Analyze(Snap(T0.AddSeconds(i), new MemoryLeak(3, 4.5, 30), new GpuMismatch("Intel UHD", "RTX 3080")));
+            v = a.Analyze(Snap(T0.AddSeconds(i), new MemoryLeak(40, 35, 2), new GpuMismatch("Intel UHD", "RTX 3080")));
         var leak = Assert.Single(v!.Notes, n => n.Key == "game-memleak");
-        Assert.Contains("3,0 → 4,5 GB in 30 min", leak.Text);
+        Assert.Equal("Spielspeicher +40 MB/min seit 35 min, voll in ~2 h", leak.Text);
         Assert.Equal(NoteCategory.Bottleneck, NoteCategories.Of(Assert.Single(v.Notes, n => n.Key == "gpu-integrated").Key));
 
         var b = new BottleneckAnalyzer();

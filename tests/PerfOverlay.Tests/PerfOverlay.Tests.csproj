@@ -29,4 +29,9 @@
     <ProjectReference Include="..\..\PerfOverlay.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Echte Messdaten (Windrose-Probelauf) für die statistischen Erkennungen -->
+    <None Include="Daten\*.csv" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

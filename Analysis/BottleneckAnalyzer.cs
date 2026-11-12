@@ -310,7 +310,7 @@ public sealed class BottleneckAnalyzer
                 notes.Add(new("timer", TimerNote(timer), Severity.Warn));
 
             if (s.GameMemoryLeak is { } leak)
-                notes.Add(new("game-memleak", $"Spiel-Speicher wächst: {leak.FromGB:0.0} → {leak.ToGB:0.0} GB in {leak.Minutes:0} min", Severity.Warn));
+                notes.Add(new("game-memleak", MemoryLeakNote(leak), Severity.Warn));
 
             if (s.GameConnections is { Stale: >= DeadConnectionThreshold } conn)
                 notes.Add(new("net-closewait",
@@ -390,6 +390,15 @@ public sealed class BottleneckAnalyzer
         bool hot = t.HeadroomC is double headroom ? headroom <= 5 : t.TempC >= 95;
         string reason = hot ? "Temperatur" : "Strom-/Leistungslimit";
         return new("cpu-throttle", $"CPU drosselt: {reason} (begrenzt auf {limitPercent:0} %)", hot ? Severity.Bad : Severity.Warn);
+    }
+
+    /// <summary>"Spielspeicher +40 MB/min seit 35 min, voll in ~2 h" – kurz genug für eine Overlay-Zeile.</summary>
+    internal static string MemoryLeakNote(MemoryLeak leak)
+    {
+        string text = $"Spielspeicher +{leak.RateMBPerMin:0} MB/min seit {leak.SinceMinutes:0} min";
+        if (leak.HoursToFull is double h)
+            text += h < 1 ? $", voll in ~{h * 60:0} min" : $", voll in ~{h:0.#} h";
+        return text;
     }
 
     /// <summary>Meldung zur Speicherzusage – mit dem größten Verbraucher, sonst mit dem Rat zur Auslagerungsdatei.</summary>

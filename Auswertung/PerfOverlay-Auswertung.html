@@ -294,7 +294,7 @@ function computeStats(d) {
     deadMax: max(d.dead), deadEffect: deadConnectionEffect(d),
     dpcMax: max(d.dpc), dpcHighShare: share(d.dpc, v => v >= 20), commitMax: max(d.commit),
     gameRamFirst: valid(d.gameRam)[0] ?? null, gameRamLast: valid(d.gameRam).at(-1) ?? null, gameRamMax: max(d.gameRam),
-    trend: performanceTrend(d), pingLoad: pingUnderLoad(d),
+    trend: performanceTrend(d), pingLoad: pingUnderLoad(d), leak: memoryLeak(d),
     gpuFanLoad: loadIdx.length ? avg(loadIdx.map(i => d.gpuFanPct[i])) : null,
     // Pacing nur im Spielgeschehen (ab 40 FPS), Ladebildschirme verzerren sonst den Mittelwert
     pacing: avg(d.pacing.map((p, i) => d.fps[i] !== null && d.fps[i] >= 40 ? p : null)),
@@ -334,10 +334,64 @@ function performanceTrend(d) {
   const first = part(start, start + third), last = part(d.t[n - 1] - third, d.t[n - 1] + 1);
   if (first.sec < 300 || last.sec < 300 || !first.fps || !last.fps) return null;
   const decline = last.fps < 0.85 * first.fps || (last.spikesPerMin > 2 && last.spikesPerMin >= 2 * first.spikesPerMin);
-  const leak = first.gameRam !== null && last.gameRam !== null && last.gameRam - first.gameRam >= 0.5;
+  // Speicherleck: eigenes statistisches Urteil (memoryLeak), nicht der grobe Vergleich erstes/letztes Drittel
+  const leak = memoryLeak(d) !== null;
   const warmer = (first.cpuTemp !== null && last.cpuTemp !== null && last.cpuTemp - first.cpuTemp >= 5)
     || (first.gpuTemp !== null && last.gpuTemp !== null && last.gpuTemp - first.gpuTemp >= 5);
   return { first, last, decline, leak, warmer };
+}
+
+/**
+ * Speicherleck statistisch – dasselbe Verfahren wie im Overlay (MemoryLeakTracker, Plan Probelauf Windrose W1):
+ * Minuten-Mediane; Sprünge (> max(300 MB, 6 × Median der Minutenänderungen)) und Lücken trennen Abschnitte; in ruhigen
+ * Abschnitten ab 5 Minuten die Theil-Sen-Steigung, nach Dauer gewichtet. Leck, wenn in den letzten 40 Minuten mindestens
+ * 20 Minuten ruhig sind, die Steigung darin ≥ 25 MB/min ist, ≥ 85 % der ruhigen Zeit mit ≥ 15 MB/min steigt – und das
+ * schon 10 Minuten vorher galt. Ergebnis: erste Feststellung mit Rate und Beginn, sonst null.
+ */
+const LEAK = { window: 40, persist: 10, minPoints: 5, minQuiet: 20, minRate: 25, risingRate: 15, risingShare: 0.85, minJump: 0.3, jumpFactor: 6 };
+function memoryLeak(d) {
+  const byMinute = new Map();
+  d.t.forEach((t, i) => {
+    const v = d.gameRam[i];
+    if (v === null || t === null) return;
+    const m = Math.floor(t / 60);
+    if (!byMinute.has(m)) byMinute.set(m, []);
+    byMinute.get(m).push(v);
+  });
+  const medians = [...byMinute].filter(([, v]) => v.length >= 6).sort((a, b) => a[0] - b[0]).map(([m, v]) => [m, median(v)]);
+  if (medians.length < LEAK.minQuiet) return null;
+  const theilSen = seg => {
+    const sl = [];
+    for (let i = 0; i < seg.length; i++) for (let j = i + 1; j < seg.length; j++)
+      if (seg[j][0] > seg[i][0]) sl.push((seg[j][1] - seg[i][1]) / (seg[j][0] - seg[i][0]));
+    return sl.length ? median(sl) : 0;
+  };
+  const evaluate = end => {
+    const m = medians.filter(([t]) => t >= end - LEAK.window && t < end);
+    if (m.length < 2) return null;
+    const diffs = m.slice(1).map((x, i) => Math.abs(x[1] - m[i][1]));
+    const jump = Math.max(LEAK.minJump, LEAK.jumpFactor * median(diffs));
+    const segs = [[m[0]]];
+    for (let i = 1; i < m.length; i++) {
+      if (Math.abs(m[i][1] - m[i - 1][1]) > jump || m[i][0] - m[i - 1][0] > 2) segs.push([m[i]]);
+      else segs[segs.length - 1].push(m[i]);
+    }
+    const quiet = segs.filter(sg => sg.length >= LEAK.minPoints);
+    const total = quiet.reduce((a, sg) => a + sg[sg.length - 1][0] - sg[0][0], 0);
+    if (total < LEAK.minQuiet) return null;
+    const w = quiet.map(sg => ({ rate: theilSen(sg) * 1024, dur: sg[sg.length - 1][0] - sg[0][0], start: sg[0][0] }));
+    const rate = w.reduce((a, x) => a + x.rate * x.dur, 0) / total;
+    const risingW = w.filter(x => x.rate >= LEAK.risingRate);
+    const rising = risingW.reduce((a, x) => a + x.dur, 0) / total;
+    const since = risingW.length ? Math.min(...risingW.map(x => x.start)) : end;
+    return { leak: rate >= LEAK.minRate && rising >= LEAK.risingShare, rate, since };
+  };
+  const last = medians[medians.length - 1][0] + 1;
+  for (let end = LEAK.minQuiet; end <= last; end++) {
+    const now = evaluate(end), before = evaluate(end - LEAK.persist);
+    if (now && now.leak && before && before.leak) return { atMinute: end, rate: now.rate, sinceMinute: now.since };
+  }
+  return null;
 }
 
 /**
@@ -863,18 +917,19 @@ function insightsFor(s) {
   if (slowTimer(s)) add(main, "warn", `Windows nutzte einen langsamen Zeitgeber: ${slowTimer(s)}. Spiele fragen die Zeit sehr oft ab – das kostet FPS.`);
   // Leistung im Lauf der Sitzung – Hauptaussage nur, wenn Speicher oder Temperaturen den Abfall erklären
   const tr = st.trend;
-  const ramText = st.gameRamFirst !== null ? `${fmt(tr?.first.gameRam ?? st.gameRamFirst, 1)} auf ${fmt(tr?.last.gameRam ?? st.gameRamLast, 1)} GB` : "";
+  const lk = st.leak;
+  const leakText = lk ? `um etwa ${fmt(lk.rate, 0)} MB pro Minute seit Minute ${lk.sinceMinute}, erkannt in Minute ${lk.atMinute}` : "";
   if (tr && tr.decline) {
     const what = `im letzten Drittel Ø ${fmt(tr.last.fps, 0)} statt ${fmt(tr.first.fps, 0)} FPS`
       + (tr.last.spikesPerMin >= 2 * tr.first.spikesPerMin && tr.last.spikesPerMin > 2 ? `, ${fmt(tr.last.spikesPerMin, 1)} statt ${fmt(tr.first.spikesPerMin, 1)} Ruckler pro Minute` : "");
     if (tr.leak)
-      add(main, "warn", `Die Leistung sank im Lauf der Sitzung (${what}), während der Speicher des Spiels von ${ramText} wuchs – `
+      add(main, "warn", `Die Leistung sank im Lauf der Sitzung (${what}), während der Speicher des Spiels stetig wuchs (${leakText}) – `
         + "deutet auf ein Speicherleck im Spiel; ein Neustart des Spiels hilft vorübergehend.");
     else if (tr.warmer)
       add(main, "warn", `Die Leistung sank im Lauf der Sitzung (${what}), während die Temperaturen stiegen – Kühlung und Luftstrom prüfen.`);
     else add(side, "info", `Im Lauf der Sitzung sank die Leistung (${what}) – kann auch an anderen Spielszenen liegen.`);
-  } else if (noteShare(st, /Spiel-Speicher wächst/) > 0 || (tr && tr.leak))
-    add(side, "warn", `Der Speicher des Spiels wuchs stetig${ramText ? ` (von ${ramText})` : ""} – mögliches Speicherleck, die Leistung blieb aber stabil.`);
+  } else if (lk)
+    add(side, "warn", `Der Speicher des Spiels wuchs stetig (${leakText}) – mögliches Speicherleck, die Leistung blieb aber stabil.`);
 
   const dead = st.deadEffect;
   if (deadConnectionsHurt(st))
@@ -982,7 +1037,8 @@ const HELP = {
   system: `<ul>
     <li><b>Speicher des Spiels</b>: wie viel Arbeitsspeicher das Spiel selbst belegt. Steigt die Kurve beim Laden neuer Gebiete und bleibt dann
       gleich, ist das normal. Steigt sie die ganze Zeit weiter, gibt das Spiel Speicher nicht mehr frei (<b>Speicherleck</b>). Mit der Zeit wird es
-      dann langsamer oder stürzt ab – ein Neustart des Spiels hilft vorübergehend.</li>
+      dann langsamer oder stürzt ab – ein Neustart des Spiels hilft vorübergehend. Sprünge durch Laden und Freigeben neuer Gebiete werden
+      herausgerechnet; als Leck gilt erst ein Anstieg von mindestens 25 MB pro Minute, der über eine halbe Stunde anhält.</li>
     <li><b>Speicherzusage</b>: wie viel Speicher Windows den Programmen insgesamt zugesagt hat, gemessen an Arbeitsspeicher plus Auslagerungsdatei.
       Ab etwa 90 % wird es knapp. Meist läuft dann nebenbei ein großes Programm – es vor dem Spielen zu schließen hilft am meisten. Sonst die
       Auslagerungsdatei von Windows verwalten lassen oder vergrößern.</li>

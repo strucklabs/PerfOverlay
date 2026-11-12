@@ -2,24 +2,39 @@ using System.Runtime.InteropServices;
 
 namespace PerfOverlay.Sensors;
 
-/// <summary>Speicher des Spiels wächst ohne Plateau – mögliches Speicherleck.</summary>
-public sealed record MemoryLeak(double FromGB, double ToGB, double Minutes);
+/// <summary>
+/// Speicher des Spiels wächst stetig – mögliches Speicherleck.
+/// </summary>
+/// <param name="RateMBPerMin">Wachstum in den ruhigen Abschnitten (MB pro Minute).</param>
+/// <param name="SinceMinutes">Seit wann es wächst (Beginn des ersten steigenden Abschnitts im Fenster).</param>
+/// <param name="HoursToFull">Bei diesem Tempo ist die Speicherzusage in so vielen Stunden ausgeschöpft (nur unter 4 h).</param>
+public sealed record MemoryLeak(double RateMBPerMin, double SinceMinutes, double? HoursToFull);
 
 /// <summary>
-/// Erkennt ein Speicherleck am privaten Speicher des Spielprozesses: über mindestens 20 Minuten stetig
-/// steigend (mindestens 0,5 GB) und auch in den letzten 5 Minuten noch steigend. Laden neuer Gebiete erzeugt
-/// dagegen Stufen mit Plateau. Rein rechnerisch – damit testbar.
+/// Erkennt ein Speicherleck statistisch (Plan Probelauf Windrose, W1). Spiele laden und verwerfen Gebiete – der Speicher
+/// springt dabei um Gigabytes und schwankt zudem um ±0,5 GB. Ein Leck zeigt sich dagegen als stetiges Wachstum
+/// zwischen den Sprüngen. Verfahren:
+/// 1. Minuten-Mediane (glätten das Rauschen),
+/// 2. Sprünge (Minutenänderung über max(300 MB, 6 × Median der Minutenänderungen)) und Lücken trennen Abschnitte,
+/// 3. in ruhigen Abschnitten ab 5 Minuten die Theil-Sen-Steigung (Median aller Paarsteigungen, robust gegen Ausreißer),
+///    nach Dauer gewichtet,
+/// 4. Leck, wenn in den letzten 40 Minuten mindestens 20 Minuten ruhig sind, die Steigung darin mindestens 25 MB/min
+///    beträgt und mindestens 85 % der ruhigen Zeit mit 15 MB/min oder mehr steigt – und das schon 10 Minuten vorher galt.
+/// An einer echten Windrose-Sitzung (56 min, viel Laden und Freigeben) kein Fehlalarm; künstliche Lecks ab 20 MB/min
+/// werden etwa 25 Minuten nach Beginn erkannt. Rein rechnerisch – damit testbar; dasselbe Verfahren steckt in der Auswertung.
 /// </summary>
 public sealed class MemoryLeakTracker
 {
     public static readonly TimeSpan SampleInterval = TimeSpan.FromSeconds(5);
-    public static readonly TimeSpan Window = TimeSpan.FromMinutes(20);
-    public static readonly TimeSpan RecentWindow = TimeSpan.FromMinutes(5);
-    public static readonly TimeSpan Keep = TimeSpan.FromMinutes(60);
-    public const double MinGrowthGB = 0.5;
+    public static readonly TimeSpan Keep = TimeSpan.FromMinutes(55);
+    public const int WindowMinutes = 40, PersistMinutes = 10, MinSegmentPoints = 5, MinQuietMinutes = 20;
+    public const double MinRateMB = 25, RisingRateMB = 15, RisingShare = 0.85, MinJumpGB = 0.3, JumpFactor = 6;
 
     private readonly List<(DateTime Time, double GB)> _samples = new();
     private int _pid;
+    private DateTime _start;
+    private int _evaluatedMinute = -1;
+    private MemoryLeak? _result;
 
     public void Add(int pid, DateTime time, double gb)
     {
@@ -27,35 +42,87 @@ public sealed class MemoryLeakTracker
         {
             _samples.Clear();
             _pid = pid;
+            _start = time;
+            _evaluatedMinute = -1;
+            _result = null;
         }
         if (_samples.Count > 0 && time - _samples[^1].Time < SampleInterval) return;
         _samples.Add((time, gb));
         _samples.RemoveAll(s => time - s.Time > Keep);
     }
 
-    public MemoryLeak? Detect(DateTime now)
+    /// <param name="freeCommitGB">Noch freie Speicherzusage (für die Restzeit); null = unbekannt.</param>
+    public MemoryLeak? Detect(DateTime now, double? freeCommitGB = null)
     {
-        if (_samples.Count < 10 || now - _samples[0].Time < Window) return null;
-        var window = _samples.Where(s => now - s.Time <= Window).ToList();
-        var recent = _samples.Where(s => now - s.Time <= RecentWindow).ToList();
-        if (window.Count < 10 || recent.Count < 5) return null;
-
-        double slope = Slope(window);                 // GB pro Minute
-        double recentSlope = Slope(recent);
-        bool growing = slope * Window.TotalMinutes >= MinGrowthGB && window[^1].GB - window[0].GB >= MinGrowthGB;
-        bool noPlateau = recentSlope >= slope * 0.5;
-        if (!growing || !noPlateau) return null;
-        return new MemoryLeak(_samples[0].GB, _samples[^1].GB, (_samples[^1].Time - _samples[0].Time).TotalMinutes);
+        if (_samples.Count == 0) return null;
+        int minute = (int)Math.Floor((now - _start).TotalMinutes);
+        if (minute != _evaluatedMinute)   // höchstens einmal pro Minute rechnen
+        {
+            _evaluatedMinute = minute;
+            var medians = MinuteMedians(_samples.Select(s => ((s.Time - _start).TotalMinutes, s.GB)));
+            var current = Evaluate(medians, minute);
+            var earlier = Evaluate(medians, minute - PersistMinutes);
+            _result = current is { IsLeak: true } c && earlier is { IsLeak: true }
+                ? new MemoryLeak(c.RateMB, minute - c.RisingSince, null)
+                : null;
+        }
+        if (_result == null) return null;
+        double? hours = freeCommitGB is double free && _result.RateMBPerMin > 0 ? free * 1024 / _result.RateMBPerMin / 60 : null;
+        return _result with { HoursToFull = hours is < 4 ? hours : null };
     }
 
-    /// <summary>Steigung der Ausgleichsgeraden in GB pro Minute.</summary>
-    private static double Slope(List<(DateTime Time, double GB)> s)
+    /// <summary>Median je ganzer Minute (nur Minuten mit mindestens 6 Werten).</summary>
+    public static List<(double Minute, double GB)> MinuteMedians(IEnumerable<(double Minute, double GB)> samples) =>
+        samples.GroupBy(s => Math.Floor(s.Minute))
+            .Where(g => g.Count() >= 6)
+            .OrderBy(g => g.Key)
+            .Select(g => (g.Key, Median(g.Select(s => s.GB).ToList())))
+            .ToList();
+
+    public readonly record struct Evaluation(bool IsLeak, double RateMB, double RisingShare, double QuietMinutes, double RisingSince);
+
+    /// <summary>Urteil über das Fenster [end − 40 min, end) – null, wenn zu wenig ruhige Zeit für eine Aussage vorliegt.</summary>
+    public static Evaluation? Evaluate(IReadOnlyList<(double Minute, double GB)> medians, int end)
     {
-        var t0 = s[0].Time;
-        double mx = s.Average(p => (p.Time - t0).TotalMinutes), my = s.Average(p => p.GB);
-        double num = s.Sum(p => ((p.Time - t0).TotalMinutes - mx) * (p.GB - my));
-        double den = s.Sum(p => Math.Pow((p.Time - t0).TotalMinutes - mx, 2));
-        return den > 0 ? num / den : 0;
+        var m = medians.Where(x => x.Minute >= end - WindowMinutes && x.Minute < end).ToList();
+        if (m.Count < 2) return null;
+        var diffs = m.Zip(m.Skip(1), (a, b) => Math.Abs(b.GB - a.GB)).ToList();
+        double jump = Math.Max(MinJumpGB, JumpFactor * Median(diffs));
+
+        var segments = new List<List<(double Minute, double GB)>> { new() { m[0] } };
+        for (int i = 1; i < m.Count; i++)
+        {
+            bool split = Math.Abs(m[i].GB - m[i - 1].GB) > jump || m[i].Minute - m[i - 1].Minute > 2;
+            if (split) segments.Add(new() { m[i] });
+            else segments[^1].Add(m[i]);
+        }
+        var quiet = segments.Where(s => s.Count >= MinSegmentPoints).ToList();
+        double total = quiet.Sum(s => s[^1].Minute - s[0].Minute);
+        if (total < MinQuietMinutes) return null;
+
+        var weighted = quiet.Select(s => (Rate: TheilSen(s) * 1024, Duration: s[^1].Minute - s[0].Minute, Start: s[0].Minute)).ToList();
+        double rate = weighted.Sum(w => w.Rate * w.Duration) / total;
+        double rising = weighted.Where(w => w.Rate >= RisingRateMB).Sum(w => w.Duration) / total;
+        double since = weighted.Where(w => w.Rate >= RisingRateMB).Select(w => w.Start).DefaultIfEmpty(end).Min();
+        return new Evaluation(rate >= MinRateMB && rising >= RisingShare, rate, rising, total, since);
+    }
+
+    /// <summary>Theil-Sen-Steigung: Median aller Paarsteigungen (GB pro Minute).</summary>
+    private static double TheilSen(List<(double Minute, double GB)> s)
+    {
+        var slopes = new List<double>();
+        for (int i = 0; i < s.Count; i++)
+            for (int j = i + 1; j < s.Count; j++)
+                if (s[j].Minute > s[i].Minute) slopes.Add((s[j].GB - s[i].GB) / (s[j].Minute - s[i].Minute));
+        return slopes.Count > 0 ? Median(slopes) : 0;
+    }
+
+    private static double Median(List<double> v)
+    {
+        if (v.Count == 0) return 0;
+        v.Sort();
+        int mid = v.Count / 2;
+        return v.Count % 2 == 1 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
     }
 }
 
@@ -64,12 +131,12 @@ internal sealed class GameMemorySensor
 {
     private readonly MemoryLeakTracker _tracker = new();
 
-    public (double? GB, MemoryLeak? Leak) Read(int pid, DateTime now)
+    public (double? GB, MemoryLeak? Leak) Read(int pid, DateTime now, double? freeCommitGB = null)
     {
         if (pid <= 0) return (null, null);
         double? gb = PrivateGB(pid);
         if (gb is double v) _tracker.Add(pid, now, v);
-        return (gb, _tracker.Detect(now));
+        return (gb, _tracker.Detect(now, freeCommitGB));
     }
 
     internal static double? PrivateGB(int pid)

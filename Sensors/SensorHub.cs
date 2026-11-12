@@ -88,7 +88,8 @@ internal sealed class SensorHub : IDisposable
         }
         int gamePid = frames?.Pid ?? 0;
         var now = DateTime.Now;
-        var (gameMemory, leak) = _gameMemory.Read(gamePid, now);
+        var memory = _memory.Read();
+        var (gameMemory, leak) = _gameMemory.Read(gamePid, now, Math.Max(0, memory.CommitLimitGB - memory.CommitGB));
         // Adapterliste über DXGI erst, wenn das Spiel GPU-Last zeigt (einmalig, danach zwischengespeichert)
         var gameGpu = _windowsGpu.LoadByAdapter(gamePid);
         var mismatch = gameGpu.Count > 0 ? GpuAdapters.Check(gameGpu, GpuAdapters.All) : null;
@@ -97,7 +98,6 @@ internal sealed class SensorHub : IDisposable
 
         // Größter Speicherverbraucher: Die Prozessliste kostet einige 10 ms – nur bei hoher Zusage, höchstens alle 10 s
         // und im Hintergrund, damit der Messtakt nicht stockt
-        var memory = _memory.Read();
         if (_topMemoryTask is { IsCompleted: true } done)
         {
             _topMemory = done.IsCompletedSuccessfully ? done.Result : null;
