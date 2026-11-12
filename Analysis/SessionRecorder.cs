@@ -66,6 +66,7 @@ public sealed class SessionRecorder : IDisposable
     private DateTime _lastRow;
     private int _gamePid;
     private double _lastSpikeTime = double.MinValue;
+    private long _lastSecond = -1;
 
     public bool Enabled { get; set; } = true;
     public bool Recording => _writer != null;
@@ -133,10 +134,12 @@ public sealed class SessionRecorder : IDisposable
         var cpu = s.Cpu;
         var gpu = s.Gpu;
         var th = s.CpuThermal;
+        // Streng steigend: Bei Abständen um 0,85–1,15 s ergäbe das Runden sonst doppelte Sekunden. Lücken bleiben Sprünge.
+        _lastSecond = Math.Max(_lastSecond + 1, (long)Math.Round((s.Time - _sessionStart).TotalSeconds));
 
         _writer.WriteLine(string.Join(';',
             s.Time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-            N((s.Time - _sessionStart).TotalSeconds, 0),
+            _lastSecond.ToString(CultureInfo.InvariantCulture),
             Text(f.App),
             N(f.Fps, 1), N(f.AppFps, 1), N(f.Low1Fps, 1), N(f.AvgMs, 2), N(f.P99Ms, 2),
             N(f.CpuBusyMs, 2), N(f.GpuBusyMs, 2), N(f.GpuWaitMs, 2),
@@ -183,6 +186,7 @@ public sealed class SessionRecorder : IDisposable
         _gamePid = f.Pid;
         // Ruckler, die vor Sitzungsbeginn liegen (PresentMon hält 10 s Verlauf), nicht mitzählen
         _lastSpikeTime = f.SpikeTimes.Length > 0 ? f.SpikeTimes.Max() : double.MinValue;
+        _lastSecond = -1;
     }
 
     /// <summary>

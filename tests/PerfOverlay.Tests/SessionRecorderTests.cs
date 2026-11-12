@@ -54,6 +54,30 @@ public sealed class SessionRecorderTests : IDisposable
         Assert.True(rows.Max(l => int.Parse(l.Split(';')[secondCol])) >= 95);
     }
 
+    [Fact]
+    public void Sekunden_sind_bei_schwankendem_Takt_streng_steigend()
+    {
+        using var recorder = new SessionRecorder(_folder, isProcessAlive: _ => true);
+        var rnd = new Random(7);
+        var times = new List<double>();
+        double t = 0;
+        for (int i = 0; i < 300; i++)
+        {
+            t += i == 150 ? 6 : 0.86 + rnd.NextDouble() * 0.28;   // 0,86–1,14 s, einmal eine Lücke von 6 s
+            times.Add(t);
+            recorder.Record(Snap(t, Frames(GamePid, "Warframe.x64.exe"), GamePid), Verdict);
+        }
+        recorder.Stop();
+
+        int secondCol = Array.IndexOf(SessionRecorder.Columns, "Sekunde");
+        var seconds = File.ReadAllLines(Assert.Single(Files())).Where(l => !l.StartsWith('#')).Skip(1)
+            .Select(l => long.Parse(l.Split(';')[secondCol])).ToList();
+        // Vorher: gerundete Zeit – bei diesem Takt mehrfach gleiche Sekunden
+        Assert.True(times.Select(x => Math.Round(x - times[0])).Distinct().Count() < times.Count);
+        Assert.All(seconds.Zip(seconds.Skip(1)), p => Assert.True(p.Second > p.First, $"{p.First} → {p.Second}"));
+        Assert.Contains(seconds.Zip(seconds.Skip(1)), p => p.Second - p.First >= 5);   // Lücke bleibt sichtbar
+    }
+
     [Theory]
     [InlineData("EasyTune.exe")]
     [InlineData("MSIAfterburner.exe")]
