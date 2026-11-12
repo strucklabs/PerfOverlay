@@ -1,6 +1,6 @@
 # Plan: Befunde aus dem Probelauf Windrose (Stand 12.11.2026)
 
-Nur Planung, noch nichts umgesetzt.
+W1 umgesetzt am 12.11.2026 (f56c215). Die Schwellen in W1 wurden per Gittersuche an den Windrose-Daten verschärft (ursprünglich 20 MB/min und 75 % ab 10 MB/min – ergab in Minute 44 einen Fehlalarm). W2 umgesetzt am 12.11.2026 (Windrose: 14 statt 41 Ruckler-Sekunden mit DPC-Zuordnung, Ruckler-Quote 5,0 % gegenüber 5,5 % → keine Warnung). W3–W6 offen.
 
 Grundlage ist die Windrose-Sitzung vom 12.11.2026 (56 min, 3352 Sekunden, PawnIO aktiv, zusammengeführt aus zwei
 Dateien). Die Messwerte stimmen, aber sechs Bewertungen sind falsch, schief oder störend. Marco hat W2–W6 direkt
@@ -26,8 +26,8 @@ Neu, das gleiche Verfahren im Overlay (C#) und in der Auswertung (JS):
 3. Ruhige Abschnitte ab 5 min, darin eine Theil-Sen-Steigung (Median aller Paarsteigungen), gewichtet nach Dauer.
 4. Leck, wenn in den letzten 40 min:
    - mindestens 20 min ruhige Abschnitte vorliegen,
-   - die gewichtete Steigung ≥ 20 MB/min beträgt,
-   - mindestens 75 % der ruhigen Zeit steigend sind (≥ 10 MB/min)
+   - die gewichtete Steigung ≥ 25 MB/min beträgt,
+   - mindestens 85 % der ruhigen Zeit steigend sind (≥ 15 MB/min)
    - und dasselbe schon 10 min vorher galt (Wachstum hält ≥ 30 min an).
 5. Meldung: „Spiel-Speicher wächst seit {n} min um ~{x} MB/min – bei diesem Tempo Speicher in ~{t} voll“. Die
    Restzeit kommt aus der freien Speicherzusage geteilt durch die Rate, nur wenn sie unter 4 h liegt, sonst entfällt

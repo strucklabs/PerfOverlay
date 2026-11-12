@@ -292,7 +292,7 @@ function computeStats(d) {
     pingNet: avg(d.pingNet), pingNetMax: max(d.pingNet), jitterNet: avg(d.jitterNet),
     lossNet: avg(d.lossNet), lossNetMax: max(d.lossNet), pingRouter: avg(d.pingRouter), netDownMax: max(d.netDown),
     deadMax: max(d.dead), deadEffect: deadConnectionEffect(d),
-    dpcMax: max(d.dpc), dpcHighShare: share(d.dpc, v => v >= 20), commitMax: max(d.commit),
+    dpcMax: max(d.dpc), dpc: dpcEffect(d), commitMax: max(d.commit),
     gameRamFirst: valid(d.gameRam)[0] ?? null, gameRamLast: valid(d.gameRam).at(-1) ?? null, gameRamMax: max(d.gameRam),
     trend: performanceTrend(d), pingLoad: pingUnderLoad(d), leak: memoryLeak(d),
     gpuFanLoad: loadIdx.length ? avg(loadIdx.map(i => d.gpuFanPct[i])) : null,
@@ -431,6 +431,32 @@ function deadConnectionEffect(d) {
     spikesHigh: high.spikes / (high.sec / 60), spikesLow: low.spikes / (low.sec / 60),
     fpsHigh: avg(high.fps), fpsLow: avg(low.fps),
   };
+}
+
+/**
+ * Treiber-Unterbrechungen (DPC) relativ zur üblichen Last der Sitzung – wie im Overlay (DpcBaseline, Plan Probelauf
+ * Windrose W2): Grundwert = Median der Sitzung, erhöht ab max(25 %, Grundwert + 10). Verglichen wird die Ruckler-Quote
+ * (Anteil Sekunden mit Rucklern) im Spiel mit und ohne erhöhte Last. Bremsend, wenn sie bei erhöhter Last mindestens
+ * doppelt so hoch und mindestens 3 Prozentpunkte höher ist, bei mindestens 60 solchen Sekunden.
+ */
+const DPC = { fixed: 25, above: 10, minSeconds: 60, factor: 2, minDiff: 0.03, infoBase: 20 };
+function dpcEffect(d) {
+  const all = valid(d.dpc);
+  if (!all.length) return null;
+  const base = median(all), threshold = Math.max(DPC.fixed, base + DPC.above);
+  const high = { sec: 0, hit: 0 }, low = { sec: 0, hit: 0 };
+  let highAll = 0;
+  d.dpc.forEach((v, i) => {
+    if (v === null) return;
+    if (v >= threshold) highAll++;
+    if (d.fps[i] === null || d.spikes[i] === null) return;
+    const g = v >= threshold ? high : low;
+    g.sec++; if (d.spikes[i] > 0) g.hit++;
+  });
+  const quoteHigh = high.sec ? high.hit / high.sec : null, quoteLow = low.sec ? low.hit / low.sec : null;
+  const hurts = high.sec >= DPC.minSeconds && quoteLow !== null
+    && quoteHigh >= DPC.factor * quoteLow && quoteHigh - quoteLow >= DPC.minDiff;
+  return { base, threshold, highShare: highAll / all.length, highSec: high.sec, quoteHigh, quoteLow, hurts };
 }
 
 /** Bremsten die toten Verbindungen messbar? Mehr als doppelt so viele Ruckler (und spürbar viele) oder 10 % weniger FPS. */
@@ -632,7 +658,7 @@ function renderSession(view, s) {
       sys.insertAdjacentHTML("beforeend", `<div class="cards">
         ${card("Speicher des Spiels", st.gameRamFirst === null ? "–" : fmt(st.gameRamFirst, 1) + " → " + fmt(st.gameRamLast, 1) + " <small>GB</small>", "Beginn → Ende")}
         ${card("Speicherzusage max", fmt(st.commitMax, 0, " %"), "ab 90 % wird es knapp")}
-        ${card("Treiber (DPC) max", fmt(st.dpcMax, 0, " %"), st.dpcHighShare ? `${pct(st.dpcHighShare)} der Zeit ≥ 20 %` : "eines Kerns")}
+        ${card("Treiber (DPC) max", fmt(st.dpcMax, 0, " %"), st.dpc ? `üblich ${fmt(st.dpc.base, 0)} %` + (st.dpc.highShare ? ` · ${pct(st.dpc.highShare)} der Zeit ≥ ${fmt(st.dpc.threshold, 0)} %` : "") : "eines Kerns")}
       </div>`);
     gapNote(sys, s, ["gameRam", "commit", "dpc"]);
     plot(sys, "Speicher des Spiels (GB)", [{ key: "gameRam", label: "Spiel", color: s.color }], { min: 0, unit: " GB" });
@@ -958,9 +984,13 @@ function insightsFor(s) {
   if (st.commitMax !== null && st.commitMax >= 90)
     add(side, "warn", `Die Speicherzusage erreichte ${fmt(st.commitMax, 0)} % – große Programme vor dem Spielen schließen `
       + "(die Meldungen nennen den größten Verbraucher) oder die Auslagerungsdatei vergrößern.");
-  if (st.dpcHighShare !== null && st.dpcHighShare >= 0.02)
-    add(side, "warn", `Treiber belegten zeitweise einen Prozessorkern stark (bis ${fmt(st.dpcMax, 0)} %, ${pct(st.dpcHighShare)} der Zeit) – `
-      + "häufige Verursacher sind Netzwerk-, Audio-, USB- und RGB-Treiber; aktuelle Treiber installieren.");
+  const dpc = st.dpc;
+  if (dpc && dpc.hurts)
+    add(side, "warn", `Treiber belegten zeitweise einen Prozessorkern stark (bis ${fmt(st.dpcMax, 0)} %), und genau dann ruckelte es häufiger `
+      + `(in ${pct(dpc.quoteHigh)} statt ${pct(dpc.quoteLow)} der Sekunden) – häufige Verursacher sind Netzwerk-, Audio-, USB- und RGB-Treiber; `
+      + "aktuelle Treiber installieren.");
+  else if (dpc && dpc.base >= DPC.infoBase)
+    add(side, "info", `Treiberlast im Spiel hoch (üblich ${fmt(dpc.base, 0)} % eines Kerns), aber ohne Einfluss auf Ruckler.`);
   if (!deadConnectionsHurt(st) && dead && dead.highSec > 0)
     add(side, "info", `Das Spiel hielt zeitweise bis zu ${fmt(st.deadMax, 0)} tote Verbindungen offen (vom Server geschlossen, vom Spiel nicht) – `
       + (dead.comparable ? "ohne messbaren Einfluss auf Ruckler und FPS." : "für einen Vergleich mit den Rucklern war die Sitzung zu kurz."));
@@ -1042,8 +1072,9 @@ const HELP = {
     <li><b>Speicherzusage</b>: wie viel Speicher Windows den Programmen insgesamt zugesagt hat, gemessen an Arbeitsspeicher plus Auslagerungsdatei.
       Ab etwa 90 % wird es knapp. Meist läuft dann nebenbei ein großes Programm – es vor dem Spielen zu schließen hilft am meisten. Sonst die
       Auslagerungsdatei von Windows verwalten lassen oder vergrößern.</li>
-    <li><b>Treiber-Unterbrechungen (DPC)</b>: Zeit, in der Treiber einen Prozessorkern für sich beanspruchen. Einzelne Sekunden bis etwa 12 % sind
-      normal. Liegt der Wert öfter über 20 %, hält ein Treiber das Spiel auf – häufig Netzwerk-, Audio-, USB- oder RGB-Treiber.</li></ul>`,
+    <li><b>Treiber-Unterbrechungen (DPC)</b>: Zeit, in der Treiber einen Prozessorkern für sich beanspruchen. Wie viel üblich ist, hängt vom System
+      ab – manche liegen im Spiel dauerhaft bei 12–16 %. Bewertet wird deshalb, was deutlich darüber liegt (ab 25 % bzw. 10 Punkte über dem
+      üblichen Wert). Ruckelt es genau dann häufiger, hält ein Treiber das Spiel auf – häufig Netzwerk-, Audio-, USB- oder RGB-Treiber.</li></ul>`,
   network: `<ul>
     <li>Ping und Verlust ändern nichts an den FPS. Sie entscheiden darüber, wie schnell deine Eingaben in Online-Spielen beim Server ankommen.
       Eine schlechte Verbindung spürst du als Verzögerung oder springende Figuren („Lag“).</li>

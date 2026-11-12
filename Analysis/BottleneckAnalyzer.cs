@@ -56,18 +56,17 @@ public sealed class BottleneckAnalyzer
 
     /// <summary>Kennzahlen je Messtakt – um Ruckler im Nachhinein einer Ursache zuzuordnen.</summary>
     private readonly record struct Sample(DateTime Time, double PagesIn, double DiskActive, double CpuTotal, double MaxPerfCore, bool VramSpill,
-        double Dpc, double CommitPercent);
+        bool DpcHigh, double CommitPercent);
 
     private readonly BufferbloatTracker _bloat = new();
 
     /// <summary>
-    /// Ab diesem DPC-/Interrupt-Anteil eines Kerns gilt ein Ruckler als von Treibern verursacht. Windows misst
-    /// in Schritten eines Zeittakts (≈ 1,6 % je Sekunde); im Leerlauf kommen einzelne Sekunden mit 12 % vor –
-    /// daher deutlich darüber.
+    /// Übliche DPC-/Interrupt-Last der letzten 5 Minuten. Ein Ruckler gilt als von Treibern verursacht, wenn die
+    /// Last im selben Moment deutlich darüber liegt (≥ max(25 %, Grundwert + 10)); 5 s am Stück ergeben einen
+    /// Hinweis. Windows misst in Schritten eines Zeittakts (≈ 1,6 % je Sekunde), einzelne Sekunden mit 12–16 %
+    /// sind auf manchen Systemen normal.
     /// </summary>
-    public const double DpcStutterPercent = 20;
-    /// <summary>So viel DPC-/Interrupt-Last auf einem Kern, 5 s am Stück, ergibt einen Hinweis.</summary>
-    public const double DpcHintPercent = 20;
+    private readonly DpcBaseline _dpc = new();
 
     /// <summary>
     /// Sitzungen werden aufgezeichnet (Tray-Menü). Ohne FPS-Messung beginnt keine Sitzung – dann sagt der Tipp das,
@@ -280,13 +279,24 @@ public sealed class BottleneckAnalyzer
         if (Sustained("commit", mem.CommitPercent >= 90, s.Time, TimeSpan.FromSeconds(5)))
             notes.Add(new("commit", CommitNote(mem.CommitPercent, s.TopMemory), Severity.Warn));
 
-        // Treiber, die einen Kern dauerhaft mit DPCs/Interrupts belegen
-        if (s.Cpu.DpcMaxPercent is double dpc && Sustained("dpc", dpc >= DpcHintPercent, s.Time, TimeSpan.FromSeconds(5)))
-            notes.Add(new("dpc", $"Treiber blockieren einen Kern ({dpc:0} % DPC)", Severity.Warn));
+        // Treiber, die einen Kern mit DPCs/Interrupts belegen: deutlich über der üblichen Last dieses Systems,
+        // oder schon die übliche Last ist sehr hoch
+        bool dpcHigh = false;
+        if (s.Cpu.DpcMaxPercent is double dpc)
+        {
+            double? dpcBase = _dpc.Baseline(s.Time);
+            dpcHigh = dpc >= DpcBaseline.Threshold(dpcBase);
+            _dpc.Add(s.Time, dpc);
+            if (Sustained("dpc", dpcHigh, s.Time, TimeSpan.FromSeconds(5)))
+                notes.Add(new("dpc", $"Treiber blockieren einen Kern ({dpc:0} % DPC)", Severity.Warn));
+            else if (dpcBase >= DpcBaseline.HighBaselinePercent)
+                notes.Add(new("dpc", $"Treiber belegen dauerhaft einen Kern (~{dpcBase:0} % DPC)", Severity.Warn));
+        }
+        else Sustained("dpc", false, s.Time, TimeSpan.Zero);
 
         // Verlauf für die Ruckler-Zuordnung
         _history.Enqueue(new Sample(s.Time, mem.PagesInPerSec, s.Disk.ActivePercent, s.Cpu.TotalLoad, s.Cpu.MaxPerfCoreLoad, vramSpill,
-            s.Cpu.DpcMaxPercent ?? 0, mem.CommitPercent));
+            dpcHigh, mem.CommitPercent));
         while (_history.Count > 0 && s.Time - _history.Peek().Time > HistoryWindow) _history.Dequeue();
 
         // --- Verbindung: bremst keine FPS, verursacht aber Lag in Online-Spielen ---
@@ -668,7 +678,7 @@ public sealed class BottleneckAnalyzer
             .ToList();
         if (near.Any(h => h.VramSpill)) return "VRAM-Auslagerung";
         if (near.Any(h => h.PagesIn > 500 || h.DiskActive > 50)) return "Nachladen vom Laufwerk";
-        if (near.Any(h => h.Dpc >= DpcStutterPercent)) return "Treiber-Unterbrechung (DPC)";
+        if (near.Any(h => h.DpcHigh)) return "Treiber-Unterbrechung (DPC)";
         if (near.Any(h => h.CommitPercent >= 95)) return "Speicherzusage am Limit";
         if (near.Any(h => h.CpuTotal >= 90 || h.MaxPerfCore >= 98)) return "CPU-Spitze";
         return "unklar (z. B. Shader-Kompilierung)";

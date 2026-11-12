@@ -1,3 +1,4 @@
+using System.IO;
 using PerfOverlay.Analysis;
 using PerfOverlay.Sensors;
 
@@ -48,11 +49,56 @@ public class BlockBTests
     [Fact]
     public void Dauerhaft_hohe_DPC_Last_ergibt_einen_Hinweis()
     {
-        var notes = Run(i => Snap(T0.AddSeconds(i), dpc: 20), 7);
+        var notes = Run(i => Snap(T0.AddSeconds(i), dpc: 26), 7);
         var n = Assert.Single(notes, n => n.Key == "dpc");
-        Assert.Contains("20 %", n.Text);
-        Assert.DoesNotContain(Run(i => Snap(T0.AddSeconds(i), dpc: 20), 3), n => n.Key == "dpc");   // noch nicht 5 s
-        Assert.DoesNotContain(Run(i => Snap(T0.AddSeconds(i), dpc: 12.5), 10), n => n.Key == "dpc");   // Leerlauf-Spitzen
+        Assert.Contains("26 %", n.Text);
+        Assert.DoesNotContain(Run(i => Snap(T0.AddSeconds(i), dpc: 26), 3), n => n.Key == "dpc");   // noch nicht 5 s
+        Assert.DoesNotContain(Run(i => Snap(T0.AddSeconds(i), dpc: 20), 10), n => n.Key == "dpc");   // unter der festen Schwelle 25 %
+    }
+
+    [Fact]
+    public void DPC_Schwelle_richtet_sich_nach_der_ueblichen_Last()
+    {
+        // 6 min bei 18 % (Grundwert), dann 10 s bei 26 %: unter Grundwert + 10 → kein Hinweis
+        Assert.DoesNotContain(Run(i => Snap(T0.AddSeconds(i), dpc: i < 360 ? 18 : 26), 370), n => n.Key == "dpc");
+        // dasselbe mit 30 %: darüber → Hinweis
+        Assert.Contains(Run(i => Snap(T0.AddSeconds(i), dpc: i < 360 ? 18 : 30), 370), n => n.Key == "dpc");
+        // schon der Grundwert ist sehr hoch → Hinweis, obwohl nichts darüber hinausragt
+        var high = Assert.Single(Run(i => Snap(T0.AddSeconds(i), dpc: 38), 310), n => n.Key == "dpc");
+        Assert.Equal("Treiber belegen dauerhaft einen Kern (~38 % DPC)", high.Text);
+    }
+
+    [Fact]
+    public void Windrose_Ruckler_werden_selten_den_Treibern_zugeordnet()
+    {
+        // Echte Sitzung: DPC im Spiel meist 12–16 %, ohne Zusammenhang mit den Rucklern. Mit fester Schwelle 20 %
+        // landeten viele Ruckler bei "Treiber-Unterbrechung (DPC)".
+        var rows = Windrose();
+        var a = new BottleneckAnalyzer();
+        int dpcStutters = 0, dpcHints = 0;
+        for (int i = 0; i < rows.Count; i++)
+        {
+            int prevSpikes = i > 0 ? rows[i - 1].Spikes : 0;
+            var v = a.Analyze(Snap(T0.AddSeconds(rows[i].Second),
+                Game(spikeAges: Enumerable.Repeat(1.0, prevSpikes).ToArray()), dpc: rows[i].Dpc));
+            if (prevSpikes > 0 && v.Notes.Any(n => n.Key == "stutter" && n.Text.Contains("Treiber"))) dpcStutters++;
+            if (v.Notes.Any(n => n.Key == "dpc")) dpcHints++;
+        }
+        Assert.InRange(dpcStutters, 0, 29);
+        Assert.Equal(0, dpcHints);
+    }
+
+    private static List<(double Second, double Dpc, int Spikes)> Windrose()
+    {
+        var lines = File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "Daten", "windrose.csv"))
+            .Select(l => l.TrimStart('﻿')).Where(l => !l.StartsWith('#')).ToList();
+        var header = lines[0].Split(';');
+        int sec = Array.IndexOf(header, "Sekunde"), dpc = Array.IndexOf(header, "DPC_max_Proz"), sp = Array.IndexOf(header, "Ruckler");
+        var de = System.Globalization.CultureInfo.GetCultureInfo("de-DE");
+        return lines.Skip(1).Select(l => l.Split(';'))
+            .Where(c => c[dpc] != "")
+            .Select(c => (double.Parse(c[sec], de), double.Parse(c[dpc], de), c[sp] == "" ? 0 : int.Parse(c[sp])))
+            .ToList();
     }
 
     [Fact]
@@ -62,6 +108,13 @@ public class BlockBTests
         var notes = Run(i => Snap(T0.AddSeconds(i), Game(spikeAges: i == 4 ? [1.0] : []), dpc: i == 3 ? 25 : 0.5), 5);
         var stutter = Assert.Single(notes, n => n.Key == "stutter");
         Assert.Contains("Treiber-Unterbrechung (DPC)", stutter.Text);
+
+        // Nach 6 min mit üblich 18 % reichen 25 % nicht mehr, 30 % schon
+        string Cause(double spikeDpc) => Assert.Single(
+            Run(i => Snap(T0.AddSeconds(i), Game(spikeAges: i == 364 ? [1.0] : []), dpc: i == 363 ? spikeDpc : 18), 365),
+            n => n.Key == "stutter").Text;
+        Assert.DoesNotContain("Treiber", Cause(25));
+        Assert.Contains("Treiber-Unterbrechung (DPC)", Cause(30));
     }
 
     // ------------------------------------------------------------------ K5 Commit
