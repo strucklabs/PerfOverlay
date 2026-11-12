@@ -43,6 +43,9 @@ Hardware-Tools geben zwar auch Bilder aus, werden aber nicht bewertet – dann s
 Meldungen sind in zwei Gruppen eingeteilt (`Analysis\NoteCategories.cs`): **Engpass** (Drosselung, Ruckler, VRAM/RAM
 voll, Pacing, Fremdlast auf der GPU …) steht in allen Ansichten oben, **Hinweise** (HWiNFO, Hintergrundlast,
 RAM-Konfiguration, PCIe, Verbindung …) nur in der Analyse unter „Weitere Hinweise“.
+Dauerhinweise – Zustände, die sich beim Spielen nicht ändern (Monitor-Hz, Resizable BAR, Energieplan, Akkubetrieb, tote
+Verbindungen, Speicherzusage, Speicherleck, Zeitgeber, PCIe, RAM-Konfiguration) – erscheinen beim ersten Auftreten und bei
+geändertem Inhalt 30 s lang, sonst alle 10 Minuten (`Analysis\NoteLog.cs`). Die Aufzeichnung enthält sie jede Sekunde.
 
 `PerfOverlay.exe --preview` rendert alle drei Ansichten mit künstlichen Daten – je eine CPU- und eine GPU-limitierte
 Szene und eine ohne Spiel mit einer KI-App im Vordergrund – nach `preview-<ansicht>-<szene>.png`; `preview-groessen.txt` hält die Maße fest.
