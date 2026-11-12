@@ -238,7 +238,7 @@ function parseCsv(text, name) {
     gpu: col("GPU_Proz"), gpuTemp: col("GPU_Temp"), gpuW: col("GPU_W"), vram: col("VRAM_GB"), spill: col("VRAM_ausgelagert_GB"),
     gpuMhz: col("GPU_MHz"), gpuV: col("GPU_V"), hotspot: col("GPU_Hotspot"), memTemp: col("GPU_Speicher_Temp"),
     gpuFanPct: col("GPU_Luefter_Proz"), gpuFanRpm: col("GPU_Luefter_U_min"), cpuFanRpm: col("CPU_Luefter_U_min"),
-    ram: col("RAM_Proz"), spikes: col("Ruckler"), pacing: col("Pacing_ms"),
+    ram: col("RAM_Proz"), pagesIn: col("Nachladen_s"), spikes: col("Ruckler"), pacing: col("Pacing_ms"),
     pingRouter: col("Ping_Router_ms"), pingNet: col("Ping_Internet_ms"), jitterNet: col("Jitter_Internet_ms"),
     lossNet: col("Verlust_Internet_Proz"), netDown: col("Netz_Down_MBs"), netUp: col("Netz_Up_MBs"),
     conns: col("Verbindungen"), dead: col("Tote_Verbindungen"),
@@ -257,11 +257,17 @@ const min = a => { const v = valid(a); return v.length ? Math.min(...v) : null; 
 function computeStats(d) {
   const n = d.t.length;
   const duration = n ? (d.t[n - 1] - d.t[0] + 1) : 0;
+  // Ladebild/Menü zählt nicht zu Durchschnitten, Rucklern und Engpass-Anteilen – es ist kein Spielgeschehen
+  const loading = loadingSeconds(d);
+  const loadingSec = loading.filter(Boolean).length;
+  const play = a => a.map((v, i) => loading[i] ? null : v);
+  const playN = n - loadingSec;
   const shares = {};
-  for (const k of d.kind) shares[k] = (shares[k] || 0) + 1 / n;
+  d.kind.forEach((k, i) => { if (!loading[i]) shares[k] = (shares[k] || 0) + 1 / playN; });
   const top = Object.entries(shares).sort((a, b) => b[1] - a[1])[0];
-  const spikes = valid(d.spikes).reduce((x, y) => x + y, 0);
-  const cpuIdx = d.kind.map((k, i) => k === "Cpu" ? i : -1).filter(i => i >= 0);
+  const spikes = valid(play(d.spikes)).reduce((x, y) => x + y, 0);
+  const playDuration = duration - loadingSec;
+  const cpuIdx = d.kind.map((k, i) => k === "Cpu" && !loading[i] ? i : -1).filter(i => i >= 0);
   // "unter Last": GPU zu mindestens 90 % ausgelastet – nur dort sind Takt und Spannung vergleichbar
   const loadIdx = d.gpu.map((g, i) => g !== null && g >= 90 ? i : -1).filter(i => i >= 0);
 
@@ -277,11 +283,11 @@ function computeStats(d) {
   });
 
   return {
-    duration, shares, top, spikes,
-    spikesPerMin: duration ? spikes / (duration / 60) : 0,
-    fps: avg(d.fps), fpsApp: avg(d.fpsApp), low1: avg(d.low1), worstLow1: min(d.low1), ft: avg(d.ft),
+    duration, shares, top, spikes, loadingSec,
+    spikesPerMin: playDuration > 0 ? spikes / (playDuration / 60) : 0,
+    fps: avg(play(d.fps)), fpsApp: avg(play(d.fpsApp)), low1: avg(play(d.low1)), worstLow1: min(play(d.low1)), ft: avg(play(d.ft)),
     fpsCpu: cpuIdx.length ? avg(cpuIdx.map(i => d.fps[i])) : null,
-    cpuBusy: avg(d.cpuBusy), gpuBusy: avg(d.gpuBusy), gpuWait: avg(d.gpuWait), thread: avg(d.thread),
+    cpuBusy: avg(play(d.cpuBusy)), gpuBusy: avg(play(d.gpuBusy)), gpuWait: avg(play(d.gpuWait)), thread: avg(play(d.thread)),
     cpu: avg(d.cpu), gpu: avg(d.gpu), cpuTempMax: max(d.cpuTemp), gpuTempMax: max(d.gpuTemp),
     cpuW: avg(d.cpuW), gpuW: avg(d.gpuW), vramMax: max(d.vram), spillMax: max(d.spill),
     gpuMhzLoad: loadIdx.length ? avg(loadIdx.map(i => d.gpuMhz[i])) : null,
@@ -297,9 +303,22 @@ function computeStats(d) {
     trend: performanceTrend(d), pingLoad: pingUnderLoad(d), leak: memoryLeak(d),
     gpuFanLoad: loadIdx.length ? avg(loadIdx.map(i => d.gpuFanPct[i])) : null,
     // Pacing nur im Spielgeschehen (ab 40 FPS), Ladebildschirme verzerren sonst den Mittelwert
-    pacing: avg(d.pacing.map((p, i) => d.fps[i] !== null && d.fps[i] >= 40 ? p : null)),
+    pacing: avg(d.pacing.map((p, i) => d.fps[i] !== null && d.fps[i] >= 40 && !loading[i] ? p : null)),
     notes: [...notes.values()].sort((a, b) => b.seconds - a.seconds),
   };
+}
+
+/**
+ * Ladebild oder Menü (Plan Probelauf Windrose, W5): FPS über dem Dreifachen des Sitzungs-Medians (Menüs rendern oft
+ * ungebremst mit mehreren hundert FPS) oder unter einem Viertel davon bei gleichzeitig starkem Nachladen
+ * (> 2000 Seiten/s). Ergebnis: je Sekunde true/false.
+ */
+const LOADING = { high: 3, low: 0.25, pagesIn: 2000 };
+function loadingSeconds(d) {
+  const m = median(d.fps);
+  if (m === null) return d.fps.map(() => false);
+  return d.fps.map((f, i) => f !== null
+    && (f > LOADING.high * m || (f < LOADING.low * m && (d.pagesIn[i] ?? 0) > LOADING.pagesIn)));
 }
 
 /** Anteil der gemessenen Werte (ohne Lücken), die die Bedingung erfüllen; null ohne Werte */
@@ -612,6 +631,9 @@ function renderSession(view, s) {
           st.pacing === null ? "nicht aufgezeichnet" : pacingRating(st.pacing, st.ft))}
     </div>`);
   gapNote(img, s, ["pacing"]);
+  if (st.loadingSec > 0)
+    img.insertAdjacentHTML("beforeend", `<p class="insights-hint">${fmt(st.loadingSec, 0)} ${st.loadingSec === 1 ? "Sekunde" : "Sekunden"} mit Ladebild oder Menü `
+      + "(sehr hohe oder sehr niedrige FPS beim Laden) sind in Durchschnitten, Rucklern und Engpass-Anteilen nicht enthalten; das Diagramm zeigt sie.</p>");
   plot(img, "Bilder pro Sekunde", [
     { key: "fps", label: "FPS", color: s.color },
     { key: "low1", label: "1%-Low", color: "var(--muted)", dash: "3 3" },
