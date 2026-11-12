@@ -117,6 +117,31 @@ public class BlockBTests
         Assert.Contains("Treiber-Unterbrechung (DPC)", Cause(30));
     }
 
+    // ------------------------------------------------------------------ GPU-Temperaturdrosselung
+
+    private static Snapshot Thermal(int i, bool flag) => Snap(T0.AddSeconds(i * 0.5)) with
+    {
+        Gpu = new GpuData { Name = "Test-GPU", Source = "NVML", Load = 95, TempC = 61,
+            Throttle = flag ? PerfOverlay.Native.Nvml.ThrottleReasons.SwThermalSlowdown : PerfOverlay.Native.Nvml.ThrottleReasons.None },
+    };
+
+    [Fact]
+    public void Einzelnes_Temperatur_Flag_der_GPU_ist_keine_Drosselung()
+    {
+        // Echte Sitzungen: einmal pro Sitzung ein Messtakt mit dem Flag, bei 60 °C und vollem Takt
+        var a = new BottleneckAnalyzer();
+        for (int i = 0; i < 20; i++)
+            Assert.DoesNotContain(a.Analyze(Thermal(i, i == 10)).Notes, n => n.Key == "gpu-thermal");
+    }
+
+    [Fact]
+    public void Anhaltende_Temperaturdrosselung_der_GPU_wird_gemeldet()
+    {
+        var notes = Run(i => Thermal(i, true), 8);   // 3,5 s
+        Assert.Single(notes, n => n.Key == "gpu-thermal");
+        Assert.DoesNotContain(Run(i => Thermal(i, true), 5), n => n.Key == "gpu-thermal");   // erst 2 s
+    }
+
     // ------------------------------------------------------------------ K5 Commit
 
     [Fact]

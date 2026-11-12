@@ -139,9 +139,14 @@ public sealed class BottleneckAnalyzer
         }
 
         // --- GPU-Drosselung (nur NVML liefert Gründe) ---
+        // Temperatur erst, wenn das Flag 3 s am Stück anliegt: Der Treiber setzt es gelegentlich für einen einzelnen
+        // Messtakt, auch bei 60 °C ohne Taktverlust. Echte Temperaturdrosselung hält an.
+        bool gpuThermalFlag = gpu != null && gpuLoad > 30
+            && (gpu.Throttle.HasFlag(Throttle.HwThermalSlowdown) || gpu.Throttle.HasFlag(Throttle.SwThermalSlowdown));
+        bool gpuThermal = Sustained("gpu-thermal", gpuThermalFlag, s.Time, TimeSpan.FromSeconds(3));
         if (gpu != null && gpuLoad > 30)
         {
-            if (gpu.Throttle.HasFlag(Throttle.HwThermalSlowdown) || gpu.Throttle.HasFlag(Throttle.SwThermalSlowdown))
+            if (gpuThermal)
                 notes.Add(new("gpu-thermal", "GPU drosselt wegen Temperatur", Severity.Bad));
             if (gpu.Throttle.HasFlag(Throttle.HwPowerBrakeSlowdown))
                 notes.Add(new("gpu-powerbrake", "GPU-Notbremse (Netzteil/Stromversorgung)", Severity.Bad));
