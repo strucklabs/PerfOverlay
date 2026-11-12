@@ -778,6 +778,28 @@ const RESULT = {
   },
 };
 
+/**
+ * Tipps zum FPS-Limit passend zur Bildwiederholrate (Plan Probelauf CPU, E2). Die Grenze ist der Median der FPS in den
+ * Limit-Sekunden. "Limit anheben" passt nur, wenn sie deutlich unter der Bildwiederholrate lag. Lag die Bildrate im
+ * Spiel zeitweise darüber (mind. 5 % der Spielzeit), galt das Limit nur zeitweise – z. B. im Menü.
+ */
+function limitTips(s) {
+  const d = s.d, hzMatch = (s.meta["Monitor"] || "").match(/(\d+) Hz/);
+  if (!hzMatch) return RESULT.Limit.tips;
+  const hz = +hzMatch[1];
+  const loading = loadingSeconds(d);
+  const play = d.fps.filter((f, i) => f !== null && !loading[i]);
+  const above = play.length ? play.filter(f => f > hz + 3).length / play.length : 0;
+  const cap = median(d.fps.map((f, i) => d.kind[i] === "Limit" && !loading[i] ? f : null));
+  if (above >= 0.05)
+    return [`Das Limit galt nur zeitweise (z. B. im Menü) – im Spiel lag die Bildrate ${pct(above)} der Zeit über ${hz} Hz`,
+      `Mit G-Sync/FreeSync: ein FPS-Limit knapp unter der Bildwiederholrate setzen (${hz - 3} FPS bei ${hz} Hz) – so bleibt das Bild ohne Risse`];
+  if (cap !== null && cap >= hz - 5)
+    return [`Die Bildrate lag an der Bildwiederholrate des Monitors (${hz} Hz) – mehr FPS wären nicht sichtbar`,
+      "Alternativ die Grafik höher stellen – das kostet bis zum Limit keine FPS"];
+  return RESULT.Limit.tips;
+}
+
 /** Großer Ergebnis-Block: Hauptengpass, Anteile, Belege und was mehr FPS bringt */
 function resultBlock(s) {
   const st = s.stats, sh = st.shares;
@@ -800,8 +822,9 @@ function resultBlock(s) {
   const load = [st.gpu !== null ? `GPU-Last Ø ${fmt(st.gpu, 0)} %` : "", st.thread !== null ? `Hauptthread Ø ${fmt(st.thread, 0)} %` : ""].filter(Boolean);
   if (load.length) ev.push(load.join(" · "));
 
-  let tips = [...r.tips];
-  if (!clear) tips = [...RESULT[ranked[0][0]].tips.slice(0, 2), ...RESULT[ranked[1][0]].tips.slice(0, 2)];
+  const tipsOf = k => k === "Limit" ? limitTips(s) : RESULT[k].tips;
+  let tips = [...tipsOf(top)];
+  if (!clear) tips = [...tipsOf(ranked[0][0]).slice(0, 2), ...tipsOf(ranked[1][0]).slice(0, 2)];
   const thr = throttleShares(st);
   if (thr.cpuTemp >= 0.05) tips.unshift(`Zuerst die Kühlung: Die CPU drosselte ${pct(thr.cpuTemp)} der Zeit wegen Temperatur – das kostet FPS, egal wo der Engpass liegt`);
   if (thr.gpu >= 0.05) tips.unshift(`Zuerst die Kühlung: Die Grafikkarte drosselte ${pct(thr.gpu)} der Zeit – Staub, Lüfterkurve und Luftstrom prüfen`);
@@ -812,7 +835,7 @@ function resultBlock(s) {
   const win10 = /^10\.0\.(\d+)/.exec(m["Windows"] || "");
   if (clear && top === "Limit" && hz && hz[2] - hz[1] >= 15 && st.fps && Math.abs(st.fps - hz[1]) <= hz[1] * 0.05)
     tips.unshift(`Der Monitor lief mit ${hz[1]} Hz, möglich sind ${hz[2]} Hz – in den Windows-Anzeigeeinstellungen umstellen, dann sind mehr FPS möglich`);
-  if (clear && top === "Limit" && noteShare(st, /^FPS über \d+ Hz/) > 0)
+  if (clear && top === "Limit" && noteShare(st, /^FPS über \d+ Hz/) > 0 && !tips.some(t => /G-Sync/.test(t)))
     extra.push("Mit G-Sync/FreeSync: ein FPS-Limit knapp unter der Bildwiederholrate setzen (z. B. 141 bei 144 Hz) – so bleibt das Bild ohne Risse");
   if (top === "Cpu") {
     if (balanced) extra.push(`Energieplan „Höchstleistung“ testen (aktiv war „${m["Energieplan"].split(",")[0]}“)`);

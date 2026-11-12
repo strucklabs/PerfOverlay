@@ -74,6 +74,9 @@ im Browser aus – ohne Internet, ohne Upload:
   nur bei NVIDIA verfügbar, Spiel nicht auslesbar (Anti-Cheat), Ping-Messung aus
 - Reihenfolge: Ergebnis, Auf einen Blick, Meldungen, Zusammenfassung, Bild und Ruckler, Prozessor, Grafikkarte,
   Speicher und Treiber, Verbindung (zugeklappt – sie betrifft den Lag, nicht die FPS)
+- **Tipps zum FPS-Limit** richten sich nach der Bildwiederholrate (Kopfzeile `# Monitor`): „Limit anheben“ nur, wenn
+  das Limit mehr als 5 FPS darunter lag; an der Bildwiederholrate ein Satz dazu; lag die Bildrate in mindestens 5 %
+  der Spielzeit darüber, galt das Limit nur zeitweise (z. B. im Menü) – dann der G-Sync/FreeSync-Tipp
 - **Ladebild und Menü**: Sekunden mit FPS über dem Dreifachen des Sitzungs-Medians oder unter einem Viertel bei
   starkem Nachladen (> 2000 Seiten/s) zählen nicht zu Ø FPS, 1%-Low, Bildzeit, Rucklern und Engpass-Anteilen; ein
   Satz unter „Bild und Ruckler“ nennt ihre Anzahl, das Diagramm zeigt sie weiterhin

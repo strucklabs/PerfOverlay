@@ -1,6 +1,6 @@
 # Plan: Befunde aus den Probeläufen CK3 und 7 Days to Die (Stand 12.11.2026)
 
-E1 umgesetzt am 12.11.2026. E2 und E3 offen.
+E1 und E2 umgesetzt am 12.11.2026 (E2 geprüft: 7DtD G-Sync-Tipp, CK3 Satz zur Bildwiederholrate, Testsitzung mit 60 FPS an 120 Hz weiter „Limit anheben“). E3 offen.
 
 Grundlage sind zwei Sitzungen vom 12.11.2026 mit Version 0.5.2:
 
