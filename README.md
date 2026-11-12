@@ -192,7 +192,7 @@ Unerwartete Fehler landen in `Dokumente\PerfOverlay\fehler.log`; das Overlay lä
 
 Zusätzliche Hinweise: GPU-Drosselung (Temperatur ab 3 s am Stück – der Treiber setzt das Flag sonst gelegentlich für einen Messtakt; Power-Brake), PCIe-Link reduziert, VRAM-Auslagerung in den RAM
 (`GPU Process Memory\Shared Usage` des Spiels), RAM knapp, Datenträger ausgelastet, Ruckler mit Ursache
-(Nachladen, CPU-Spitze, VRAM, unklar), Darstellung per Kopie (höhere Latenz), Frame Generation, Fremdlast auf GPU
+(VRAM, Nachladen, Treiber-DPC, Speicherzusage, CPU-Spitze, Hauptthread voll ab 95 %, unklar), Darstellung per Kopie (höhere Latenz), Frame Generation, Fremdlast auf GPU
 und – bei CPU-Limit – Hintergrundprozesse mit hoher CPU-Last.
 
 Ohne Frame-Daten wird geschätzt (GPU-Last und stärkster P-Kern). Das ist unsicher, weil der Scheduler einen

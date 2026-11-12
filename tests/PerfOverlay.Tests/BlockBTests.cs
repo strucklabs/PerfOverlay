@@ -117,6 +117,31 @@ public class BlockBTests
         Assert.Contains("Treiber-Unterbrechung (DPC)", Cause(30));
     }
 
+    // ------------------------------------------------------------------ Ruckler bei vollem Hauptthread (Plan Probelauf CPU, E3)
+
+    private static string StutterAt(double mainThread, double pagesIn = 0) => Assert.Single(
+        Run(i => Snap(T0.AddSeconds(i), Game(spikeAges: i == 4 ? [1.0] : [])) with
+        {
+            MainThread = new ThreadLoad(i == 3 ? mainThread : 60, null),
+            Memory = new MemoryData(12, 32, 40, 18, 40, i == 3 ? pagesIn : 0),
+        }, 5),
+        n => n.Key == "stutter").Text;
+
+    [Fact]
+    public void Ruckler_bei_vollem_Hauptthread_wird_benannt()
+    {
+        Assert.Contains("Hauptthread voll (Spielberechnung)", StutterAt(97));
+        Assert.Contains("unklar", StutterAt(80));
+    }
+
+    [Fact]
+    public void Nachladen_bleibt_vor_dem_Hauptthread()
+    {
+        var text = StutterAt(97, pagesIn: 1500);
+        Assert.Contains("Nachladen vom Laufwerk", text);
+        Assert.DoesNotContain("Hauptthread", text);
+    }
+
     // ------------------------------------------------------------------ GPU-Temperaturdrosselung
 
     private static Snapshot Thermal(int i, bool flag) => Snap(T0.AddSeconds(i * 0.5)) with

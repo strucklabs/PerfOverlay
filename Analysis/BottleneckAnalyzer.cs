@@ -55,7 +55,7 @@ public sealed class BottleneckAnalyzer
 
     /// <summary>Kennzahlen je Messtakt – um Ruckler im Nachhinein einer Ursache zuzuordnen.</summary>
     private readonly record struct Sample(DateTime Time, double PagesIn, double DiskActive, double CpuTotal, double MaxPerfCore, bool VramSpill,
-        bool DpcHigh, double CommitPercent);
+        bool DpcHigh, double CommitPercent, double MainThread);
 
     private readonly BufferbloatTracker _bloat = new();
 
@@ -295,7 +295,7 @@ public sealed class BottleneckAnalyzer
 
         // Verlauf für die Ruckler-Zuordnung
         _history.Enqueue(new Sample(s.Time, mem.PagesInPerSec, s.Disk.ActivePercent, s.Cpu.TotalLoad, s.Cpu.MaxPerfCoreLoad, vramSpill,
-            dpcHigh, mem.CommitPercent));
+            dpcHigh, mem.CommitPercent, s.MainThread?.Percent ?? 0));
         while (_history.Count > 0 && s.Time - _history.Peek().Time > HistoryWindow) _history.Dequeue();
 
         // --- Verbindung: bremst keine FPS, verursacht aber Lag in Online-Spielen ---
@@ -660,6 +660,9 @@ public sealed class BottleneckAnalyzer
         return SyncProblem.None;
     }
 
+    /// <summary>Ab dieser Hauptthread-Last im Moment eines Rucklers lautet die Ursache „Hauptthread voll“.</summary>
+    public const double MainThreadStutterPercent = 95;
+
     /// <summary>Bis zu dieser Hauptthread-Last gilt eine stabile Bildrate auf einem typischen Limit als FPS-Limit.</summary>
     public const double SteadyCapMainThreadPercent = 90;
 
@@ -687,6 +690,9 @@ public sealed class BottleneckAnalyzer
         if (near.Any(h => h.DpcHigh)) return "Treiber-Unterbrechung (DPC)";
         if (near.Any(h => h.CommitPercent >= 95)) return "Speicherzusage am Limit";
         if (near.Any(h => h.CpuTotal >= 90 || h.MaxPerfCore >= 98)) return "CPU-Spitze";
+        // Ein voller Hauptthread ist ein Hinweis, kein Beweis (Plan Probelauf CPU, E3): 7DtD 52 % der Ruckler-Sekunden
+        // gegenüber 29 % sonst. Auch Shader-Kompilierung belastet ihn – daher "voll", nicht "verursacht durch".
+        if (near.Any(h => h.MainThread >= MainThreadStutterPercent)) return "Hauptthread voll (Spielberechnung)";
         return "unklar (z. B. Shader-Kompilierung)";
     }
 }
