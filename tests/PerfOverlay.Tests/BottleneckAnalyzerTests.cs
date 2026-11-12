@@ -54,6 +54,34 @@ public class BottleneckAnalyzerTests
         Assert.Equal("FPS-LIMIT", v.Title);
     }
 
+    [Theory]
+    [InlineData(60)]
+    [InlineData(75)]
+    [InlineData(85)]
+    public void CK3_stabil_120_FPS_mit_halbvollem_Hauptthread_ist_FPS_Limit(double mainThread)
+    {
+        // Echte Werte CK3 (Plan Probelauf CPU, E1): 119,9 FPS, CPU-Busy 8,3 ms bei 8,4 ms Bildzeit, GPU 4 ms
+        var frames = Frames(8.34, 8.3, 0.04, 4.0, 4.3);
+        var v = Run(i => Snap(T0.AddSeconds(i * 0.5), frames, new ThreadLoad(mainThread, null)));
+        Assert.Equal(BottleneckKind.Limit, v.Kind);
+        Assert.Contains(mainThread >= 70 ? "stabil bei 120 FPS" : "Hauptthread nur", v.Detail);
+    }
+
+    [Fact]
+    public void Stabil_120_FPS_mit_vollem_Hauptthread_bleibt_CPU_Limit()
+    {
+        var frames = Frames(8.34, 8.3, 0.04, 4.0, 4.3);
+        Assert.Equal(BottleneckKind.Cpu, Run(i => Snap(T0.AddSeconds(i * 0.5), frames, new ThreadLoad(95, null))).Kind);
+    }
+
+    [Fact]
+    public void Echtes_CPU_Limit_7DtD_bleibt_CPU_Limit()
+    {
+        // Echte Werte 7 Days to Die ab Minute 17: ~100 FPS (kein typisches Limit), Hauptthread 97 %
+        var frames = Frames(10.1, 10.0, 0.1, 8.2, 1.9);
+        Assert.Equal(BottleneckKind.Cpu, Run(i => Snap(T0.AddSeconds(i * 0.5), frames, new ThreadLoad(97, null))).Kind);
+    }
+
     [Fact]
     public void Ausgelasteter_Hauptthread_bei_wartender_GPU_ist_CPU_Limit()
     {

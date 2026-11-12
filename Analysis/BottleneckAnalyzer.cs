@@ -552,10 +552,14 @@ public sealed class BottleneckAnalyzer
             // 60-FPS-Limit) warten für ihren Begrenzer innerhalb des CPU-Frames. PresentMon zählt das als
             // CPU-Busy, obwohl die CPU kaum arbeitet. Ein echtes CPU-Limit braucht daher eine ausgelastete CPU:
             // den Hauptthread (genau) oder ersatzweise einen P-Kern (unschärfer wegen Thread-Hopping).
+            // Liegt die Bildrate stabil auf einem typischen Limit, begrenzt das Spiel, solange der Hauptthread nicht
+            // voll ist (CK3: fest 120 FPS bei schwankend 55–75 % Hauptthread). Ein echtes CPU-Limit trifft selten genau
+            // ein typisches Limit – und wenn, dann mit vollem Hauptthread.
             bool cpuSaturated = s.MainThread is { } main ? main.Percent >= 70 : s.Cpu.MaxPerfCoreLoad >= 85;
-            if (!cpuSaturated || (s.MainThread == null && IsSteadyCap(f)))
+            bool steadyCap = IsSteadyCap(f) && (s.MainThread is not { } mainAtCap || mainAtCap.Percent < SteadyCapMainThreadPercent);
+            if (!cpuSaturated || steadyCap)
             {
-                string why = s.MainThread is { } m
+                string why = s.MainThread is { } m && !cpuSaturated
                     ? $"Hauptthread nur {m.Percent:0} % – Begrenzer im Spiel"
                     : $"stabil bei {1000 / f.MedianMs:0} FPS – Begrenzer im Spiel";
                 return Limited($"{shares} – {why}");
@@ -655,6 +659,9 @@ public sealed class BottleneckAnalyzer
         }
         return SyncProblem.None;
     }
+
+    /// <summary>Bis zu dieser Hauptthread-Last gilt eine stabile Bildrate auf einem typischen Limit als FPS-Limit.</summary>
+    public const double SteadyCapMainThreadPercent = 90;
 
     private static readonly double[] CommonCaps = [30, 40, 45, 48, 50, 60, 72, 75, 90, 100, 120, 144, 165, 170, 180, 200, 240, 360];
 

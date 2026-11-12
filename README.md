@@ -157,7 +157,10 @@ Mit Frame-Daten (zuverlässig), bezogen auf die vom Spiel gerenderten Frames (Fr
 - GPU-Busy ≥ 90 % der Frametime → **GPU-limitiert** (Normalfall)
 - CPU wartet ≥ 25 % → **FPS-Limit** bzw. **VSync** (SyncInterval ≥ 1)
 - GPU ≥ 15 % untätig („GPU wartet“) oder CPU-Busy ≥ 85 % → **CPU-limitiert**. „GPU wartet“ ist das
-  zuverlässigere Signal, weil CPU-Busy bei manchen Engines auch das Warten auf die GPU enthält.
+  zuverlässigere Signal, weil CPU-Busy bei manchen Engines auch das Warten auf die GPU enthält. Ausnahme: Ist die
+  CPU nicht ausgelastet (Hauptthread unter 70 %) oder liegt die Bildrate stabil auf einem typischen Limit (60, 120,
+  144 FPS …) bei einem Hauptthread unter 90 %, gilt das als **FPS-Limit**. Viele Spiele warten für ihren Begrenzer
+  innerhalb des CPU-Frames, PresentMon zählt das als CPU-Busy.
 - sonst **gemischt**
 
 Darstellung: Urteil mit konkretem Tipp, Anteile der Kategorien über die letzten 30 s (Balken), Frametime-Graph
