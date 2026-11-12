@@ -9,15 +9,21 @@ namespace PerfOverlay.Analysis;
 /// <summary>
 /// Zeichnet Spielsitzungen als CSV auf – eine Zeile pro Sekunde, Auswertung mit Auswertung.html.
 ///
-/// Eine Sitzung beginnt, sobald ein Spiel Frames liefert, und endet nach 30 s ohne Frames
-/// (oder beim Beenden des Overlays). Format: Semikolon als Trenner, Dezimalkomma – öffnet sich
+/// Eine Sitzung beginnt, sobald ein Spiel Frames liefert, und endet, wenn das Spiel beendet wird, ein anderes Spiel
+/// in den Vordergrund kommt, 10 Minuten lang keine Frames kommen oder das Overlay beendet wird. Lange Ladepausen
+/// erscheinen als Lücke in der Datei, teilen die Sitzung aber nicht. Format: Semikolon als Trenner, Dezimalkomma – öffnet sich
 /// in deutschem Excel direkt korrekt. Zeilen mit "#" am Anfang sind Metadaten.
 /// </summary>
 public sealed class SessionRecorder : IDisposable
 {
     private static readonly TimeSpan RowInterval = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan RowTolerance = TimeSpan.FromMilliseconds(150);
-    private static readonly TimeSpan SessionTimeout = TimeSpan.FromSeconds(30);
+    // Eine Sitzung endet, wenn das Spiel beendet ist (geprüft nach ein paar Sekunden ohne Bilder) – nicht schon nach
+    // einer langen Ladepause: Manche Spiele liefern beim Laden eines Gebiets über 30 s keine Bilder.
+    private static readonly TimeSpan GoneCheckAfter = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan AliveCheckInterval = TimeSpan.FromSeconds(2);
+    // Läuft das Spiel noch, liefert aber gar nichts mehr (minimiert, Spieler weg), endet die Sitzung nach 10 Minuten
+    private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(10);
     private static readonly CultureInfo De = CultureInfo.GetCultureInfo("de-DE");
 
     public static string Folder { get; } = Path.Combine(
@@ -25,14 +31,34 @@ public sealed class SessionRecorder : IDisposable
 
     private readonly string _folder;
     private readonly string? _fixedName;
+    private readonly Func<int, bool> _isProcessAlive;
 
     /// <param name="folder">Zielordner (Standard: Dokumente\PerfOverlay\Sitzungen).</param>
     /// <param name="fixedName">Fester Dateiname statt Zeitstempel (nur für die Vorschau-Beispieldaten).</param>
-    public SessionRecorder(string? folder = null, string? fixedName = null)
+    /// <param name="isProcessAlive">Läuft der Prozess noch? (Standard: Windows fragen; für Tests ersetzbar)</param>
+    public SessionRecorder(string? folder = null, string? fixedName = null, Func<int, bool>? isProcessAlive = null)
     {
         _folder = folder ?? Folder;
         _fixedName = fixedName;
+        _isProcessAlive = isProcessAlive ?? ProcessAlive;
     }
+
+    /// <summary>Prozess läuft noch; ohne Zugriff (geschützte Spiele) im Zweifel ja – dann greift die 10-Minuten-Grenze.</summary>
+    internal static bool ProcessAlive(int pid)
+    {
+        try
+        {
+            using var p = System.Diagnostics.Process.GetProcessById(pid);
+            try { return !p.HasExited; }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { return true; }
+        }
+        catch (ArgumentException)
+        {
+            return false;   // kein Prozess mit dieser ID
+        }
+    }
+
+    private DateTime _lastAliveCheck;
 
     private StreamWriter? _writer;
     private DateTime _sessionStart;
@@ -80,10 +106,20 @@ public sealed class SessionRecorder : IDisposable
             if (_writer == null && IsGameInForeground(s, f)) Start(s, f);
             if (_writer != null) _lastFrames = s.Time;
         }
-        else if (_writer != null && s.Time - _lastFrames > SessionTimeout)
+        else if (_writer != null && s.Time - _lastFrames > GoneCheckAfter)
         {
-            Stop();
-            return;
+            bool idleTooLong = s.Time - _lastFrames > IdleTimeout;
+            bool gone = false;
+            if (!idleTooLong && s.Time - _lastAliveCheck >= AliveCheckInterval)
+            {
+                _lastAliveCheck = s.Time;
+                gone = !_isProcessAlive(_gamePid);
+            }
+            if (idleTooLong || gone)
+            {
+                Stop();
+                return;
+            }
         }
 
         // Toleranz für den Messtakt: kommt er ein paar Millisekunden zu früh, fehlte sonst eine ganze Sekunde

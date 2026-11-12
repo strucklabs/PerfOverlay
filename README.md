@@ -57,8 +57,7 @@ zusätzlich, ob `useplatformclock` gesetzt ist. Die dritte Zeile zählt tote Ver
 ## Sitzungen aufzeichnen und auswerten
 
 Sobald ein Spiel Frames liefert, schreibt das Overlay eine Sitzung nach `Dokumente\PerfOverlay\Sitzungen`
-(eine CSV-Zeile pro Sekunde; Semikolon und Dezimalkomma, öffnet sich in deutschem Excel direkt). Nach 30 s ohne
-Frames oder beim Spielwechsel beginnt eine neue Datei. Abschaltbar im Tray-Menü („Sitzungen aufzeichnen“).
+(eine CSV-Zeile pro Sekunde; Semikolon und Dezimalkomma, öffnet sich in deutschem Excel direkt). Eine Sitzung endet, wenn das Spiel beendet wird (Prozess geprüft nach 5 s ohne Frames), ein anderes Spiel in den Vordergrund kommt oder 10 Minuten lang keine Frames kommen – lange Ladepausen erscheinen als Lücke, teilen die Sitzung aber nicht. Abschaltbar im Tray-Menü („Sitzungen aufzeichnen“).
 
 `Auswertung\PerfOverlay-Auswertung.html` (Tray-Menü → „Auswertung öffnen“) wertet die Dateien per Drag & Drop
 im Browser aus – ohne Internet, ohne Upload:

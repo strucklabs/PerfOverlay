@@ -38,7 +38,7 @@ public sealed class SessionRecorderTests : IDisposable
     [Fact]
     public void Alt_Tab_in_App_mit_eigener_Grafikausgabe_beendet_die_Spielsitzung_nicht()
     {
-        using var recorder = new SessionRecorder(_folder);
+        using var recorder = new SessionRecorder(_folder, isProcessAlive: _ => true);
         double t = 0;
         for (; t < 70; t += 0.5) recorder.Record(Snap(t, Frames(GamePid, "Warframe.x64.exe"), GamePid), Verdict);
         // 10 s in der Claude-App, die selbst Frames liefert
@@ -61,7 +61,7 @@ public sealed class SessionRecorderTests : IDisposable
     public void Hardware_Tools_im_Vordergrund_werden_nicht_als_Spiel_aufgezeichnet(string app)
     {
         // Tuning-Programme zeichnen ihre Oberfläche über die GPU und bleiben beim Einstellen lange im Vordergrund
-        using var recorder = new SessionRecorder(_folder);
+        using var recorder = new SessionRecorder(_folder, isProcessAlive: _ => true);
         for (double t = 0; t < 120; t += 0.5) recorder.Record(Snap(t, Frames(GamePid, app), GamePid), Verdict);
         recorder.Stop();
         Assert.Empty(Files());
@@ -71,7 +71,7 @@ public sealed class SessionRecorderTests : IDisposable
     public void Leicht_schwankender_Messtakt_ergibt_trotzdem_eine_Zeile_pro_Sekunde()
     {
         // Der 500-ms-Takt kommt mal ein paar Millisekunden zu früh, mal zu spät
-        using var recorder = new SessionRecorder(_folder);
+        using var recorder = new SessionRecorder(_folder, isProcessAlive: _ => true);
         var rnd = new Random(42);
         for (int i = 0; i < 240; i++)
         {
@@ -87,7 +87,7 @@ public sealed class SessionRecorderTests : IDisposable
     [Fact]
     public void Wechsel_zu_anderem_Spiel_im_Vordergrund_beginnt_neue_Sitzung()
     {
-        using var recorder = new SessionRecorder(_folder);
+        using var recorder = new SessionRecorder(_folder, isProcessAlive: _ => true);
         double t = 0;
         for (; t < 70; t += 0.5) recorder.Record(Snap(t, Frames(GamePid, "Warframe.x64.exe"), GamePid), Verdict);
         for (; t < 140; t += 0.5) recorder.Record(Snap(t, Frames(OtherGamePid, "Cyberpunk2077.exe"), OtherGamePid), Verdict);
@@ -99,7 +99,7 @@ public sealed class SessionRecorderTests : IDisposable
     [Fact]
     public void Ruckler_vor_Sitzungsbeginn_werden_nicht_gezaehlt()
     {
-        using var recorder = new SessionRecorder(_folder);
+        using var recorder = new SessionRecorder(_folder, isProcessAlive: _ => true);
         // PresentMon hält 10 s Verlauf: beim Start sind schon zwei ältere Ruckler (Zeit 3 und 4) enthalten
         double t = 0;
         for (; t < 30; t += 0.5) recorder.Record(Snap(t, Frames(GamePid, "Spiel.exe", 3, 4), GamePid), Verdict);
@@ -111,9 +111,54 @@ public sealed class SessionRecorderTests : IDisposable
     }
 
     [Fact]
+    public void Lange_Ladepause_teilt_die_Sitzung_nicht()
+    {
+        // Wie Windrose beim Gebietswechsel: 47 s ohne Bilder, das Spiel läuft aber weiter
+        using var recorder = new SessionRecorder(_folder, isProcessAlive: _ => true);
+        double t = 0;
+        for (; t < 70; t += 0.5) recorder.Record(Snap(t, Frames(GamePid, "Windrose-Win64-Shipping.exe"), GamePid), Verdict);
+        for (; t < 117; t += 0.5) recorder.Record(Snap(t, null, GamePid), Verdict);
+        for (; t < 160; t += 0.5) recorder.Record(Snap(t, Frames(GamePid, "Windrose-Win64-Shipping.exe"), GamePid), Verdict);
+        recorder.Stop();
+        Assert.Single(Files());
+    }
+
+    [Fact]
+    public void Beendetes_Spiel_beendet_die_Sitzung_nach_wenigen_Sekunden()
+    {
+        bool alive = true;
+        using var recorder = new SessionRecorder(_folder, isProcessAlive: _ => alive);
+        double t = 0;
+        for (; t < 70; t += 0.5) recorder.Record(Snap(t, Frames(GamePid, "Spiel.exe"), GamePid), Verdict);
+        alive = false;
+        for (; t < 80; t += 0.5) recorder.Record(Snap(t, null, 0), Verdict);
+        Assert.False(recorder.Recording);
+        Assert.Single(Files());
+    }
+
+    [Fact]
+    public void Ohne_Bilder_endet_die_Sitzung_nach_zehn_Minuten()
+    {
+        using var recorder = new SessionRecorder(_folder, isProcessAlive: _ => true);
+        double t = 0;
+        for (; t < 70; t += 0.5) recorder.Record(Snap(t, Frames(GamePid, "Spiel.exe"), GamePid), Verdict);
+        for (; t < 70 + 9 * 60; t += 1) recorder.Record(Snap(t, null, 0), Verdict);
+        Assert.True(recorder.Recording);                 // 9 min Pause: läuft noch
+        for (; t < 70 + 11 * 60; t += 1) recorder.Record(Snap(t, null, 0), Verdict);
+        Assert.False(recorder.Recording);
+    }
+
+    [Fact]
+    public void Prozesspruefung_erkennt_laufende_und_fehlende_Prozesse()
+    {
+        Assert.True(SessionRecorder.ProcessAlive(Environment.ProcessId));
+        Assert.False(SessionRecorder.ProcessAlive(int.MaxValue - 1));
+    }
+
+    [Fact]
     public void Kurze_Sitzungen_werden_verworfen()
     {
-        using var recorder = new SessionRecorder(_folder);
+        using var recorder = new SessionRecorder(_folder, isProcessAlive: _ => true);
         for (double t = 0; t < 20; t += 0.5) recorder.Record(Snap(t, Frames(GamePid, "Spiel.exe"), GamePid), Verdict);
         recorder.Stop();
         Assert.Empty(Files());
