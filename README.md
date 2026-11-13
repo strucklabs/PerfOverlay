@@ -90,7 +90,7 @@ im Browser aus – ohne Internet, ohne Upload:
 - **Tipps mit Systemeinstellungen** (auch im Overlay): Akku/Stromsparmodus zuerst; beim FPS-Limit „Monitor kann
   {max} Hz“ bzw. „Limit auf Hz − 3 FPS“ (G-Sync/FreeSync); beim CPU-Limit Energieplan „Höchstleistung“ testen, in der
   Auswertung zusätzlich Windows 11 bei Hybrid-CPU unter Windows 10 und Speicher-Integrität (als Abwägung, keine
-  Empfehlung); beim GPU-Limit Resizable BAR; bei häufigen Rucklern ohne Ursache Overlays abschalten. Höchstens 6 Tipps,
+  Empfehlung); beim GPU-Limit Resizable BAR; bei häufigen Rucklern, deren häufigste Ursache „unklar“ ist, Overlays abschalten. Höchstens 6 Tipps,
   die passenden System-Tipps direkt hinter dem ersten allgemeinen
 - Zusammenfassung: Ø FPS, Ø 1%-Low, Hauptengpass, **Ø FPS im CPU-Limit**, Ruckler pro Minute, Drosselung;
   Temperaturen, Takt und Ping stehen in ihren Abschnitten

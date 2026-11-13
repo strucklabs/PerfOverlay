@@ -847,7 +847,7 @@ function resultBlock(s) {
   }
   if (top === "Gpu" && m["Resizable BAR"] === "aus")
     extra.push("Resizable BAR im BIOS aktivieren („Above 4G Decoding“ und „Re-Size BAR“) – bringt in manchen Spielen einige Prozent");
-  if (st.spikesPerMin > 2 && noteShare(st, /unklar/) > 0)
+  if (st.spikesPerMin > 2 && topStutterCause(st) === "unklar")
     extra.push("Häufige Ruckler ohne erkennbare Ursache: Overlays und Aufnahme-Software (Discord, Steam, GeForce Experience, AMD) testweise abschalten");
   // Passende System-Tipps direkt hinter den ersten allgemeinen Tipp – sie sind konkreter als die übrigen
   const firstBase = tips.findIndex(t => !t.startsWith("Zuerst"));
@@ -944,6 +944,24 @@ function gapNote(parent, s, keys) {
 
 const LEVEL_ICON = { bad: "!", warn: "!", info: "i", good: "✓" };
 const LEVEL_ORDER = { bad: 0, warn: 1, info: 2, good: 3 };
+
+/**
+ * Häufigste Ruckler-Ursache laut Meldungen ("Ruckler: 3× in 10 s – 2× VRAM-Auslagerung, 1× unklar (…)"), gewichtet
+ * nach der Dauer der Meldung. Ergebnis: Ursache ohne Klammerzusatz, z. B. "VRAM-Auslagerung" oder "unklar"; null ohne
+ * Ruckler-Meldungen.
+ */
+function topStutterCause(st) {
+  const causes = new Map();
+  for (const n of st.notes) {
+    const m = n.text.match(/^Ruckler:.*? – (.*)$/);
+    if (!m) continue;
+    for (const part of m[1].split(", ")) {
+      const cause = part.replace(/^\d+× /, "").replace(/ \(.*$/, "");
+      causes.set(cause, (causes.get(cause) || 0) + n.seconds);
+    }
+  }
+  return [...causes].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+}
 
 /** Anteil der Sitzung (0–1), in der eine Meldung aktiv war, deren Text auf das Muster passt */
 function noteShare(st, pattern) {
